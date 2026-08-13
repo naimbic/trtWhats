@@ -4,6 +4,9 @@ import (
 	"crypto/hmac"
 	"crypto/sha1" //nolint:gosec // SHA-1 is mandated by the coturn TURN REST API (RFC draft)
 	"encoding/base64"
+	"fmt"
+	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -218,10 +221,109 @@ func Load(configPath string) (*Config, error) {
 		return nil, err
 	}
 
+	// Optional single-URL overrides. Managed platforms (Coolify, Heroku, Railway,
+	// Render, …) expose one connection string per service rather than discrete
+	// host/port/user fields. When set, these take precedence over the individual
+	// database.* / redis.* settings and fill only the parts the URL specifies.
+	// Applied before setDefaults so anything the URL omits (e.g. ssl_mode) still
+	// gets a sane default.
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		if err := applyDatabaseURL(&cfg.Database, dbURL); err != nil {
+			return nil, err
+		}
+	}
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		if err := applyRedisURL(&cfg.Redis, redisURL); err != nil {
+			return nil, err
+		}
+	}
+
 	// Set defaults
 	setDefaults(&cfg)
 
 	return &cfg, nil
+}
+
+// applyDatabaseURL parses a PostgreSQL connection string
+// (postgres://user:pass@host:port/dbname?sslmode=...) into the database config.
+// Only the parts present in the URL are set.
+func applyDatabaseURL(cfg *DatabaseConfig, raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid DATABASE_URL: %w", err)
+	}
+	if u.Scheme != "postgres" && u.Scheme != "postgresql" {
+		return fmt.Errorf("invalid DATABASE_URL scheme %q (want postgres:// or postgresql://)", u.Scheme)
+	}
+	if h := u.Hostname(); h != "" {
+		cfg.Host = h
+	}
+	if p := u.Port(); p != "" {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return fmt.Errorf("invalid DATABASE_URL port %q: %w", p, err)
+		}
+		cfg.Port = n
+	}
+	if u.User != nil {
+		if usr := u.User.Username(); usr != "" {
+			cfg.User = usr
+		}
+		if pw, ok := u.User.Password(); ok {
+			cfg.Password = pw
+		}
+	}
+	if name := strings.TrimPrefix(u.Path, "/"); name != "" {
+		cfg.Name = name
+	}
+	if ssl := u.Query().Get("sslmode"); ssl != "" {
+		cfg.SSLMode = ssl
+	}
+	return nil
+}
+
+// applyRedisURL parses a Redis connection string
+// (redis://[user:pass@]host:port/db, or rediss:// for TLS) into the redis config.
+// Only the parts present in the URL are set.
+func applyRedisURL(cfg *RedisConfig, raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid REDIS_URL: %w", err)
+	}
+	switch u.Scheme {
+	case "rediss":
+		cfg.TLS = true
+	case "redis":
+		// plaintext
+	default:
+		return fmt.Errorf("invalid REDIS_URL scheme %q (want redis:// or rediss://)", u.Scheme)
+	}
+	if h := u.Hostname(); h != "" {
+		cfg.Host = h
+	}
+	if p := u.Port(); p != "" {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return fmt.Errorf("invalid REDIS_URL port %q: %w", p, err)
+		}
+		cfg.Port = n
+	}
+	if u.User != nil {
+		if usr := u.User.Username(); usr != "" {
+			cfg.Username = usr
+		}
+		if pw, ok := u.User.Password(); ok {
+			cfg.Password = pw
+		}
+	}
+	if dbStr := strings.TrimPrefix(u.Path, "/"); dbStr != "" {
+		n, err := strconv.Atoi(dbStr)
+		if err != nil {
+			return fmt.Errorf("invalid REDIS_URL db %q: %w", dbStr, err)
+		}
+		cfg.DB = n
+	}
+	return nil
 }
 
 func setDefaults(cfg *Config) {

@@ -87,8 +87,17 @@ of running them in this compose file:
 1. Create a **PostgreSQL** and a **Redis** resource in the same Project/Environment.
 2. Deploy the app as a **Dockerfile** resource (Build Pack = Dockerfile,
    path `docker/Dockerfile`).
-3. Set `WHATOMATE_DATABASE__HOST` / `WHATOMATE_REDIS__HOST` to the internal
-   hostnames Coolify shows for those resources, plus the same secret env vars.
+3. Point the app at them using the **single connection URL** each managed resource
+   exposes (use the *internal* URL, not the public one):
+
+   ```
+   DATABASE_URL=postgres://user:pass@internal-host:5432/dbname?sslmode=require
+   REDIS_URL=redis://:password@internal-host:6379/0
+   ```
+
+   `DATABASE_URL` / `REDIS_URL` override the discrete `WHATOMATE_DATABASE__*` /
+   `WHATOMATE_REDIS__*` fields, so you don't have to split the URL by hand. (You can
+   still use the split fields instead if you prefer.)
 
 The compose approach above is simpler and self-contained; this variant gives you
 independent DB lifecycle management and Coolify's built-in DB backups.

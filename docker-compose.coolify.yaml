@@ -35,7 +35,12 @@ services:
       WHATOMATE_JWT__SECRET: ${WHATOMATE_JWT__SECRET}
       WHATOMATE_COOKIE__SECURE: "true"
 
-      # --- Database (points at the postgres service below) ---
+      # --- Database ---
+      # Option A (managed DB): set DATABASE_URL to the ONE connection string your
+      # platform gives you, e.g. postgres://user:pass@host:5432/dbname?sslmode=require
+      # When set it overrides the discrete fields below.
+      DATABASE_URL: ${DATABASE_URL:-}
+      # Option B (bundled postgres service below): leave DATABASE_URL empty.
       WHATOMATE_DATABASE__HOST: postgres
       WHATOMATE_DATABASE__PORT: "5432"
       WHATOMATE_DATABASE__USER: ${POSTGRES_USER:-whatomate}
@@ -43,7 +48,10 @@ services:
       WHATOMATE_DATABASE__NAME: ${POSTGRES_DB:-whatomate}
       WHATOMATE_DATABASE__SSL_MODE: disable
 
-      # --- Redis (points at the redis service below) ---
+      # --- Redis ---
+      # Same idea: REDIS_URL (redis://... or rediss://... for TLS) overrides the
+      # discrete fields when set; leave empty to use the bundled redis service.
+      REDIS_URL: ${REDIS_URL:-}
       WHATOMATE_REDIS__HOST: redis
       WHATOMATE_REDIS__PORT: "6379"
 
