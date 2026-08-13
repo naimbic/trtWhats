@@ -21,6 +21,10 @@ func NewRedis(cfg *config.RedisConfig) (*redis.Client, error) {
 	if cfg.TLS {
 		opts.TLSConfig = &tls.Config{
 			MinVersion: tls.VersionTLS12,
+			// Allow connecting to a Redis that presents a self-signed / private-CA
+			// certificate (common for managed Redis on an internal network, e.g.
+			// Coolify). Opt-in only — safe on a trusted private network.
+			InsecureSkipVerify: cfg.TLSSkipVerify, //nolint:gosec // gated by explicit config
 		}
 	}
 

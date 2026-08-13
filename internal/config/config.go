@@ -129,12 +129,13 @@ type DatabaseConfig struct {
 }
 
 type RedisConfig struct {
-	Host     string `koanf:"host"`
-	Port     int    `koanf:"port"`
-	Username string `koanf:"username"`
-	Password string `koanf:"password"`
-	DB       int    `koanf:"db"`
-	TLS      bool   `koanf:"tls"`
+	Host          string `koanf:"host"`
+	Port          int    `koanf:"port"`
+	Username      string `koanf:"username"`
+	Password      string `koanf:"password"`
+	DB            int    `koanf:"db"`
+	TLS           bool   `koanf:"tls"`
+	TLSSkipVerify bool   `koanf:"tls_skip_verify"` // skip TLS cert verification (self-signed / private CA)
 }
 
 type JWTConfig struct {
@@ -294,9 +295,14 @@ func applyRedisURL(cfg *RedisConfig, raw string) error {
 	case "rediss":
 		cfg.TLS = true
 	case "redis":
-		// plaintext
+		cfg.TLS = false // plaintext — explicitly clear any TLS default
 	default:
 		return fmt.Errorf("invalid REDIS_URL scheme %q (want redis:// or rediss://)", u.Scheme)
+	}
+	// Optional ?tls_skip_verify=true (also honored via WHATOMATE_REDIS__TLS_SKIP_VERIFY).
+	// Useful for a rediss:// endpoint with a self-signed / private-CA certificate.
+	if v := u.Query().Get("tls_skip_verify"); v == "true" || v == "1" {
+		cfg.TLSSkipVerify = true
 	}
 	if h := u.Hostname(); h != "" {
 		cfg.Host = h
