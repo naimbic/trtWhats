@@ -60,3 +60,6 @@ test-results/
 
 # Docker 
 docker/.env
+
+# Local dev Redis data (created by bare redis-server)
+.redis/

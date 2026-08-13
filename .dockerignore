@@ -1,0 +1,37 @@
+# Git
+.git
+.github
+.gitignore
+
+# Local dev config & secrets (never bake into the image)
+config.toml
+.env
+.env.*
+*.local
+
+# Local runtime data / artifacts
+.redis/
+uploads/
+audio/
+whatomate
+whatomate.log
+*.log
+
+# Node (rebuilt inside the frontend-builder stage)
+frontend/node_modules
+frontend/dist
+
+# Go build cache / local binary
+bin/
+dist/
+
+# Embedded frontend is produced during the Docker build, not copied from host
+internal/frontend/dist/
+
+# Editor / OS cruft
+.DS_Store
+.vscode
+.idea
+
+# Docs site (not part of the app image)
+docs/

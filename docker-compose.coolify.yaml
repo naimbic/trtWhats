@@ -1,0 +1,100 @@
+# Whatomate — Coolify deployment stack
+# ---------------------------------------------------------------------------
+# Deploy in Coolify as: New Resource -> Docker Compose (Git based)
+#   Repository:      https://github.com/naimbic/trtWhats
+#   Branch:          main
+#   Compose file:    docker-compose.coolify.yaml
+#
+# The app reads config from WHATOMATE_* env vars (see .env.coolify.example),
+# which override the baked config.toml. Set the secret values in Coolify's
+# "Environment Variables" tab — do NOT commit real secrets.
+# ---------------------------------------------------------------------------
+
+services:
+  whatomate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    # The Dockerfile's default CMD already runs: server -migrate -config config.toml
+    # (migrations run on every deploy — idempotent).
+    restart: unless-stopped
+    environment:
+      # --- Coolify routing: bind the generated/assigned domain to port 8080 ---
+      SERVICE_FQDN_WHATOMATE_8080: ${SERVICE_FQDN_WHATOMATE_8080}
+
+      # --- App ---
+      WHATOMATE_APP__ENVIRONMENT: production
+      WHATOMATE_APP__DEBUG: "false"
+      WHATOMATE_APP__ENCRYPTION_KEY: ${WHATOMATE_APP__ENCRYPTION_KEY}
+
+      # --- Server / CORS (production requires an explicit origin) ---
+      # Set this to your public URL, e.g. https://whats.trtdigital.ma
+      WHATOMATE_SERVER__ALLOWED_ORIGINS: ${WHATOMATE_SERVER__ALLOWED_ORIGINS}
+
+      # --- Auth ---
+      WHATOMATE_JWT__SECRET: ${WHATOMATE_JWT__SECRET}
+      WHATOMATE_COOKIE__SECURE: "true"
+
+      # --- Database (points at the postgres service below) ---
+      WHATOMATE_DATABASE__HOST: postgres
+      WHATOMATE_DATABASE__PORT: "5432"
+      WHATOMATE_DATABASE__USER: ${POSTGRES_USER:-whatomate}
+      WHATOMATE_DATABASE__PASSWORD: ${POSTGRES_PASSWORD}
+      WHATOMATE_DATABASE__NAME: ${POSTGRES_DB:-whatomate}
+      WHATOMATE_DATABASE__SSL_MODE: disable
+
+      # --- Redis (points at the redis service below) ---
+      WHATOMATE_REDIS__HOST: redis
+      WHATOMATE_REDIS__PORT: "6379"
+
+      # --- Initial admin (only used on first migration when no users exist) ---
+      WHATOMATE_DEFAULT_ADMIN__EMAIL: ${WHATOMATE_DEFAULT_ADMIN__EMAIL:-admin@trtdigital.ma}
+      WHATOMATE_DEFAULT_ADMIN__PASSWORD: ${WHATOMATE_DEFAULT_ADMIN__PASSWORD}
+      WHATOMATE_DEFAULT_ADMIN__FULL_NAME: ${WHATOMATE_DEFAULT_ADMIN__FULL_NAME:-Admin}
+
+      # --- WhatsApp Cloud API (fill when ready; safe to leave blank) ---
+      WHATOMATE_WHATSAPP__APP_ID: ${WHATOMATE_WHATSAPP__APP_ID:-}
+      WHATOMATE_WHATSAPP__APP_SECRET: ${WHATOMATE_WHATSAPP__APP_SECRET:-}
+      WHATOMATE_WHATSAPP__CONFIG_ID: ${WHATOMATE_WHATSAPP__CONFIG_ID:-}
+      WHATOMATE_WHATSAPP__WEBHOOK_VERIFY_TOKEN: ${WHATOMATE_WHATSAPP__WEBHOOK_VERIFY_TOKEN:-}
+    volumes:
+      - whatomate-uploads:/app/uploads
+      - whatomate-audio:/app/audio
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-whatomate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-whatomate}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-whatomate} -d ${POSTGRES_DB:-whatomate}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
+  whatomate-uploads:
+  whatomate-audio:
