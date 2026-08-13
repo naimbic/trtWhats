@@ -85,8 +85,10 @@ If you prefer Coolify's one-click **PostgreSQL** and **Redis** resources instead
 of running them in this compose file:
 
 1. Create a **PostgreSQL** and a **Redis** resource in the same Project/Environment.
-2. Deploy the app as a **Dockerfile** resource (Build Pack = Dockerfile,
-   path `docker/Dockerfile`).
+2. Deploy the app as a **Dockerfile** resource (Build Pack = Dockerfile). A root
+   `Dockerfile` is provided (mirrors `docker/Dockerfile`) so Coolify's default
+   Dockerfile Location (`/Dockerfile`) works with no extra config. Build context
+   is the repo root.
 3. Point the app at them using the **single connection URL** each managed resource
    exposes (use the *internal* URL, not the public one):
 
