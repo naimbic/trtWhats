@@ -54,6 +54,7 @@ func (a *App) InitiateOutgoingCall(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
 	}
 
+	a.decryptAccountSecrets(&account)
 	waAccount := account.ToWAAccount()
 
 	callLogID, sdpAnswer, err := a.CallManager.InitiateOutgoingCall(
@@ -141,6 +142,7 @@ func (a *App) SendCallPermissionRequest(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "WhatsApp account not found", nil, "")
 	}
 
+	a.decryptAccountSecrets(&account)
 	waAccount := account.ToWAAccount()
 
 	// Send permission request via WhatsApp Messages API
@@ -232,6 +234,7 @@ func (a *App) GetCallPermission(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "WhatsApp account not found", nil, "")
 	}
 
+	a.decryptAccountSecrets(&account)
 	waAccount := account.ToWAAccount()
 
 	// Check permission via WhatsApp API
