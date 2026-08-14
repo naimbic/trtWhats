@@ -1,16 +1,3 @@
-# Slim image for Coolify / small hosts.
-# ---------------------------------------------------------------------------
-# This root Dockerfile is a lean variant of docker/Dockerfile: it drops the
-# WhatsApp Calling / IVR voice stack (Piper TTS + voice model + espeak-ng +
-# opus-tools) and ffmpeg. Result: a ~120MB image instead of ~800MB, so the
-# build and (crucially) the layer export don't exhaust RAM on small servers.
-#
-# Disabled by this variant: WhatsApp Calling/IVR voice prompts and server-side
-# audio/video transcoding. Core messaging, campaigns, chatbot, contacts, etc.
-# are unaffected. Need those features? Use docker/Dockerfile (full image) or
-# ask to add ffmpeg back.
-# ---------------------------------------------------------------------------
-
 # Frontend build stage — pinned to BUILDPLATFORM (output is arch-agnostic JS).
 FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
 
@@ -24,7 +11,8 @@ RUN npm ci
 COPY frontend/ .
 RUN npm run build
 
-# Go build stage — runs on BUILDPLATFORM, cross-compiles to TARGETOS/TARGETARCH.
+# Go build stage — runs on BUILDPLATFORM, cross-compiles to TARGETOS/TARGETARCH
+# so multi-arch builds don't emulate the Go toolchain under QEMU.
 FROM --platform=$BUILDPLATFORM golang:1.25.3-alpine AS builder
 
 ARG TARGETOS
@@ -32,37 +20,78 @@ ARG TARGETARCH
 
 WORKDIR /app
 
+# Install build dependencies
 RUN apk add --no-cache git ca-certificates
 
-# Cache module downloads
+# Copy go mod files
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source and embed the frontend build into the Go binary
+# Copy source code
 COPY . .
+
+# Embed frontend build into Go binary
 COPY --from=frontend-builder /app/frontend/dist/ ./internal/frontend/dist/
 
-# Static binary (CGO disabled) so it runs on a minimal Alpine base.
+# Build the binary
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -o whatomate ./cmd/whatomate
 
-# Minimal runtime — the static binary only needs CA certs + timezone data.
-FROM alpine:3.22
+# Piper TTS download stage — runs on BUILDPLATFORM (just wget+tar, no native exec),
+# selects the tarball matching TARGETARCH so the final image gets a binary that runs.
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS piper-dl
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN case "${TARGETARCH}" in \
+      amd64) PIPER_ARCH=x86_64 ;; \
+      arm64) PIPER_ARCH=aarch64 ;; \
+      *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && wget -q "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_${PIPER_ARCH}.tar.gz" -O /tmp/piper.tar.gz \
+    && tar xf /tmp/piper.tar.gz -C /tmp \
+    && rm /tmp/piper.tar.gz
+# Download default English voice model (~60MB)
+RUN mkdir -p /tmp/piper-models \
+    && wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx \
+       -O /tmp/piper-models/en_US-lessac-medium.onnx \
+    && wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json \
+       -O /tmp/piper-models/en_US-lessac-medium.onnx.json
+
+# Final stage (Debian for glibc — required by Piper TTS)
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates tzdata
+# Install runtime dependencies (TTS: espeak-ng, opus-tools; transcoding: ffmpeg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates tzdata espeak-ng opus-tools ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
-# Binary
+# Copy binary from builder
 COPY --from=builder /app/whatomate .
 
-# Config example (overridden by WHATOMATE_* env vars in production)
+# Copy config example (will be overridden by env vars in production)
 COPY --from=builder /app/config.example.toml ./config.toml
 
-# Runtime data directories
+
+# Install Piper TTS binary + shared libraries
+COPY --from=piper-dl /tmp/piper/piper /usr/local/bin/piper
+COPY --from=piper-dl /tmp/piper/lib*.so* /usr/local/lib/
+COPY --from=piper-dl /tmp/piper/espeak-ng-data /usr/share/espeak-ng-data
+RUN ldconfig
+
+# Install default voice model
+COPY --from=piper-dl /tmp/piper-models /opt/piper/models
+
+# Create directories
 RUN mkdir -p /app/uploads /app/audio
 
+# Expose port
 EXPOSE 8080
 
-# Binary is the ENTRYPOINT; CMD holds only the default subcommand/flags.
+# Match the GoReleaser image's launch convention so the same orchestrator
+# args work against both tags: the binary is the ENTRYPOINT and CMD holds
+# only the default subcommand/flags. A Nomad job that sets
+# `args = ["server", "-migrate", ...]` (no `command`) then appends to the
+# entrypoint instead of replacing the binary with "server".
 ENTRYPOINT ["./whatomate"]
 CMD ["server", "-config", "config.toml", "-migrate"]
