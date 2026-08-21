@@ -146,10 +146,28 @@ func (a *App) ServeMedia(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid message ID", nil, "")
 	}
 
-	// Find the message and verify access
-	message, err := findByIDAndOrg[models.Message](a.DB, r, messageID, orgID, "Message")
-	if err != nil {
-		return nil
+	// Find the message and verify access.
+	// TRT custom patch (media-org-cookie): super admins can view media across any
+	// org, but element requests (<img>/<video>/<audio>) cannot carry the
+	// X-Organization-ID header, so the session cookie's org may not match the
+	// message's org (a super admin viewing a non-default space) -> the org-scoped
+	// lookup 404s and the image is silently hidden. For super admins, resolve the
+	// message by its (unguessable UUID) id alone and adopt its org; the
+	// contacts:read gate below is unaffected (super admins bypass it). Non-super
+	// users stay strictly org-scoped.
+	var message *models.Message
+	if a.IsSuperAdmin(userID) {
+		var m models.Message
+		if err := a.DB.Where("id = ?", messageID).First(&m).Error; err != nil {
+			return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Message not found", nil, "")
+		}
+		message = &m
+		orgID = m.OrganizationID
+	} else {
+		message, err = findByIDAndOrg[models.Message](a.DB, r, messageID, orgID, "Message")
+		if err != nil {
+			return nil
+		}
 	}
 
 	// Users without contacts:read permission can only access media from contacts
