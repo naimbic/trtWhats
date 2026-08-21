@@ -74,8 +74,20 @@ const handleOrgChange = async (value: string | number | bigint | Record<string, 
   if (!value || typeof value !== 'string') return
 
   if (isSuperAdmin.value) {
-    // Super admins: set localStorage header and reload
+    // TRT custom patch (media-org-cookie): super admins must ALSO re-issue the
+    // session cookie for the selected org, not just set the X-Organization-ID
+    // header. Element-based media requests (<img>/<video>/<audio>) cannot send
+    // that header, so with a cookie still scoped to the default org, /api/media
+    // lookups hit the wrong org and 404 ("Message not found") — inbound images
+    // silently fail to render. switchOrg re-issues the cookie for the target org
+    // (super admins may switch to any org). Keep the header in sync too, and fall
+    // back to header-only if the switch call fails (preserves previous behaviour).
     organizationsStore.selectOrganization(value)
+    try {
+      await authStore.switchOrg(value)
+    } catch {
+      // header-only fallback (previous behaviour) — no regression
+    }
     window.location.reload()
   } else {
     // Multi-org users: call switchOrg API for new JWT tokens, then reload
