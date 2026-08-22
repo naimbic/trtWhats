@@ -1437,6 +1437,7 @@ func (a *App) extractMessageContent(ctx context.Context, msg IncomingTextMessage
 		extracted.Text = msg.Image.Caption
 		extracted.Media = &MediaInfo{
 			MediaMimeType: msg.Image.MimeType,
+			MediaID:       msg.Image.ID,
 		}
 		// Download and save media locally
 		waAccount := a.toWhatsAppAccount(account)
@@ -1451,6 +1452,7 @@ func (a *App) extractMessageContent(ctx context.Context, msg IncomingTextMessage
 		extracted.Media = &MediaInfo{
 			MediaMimeType: msg.Document.MimeType,
 			MediaFilename: msg.Document.Filename,
+			MediaID:       msg.Document.ID,
 		}
 		// Download and save media locally
 		waAccount := a.toWhatsAppAccount(account)
@@ -1464,6 +1466,7 @@ func (a *App) extractMessageContent(ctx context.Context, msg IncomingTextMessage
 		extracted.Text = msg.Video.Caption
 		extracted.Media = &MediaInfo{
 			MediaMimeType: msg.Video.MimeType,
+			MediaID:       msg.Video.ID,
 		}
 		// Download and save media locally
 		waAccount := a.toWhatsAppAccount(account)
@@ -1476,6 +1479,7 @@ func (a *App) extractMessageContent(ctx context.Context, msg IncomingTextMessage
 		// Handle audio message
 		extracted.Media = &MediaInfo{
 			MediaMimeType: msg.Audio.MimeType,
+			MediaID:       msg.Audio.ID,
 		}
 		// Download and save media locally
 		waAccount := a.toWhatsAppAccount(account)
@@ -1488,6 +1492,7 @@ func (a *App) extractMessageContent(ctx context.Context, msg IncomingTextMessage
 		// Handle sticker message (treat like image)
 		extracted.Media = &MediaInfo{
 			MediaMimeType: msg.Sticker.MimeType,
+			MediaID:       msg.Sticker.ID,
 		}
 		// Download and save media locally
 		waAccount := a.toWhatsAppAccount(account)
@@ -1540,6 +1545,7 @@ type MediaInfo struct {
 	MediaURL      string
 	MediaMimeType string
 	MediaFilename string
+	MediaID       string // Meta media id, kept for re-download resilience
 }
 
 // saveIncomingMessage saves an incoming message to the messages table
@@ -1574,6 +1580,7 @@ func (a *App) saveIncomingMessage(account *models.WhatsAppAccount, contact *mode
 		message.MediaURL = mediaInfo.MediaURL
 		message.MediaMimeType = mediaInfo.MediaMimeType
 		message.MediaFilename = mediaInfo.MediaFilename
+		message.MediaID = mediaInfo.MediaID
 	}
 
 	if err := a.DB.Create(&message).Error; err != nil {
@@ -1581,15 +1588,12 @@ func (a *App) saveIncomingMessage(account *models.WhatsAppAccount, contact *mode
 		return
 	}
 
-	// If the chatbot will handle this conversation (enabled + no active
-	// agent transfer), pre-mark the message as read so the contact-list
-	// unread badge doesn't briefly flash before the bot's reply arrives.
-	// See issue #280.
-	if a.willChatbotHandle(account, contact) {
-		a.DB.Model(&models.Message{}).Where("id = ?", message.ID).
-			Update("status", models.MessageStatusRead)
-		message.Status = models.MessageStatusRead
-	}
+	// TRT custom patch (whatsapp-unread-badge): do NOT pre-mark bot-handled
+	// messages as read. Leaving them "Received" is what makes the WhatsApp-style
+	// unread count (contacts.go: status != read) reflect real inbound messages, so
+	// the green bubble shows per contact and clears only when an agent opens the
+	// chat (MarkRead). Upstream pre-marked here for issue #280 (avoid a badge
+	// flash); we intentionally want the badge.
 
 	// Update contact's last message info
 	preview := content

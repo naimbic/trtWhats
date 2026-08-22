@@ -390,6 +390,10 @@ type Message struct {
 	MediaURL          string        `gorm:"type:text" json:"media_url"`
 	MediaMimeType     string        `gorm:"size:100" json:"media_mime_type"`
 	MediaFilename     string        `gorm:"size:255" json:"media_filename"`
+	// TRT custom patch (media-id-resilience): the Meta media id for inbound media,
+	// so a wiped/missing local file can be re-downloaded from Meta (within its ~30d
+	// retention). Empty for outbound and for legacy rows saved before this field.
+	MediaID           string        `gorm:"size:255" json:"media_id"`
 	TemplateName      string        `gorm:"size:255" json:"template_name"`
 	TemplateParams    JSONB         `gorm:"type:jsonb" json:"template_params"`
 	InteractiveData   JSONB         `gorm:"type:jsonb" json:"interactive_data"`
