@@ -401,10 +401,24 @@ func (a *App) AddTeamMember(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid user ID", nil, "")
 	}
 
-	// Verify user exists in org
-	user, err := findByIDAndOrg[models.User](a.DB, r, memberUserID, orgID, "User")
-	if err != nil {
-		return nil
+	// Verify the user exists and is a member of this org — either their home org
+	// OR a user_organizations membership. TRT custom patch (team-member-multi-org):
+	// upstream required the user's *home* org to equal this org, which blocked
+	// adding multi-org members (users who can switch into the org via the org
+	// switcher) to its teams — producing a misleading "User not found" for someone
+	// who clearly belongs to the org.
+	var user models.User
+	if err := a.DB.Where("id = ?", memberUserID).First(&user).Error; err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "User not found", nil, "")
+	}
+	if user.OrganizationID != orgID {
+		var memberCount int64
+		a.DB.Model(&models.UserOrganization{}).
+			Where("user_id = ? AND organization_id = ?", memberUserID, orgID).
+			Count(&memberCount)
+		if memberCount == 0 {
+			return r.SendErrorEnvelope(fasthttp.StatusForbidden, "User is not a member of this organization", nil, "")
+		}
 	}
 
 	// Check if already a member

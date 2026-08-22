@@ -22,6 +22,8 @@ grep -rn "TRT custom patch" internal/ frontend/src/
 | 10 | Incoming-call ring | `frontend/src/stores/calling.ts` (`handleCallEvent`) | Synthesize a repeating ring tone (Web Audio) while a `call_transfer_waiting` is pending; stop on connected/completed/abandoned/no_answer. whatomate had no incoming-call ring sound. Autoplay policy applies (one prior click). | _this change_ |
 | 11 | Call-permission Darija | `pkg/whatsapp/call.go` (`SendCallPermissionRequest`) | Default call-permission-request body text changed from English to Moroccan Darija. | _this change_ |
 
+| 12 | Team member multi-org | `internal/handlers/teams.go` (`AddTeamMember`) | Allow adding a user to a team if they're a **member** of the team's org (home org OR a `user_organizations` row), not only if it's their *home* org. Upstream rejected multi-org members (who can switch into the org) with a misleading "User not found". | _this change_ |
+
 ## Notes for maintainers
 - **No `upstream` remote is configured.** To pull upstream safely:
   `git remote add upstream https://github.com/shridarpatil/whatomate.git`
