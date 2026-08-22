@@ -238,6 +238,23 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 
 	// Only process text and interactive messages for chatbot
 	if messageText == "" {
+		// TRT custom patch (media-reply): whatomate silently drops messages with no
+		// text, so a client who sends only a screenshot/photo/voice note gets no
+		// reply and the conversation stalls (they think we ignored them, and the bot
+		// keeps re-asking on later texts). For media, send the fallback reply
+		// (acknowledge + ask for size/colour/city + staff will contact) instead of
+		// ignoring it. Debounced via chatbot_last_message_at so a burst of photos —
+		// or an in-flight flow reply — doesn't spam the customer.
+		switch msg.Type {
+		case "image", "video", "document", "sticker", "audio":
+			recentlyMessaged := contact.ChatbotLastMessageAt != nil &&
+				time.Since(*contact.ChatbotLastMessageAt) < 90*time.Second
+			if settings.FallbackMessage != "" && !recentlyMessaged {
+				if err := a.sendAndSaveTextMessage(account, contact, settings.FallbackMessage); err != nil {
+					a.Log.Error("Failed to send media fallback reply", "error", err, "type", msg.Type)
+				}
+			}
+		}
 		a.Log.Debug("Skipping message with no text content for chatbot", "type", msg.Type)
 		return
 	}

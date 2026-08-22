@@ -24,6 +24,8 @@ grep -rn "TRT custom patch" internal/ frontend/src/
 
 | 12 | Team member multi-org | `internal/handlers/teams.go` (`AddTeamMember`) | Allow adding a user to a team if they're a **member** of the team's org (home org OR a `user_organizations` row), not only if it's their *home* org. Upstream rejected multi-org members (who can switch into the org) with a misleading "User not found". | _this change_ |
 
+| 13 | Reply to media-only messages | `internal/handlers/chatbot_processor.go` (`processIncomingMessage`) | Upstream drops messages with no text, so a client who sends only a photo/screenshot/voice note got no reply (conversation stalls, bot re-asks on later texts). Now media messages (image/video/document/sticker/audio) send `FallbackMessage` (acknowledge + ask size/colour/city / staff will contact), debounced 90s via `chatbot_last_message_at` to avoid burst spam. | _this change_ |
+
 ## Notes for maintainers
 - **No `upstream` remote is configured.** To pull upstream safely:
   `git remote add upstream https://github.com/shridarpatil/whatomate.git`
