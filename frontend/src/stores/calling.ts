@@ -454,6 +454,48 @@ export const useCallingStore = defineStore('calling', () => {
     callPermissions.set(contactId, { status: 'pending' })
   }
 
+  // TRT custom patch (incoming-call ring): synthesize a repeating ring tone via
+  // the Web Audio API for incoming call transfers (no audio asset needed). The
+  // browser autoplay policy still applies — the agent must have interacted with
+  // the page once (a click) for the context to un-suspend.
+  let callRingCtx: AudioContext | null = null
+  let callRingTimer: number | null = null
+  function playRingBurst() {
+    try {
+      const AC = window.AudioContext || (window as any).webkitAudioContext
+      if (!AC) return
+      if (!callRingCtx) callRingCtx = new AC()
+      if (callRingCtx.state === 'suspended') callRingCtx.resume().catch(() => {})
+      const ctx = callRingCtx
+      const now = ctx.currentTime
+      // Classic double-ring: two ~0.35s dual-tone (440+480Hz) bursts.
+      for (const start of [0, 0.6]) {
+        for (const freq of [440, 480]) {
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc.type = 'sine'
+          osc.frequency.value = freq
+          const t0 = now + start
+          gain.gain.setValueAtTime(0.0001, t0)
+          gain.gain.exponentialRampToValueAtTime(0.16, t0 + 0.03)
+          gain.gain.setValueAtTime(0.16, t0 + 0.32)
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.38)
+          osc.connect(gain).connect(ctx.destination)
+          osc.start(t0)
+          osc.stop(t0 + 0.4)
+        }
+      }
+    } catch { /* ignore (autoplay blocked / no Web Audio) */ }
+  }
+  function startCallRing() {
+    if (callRingTimer !== null) return
+    playRingBurst()
+    callRingTimer = window.setInterval(playRingBurst, 3000)
+  }
+  function stopCallRing() {
+    if (callRingTimer !== null) { clearInterval(callRingTimer); callRingTimer = null }
+  }
+
   // WebSocket handler for call events
   function handleCallEvent(type: string, payload: any) {
     switch (type) {
@@ -462,15 +504,18 @@ export const useCallingStore = defineStore('calling', () => {
         if (!waitingTransfers.value.some(t => t.id === payload.id)) {
           waitingTransfers.value.push(payload as CallTransfer)
         }
+        startCallRing() // TRT custom patch: ring on incoming call
         break
       case 'call_transfer_connected':
         // Another agent accepted this transfer — remove from our waiting list
         waitingTransfers.value = waitingTransfers.value.filter(t => t.id !== payload.id)
+        if (waitingTransfers.value.length === 0) stopCallRing()
         break
       case 'call_transfer_completed':
       case 'call_transfer_abandoned':
       case 'call_transfer_no_answer':
         waitingTransfers.value = waitingTransfers.value.filter(t => t.id !== payload.id)
+        if (waitingTransfers.value.length === 0) stopCallRing()
         if (activeTransfer.value?.id === payload.id) {
           cleanup()
         }

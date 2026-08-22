@@ -89,7 +89,8 @@ func (c *Client) RejectCall(ctx context.Context, account *Account, callID string
 // Permission is valid for 72 hours once accepted.
 func (c *Client) SendCallPermissionRequest(ctx context.Context, account *Account, rcpt Recipient, bodyText string) (string, error) {
 	if bodyText == "" {
-		bodyText = "We'd like to call you to assist with your query."
+		// TRT custom patch: default call-permission text in Moroccan Darija.
+		bodyText = "مرحبا بيك 🌷 بغينا نعيطو ليك باش نعاونوك ف الطلب ديالك. عافاك وافقي على المكالمة 🩷"
 	}
 
 	payload := map[string]any{
