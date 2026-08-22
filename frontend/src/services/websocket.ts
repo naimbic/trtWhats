@@ -8,17 +8,41 @@ import { toast } from 'vue-sonner'
 import router from '@/router'
 
 // Notification sound
-let notificationSound: HTMLAudioElement | null = null
+let audioCtx: AudioContext | null = null
 
+// TRT custom patch (whatsapp-notification-sound): synthesize a short WhatsApp-style
+// two-note "ding" via the Web Audio API instead of loading /notification.mp3.
+// Avoids shipping a copyrighted sound file and needs no external asset. Browser
+// autoplay policy still applies — the context may stay suspended until the first
+// user interaction, so we resume() best-effort and swallow errors.
 function playNotificationSound() {
-  if (!notificationSound) {
-    notificationSound = new Audio('/notification.mp3')
-    notificationSound.volume = 0.5
+  try {
+    const AC = window.AudioContext || (window as any).webkitAudioContext
+    if (!AC) return
+    if (!audioCtx) audioCtx = new AC()
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {})
+    const now = audioCtx.currentTime
+    // Two quick soft sine notes (B5 -> E6), fast attack + decay = WhatsApp-ish pop.
+    const notes = [
+      { freq: 988, start: 0, dur: 0.13 },
+      { freq: 1319, start: 0.1, dur: 0.17 },
+    ]
+    for (const n of notes) {
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = n.freq
+      const t0 = now + n.start
+      gain.gain.setValueAtTime(0.0001, t0)
+      gain.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + n.dur)
+      osc.connect(gain).connect(audioCtx.destination)
+      osc.start(t0)
+      osc.stop(t0 + n.dur + 0.03)
+    }
+  } catch {
+    // Ignore (autoplay blocked until first user interaction, or no Web Audio).
   }
-  notificationSound.currentTime = 0
-  notificationSound.play().catch(() => {
-    // Ignore autoplay errors (browser may block until user interaction)
-  })
 }
 
 // Show toast notification with click handler

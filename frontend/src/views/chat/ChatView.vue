@@ -1824,8 +1824,10 @@ async function sendMediaMessage() {
                 <p class="flex-1 min-w-0 text-xs text-white/50 light:text-gray-500 truncate">
                   {{ contact.phone_number }}
                 </p>
-                <Badge v-if="contact.unread_count > 0" class="flex-shrink-0 h-5 text-[10px] bg-emerald-500/20 text-emerald-400 light:bg-emerald-100 light:text-emerald-700">
-                  {{ contact.unread_count }}
+                <!-- TRT custom patch (whatsapp-unread-badge): WhatsApp-style solid-green
+                     unread bubble; hidden (v-if) once the chat is opened (unread_count -> 0). -->
+                <Badge v-if="contact.unread_count > 0" class="flex-shrink-0 h-5 min-w-[20px] px-1.5 rounded-full text-[11px] font-semibold text-white border-0 flex items-center justify-center shadow-sm" style="background-color:#25D366">
+                  {{ contact.unread_count > 99 ? '99+' : contact.unread_count }}
                 </Badge>
               </div>
             </div>
