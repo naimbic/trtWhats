@@ -94,6 +94,46 @@ func (p *SLAProcessor) processOrganizationSLA(settings models.ChatbotSettings, n
 	if settings.ClientInactivity.ReminderEnabled {
 		p.processClientInactivity(orgID, settings, now)
 	}
+
+	// 5. TRT custom patch (auto-lost-tag): tag contacts "Lost" after 5 days of
+	// no inbound reply (unless already Converted/Lost).
+	p.tagLostContacts(orgID, now)
+}
+
+// tagLostContacts adds the "Lost" tag to contacts whose last inbound message is
+// older than 5 days and who aren't already tagged Converted or Lost. TRT custom
+// patch (auto-lost-tag). Tag names are matched exactly — if the tags are renamed
+// in the UI, update the constants below.
+func (p *SLAProcessor) tagLostContacts(orgID uuid.UUID, now time.Time) {
+	const lostTag = "ضائع - Perdu"
+	const convertedTag = "تم البيع - Converti"
+	cutoff := now.Add(-5 * 24 * time.Hour)
+
+	var contacts []models.Contact
+	if err := p.app.DB.Where(
+		"organization_id = ? AND last_inbound_at IS NOT NULL AND last_inbound_at < ? "+
+			"AND NOT (tags @> ?::jsonb) AND NOT (tags @> ?::jsonb)",
+		orgID, cutoff, `["`+lostTag+`"]`, `["`+convertedTag+`"]`,
+	).Limit(500).Find(&contacts).Error; err != nil {
+		p.app.Log.Error("tagLostContacts query failed", "error", err, "org", orgID)
+		return
+	}
+
+	tagged := 0
+	for i := range contacts {
+		c := &contacts[i]
+		newTags := append(models.JSONBArray{}, c.Tags...)
+		newTags = append(newTags, lostTag)
+		if err := p.app.DB.Model(&models.Contact{}).Where("id = ?", c.ID).
+			Update("tags", newTags).Error; err != nil {
+			p.app.Log.Error("tagLostContacts update failed", "error", err, "contact", c.ID)
+			continue
+		}
+		tagged++
+	}
+	if tagged > 0 {
+		p.app.Log.Info("Auto-tagged Lost contacts (5d inactive)", "org", orgID, "count", tagged)
+	}
 }
 
 // autoCloseExpiredTransfers closes transfers that have exceeded their expiry time
