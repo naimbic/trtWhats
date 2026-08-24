@@ -826,6 +826,14 @@ func (a *App) executeWidgetQuery(orgID uuid.UUID, widget models.Widget, fromStr,
 	response.PrevValue = previousValue
 	response.Change = calculatePercentageChange(int64(previousValue), int64(currentValue))
 
+	// TRT custom patch #18: sparkline for number/percentage widgets. Reuse the daily
+	// series helper so each KPI card can render a mini trend line under its value
+	// (matches the reference dashboard). Respects the widget's filters, so e.g. a
+	// Converted-clients card shows the converted trend, not all contacts.
+	if widget.DisplayType == "number" || widget.DisplayType == "percentage" {
+		response.ChartData = a.getChartData(orgID, widget, filters, periodStart, periodEnd)
+	}
+
 	// Get chart data if display type is chart
 	if widget.DisplayType == "chart" {
 		if widget.GroupByField != "" {

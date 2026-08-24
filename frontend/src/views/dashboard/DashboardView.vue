@@ -271,6 +271,49 @@ const pieChartOptions = {
   }
 }
 
+// TRT custom patch #18: sparkline (mini trend line) for number/percentage KPI cards.
+const sparklineColorMap: Record<string, string> = {
+  blue: 'rgb(59, 130, 246)',
+  green: 'rgb(16, 185, 129)',
+  purple: 'rgb(139, 92, 246)',
+  orange: 'rgb(245, 158, 11)',
+  red: 'rgb(239, 68, 68)',
+  cyan: 'rgb(6, 182, 212)'
+}
+const hasSparkline = (widget: DashboardWidget) =>
+  (widgetData.value[widget.id]?.chart_data?.length || 0) > 1
+const getSparklineData = (widget: DashboardWidget) => {
+  const pts = widgetData.value[widget.id]?.chart_data || []
+  const color = sparklineColorMap[widget.color] || sparklineColorMap.blue
+  return {
+    labels: pts.map((d: { label: string }) => d.label),
+    datasets: [{
+      data: pts.map((d: { value: number }) => d.value),
+      borderColor: color,
+      backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.12)'),
+      fill: true,
+      tension: 0.4,
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 0
+    }]
+  }
+}
+const sparklineOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: false as const,
+  plugins: {
+    legend: { display: false },
+    tooltip: { enabled: false }
+  },
+  scales: {
+    x: { display: false },
+    y: { display: false }
+  },
+  elements: { point: { radius: 0 } }
+}
+
 // Time range filter
 const {
   selectedRange,
@@ -863,6 +906,13 @@ onMounted(() => {
                     {{ Math.abs(widgetData[item.i]?.change || 0).toFixed(1) }}%
                   </span>
                   <span class="ml-1">{{ comparisonPeriodLabel }}</span>
+                </div>
+                <!-- TRT custom patch #18: sparkline (mini trend line) -->
+                <div
+                  v-if="!isWidgetDataLoading && hasSparkline(getWidgetById(item.i)!)"
+                  class="mt-3 h-10 -mx-1"
+                >
+                  <Line :data="getSparklineData(getWidgetById(item.i)!)" :options="sparklineOptions" />
                 </div>
                 <!-- TRT custom patch #17: optional external link (e.g. Google Sheet) -->
                 <a
