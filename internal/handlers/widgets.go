@@ -120,7 +120,7 @@ type DataPoint struct {
 // Available data sources and their filterable fields
 var widgetDataSources = map[string][]string{
 	"messages":  {"status", "direction", "message_type", "whatsapp_account"},
-	"contacts":  {"whatsapp_account", "is_read"},
+	"contacts":  {"whatsapp_account", "is_read", "tags"}, // TRT custom patch #17: tags filter/group_by (Converted/Lost/Waiting reporting)
 	"campaigns": {"status", "message_status"},
 	"transfers": {"status", "source"},
 	"sessions":  {"status"},
@@ -1002,6 +1002,7 @@ var allowedFilterFields = map[string]map[string]bool{
 		"status":           true,
 		"assigned_user_id": true,
 		"whatsapp_account": true,
+		"tags":             true, // TRT custom patch #17: JSONB tags column (special-cased in buildFilterSQL/getGroupedData)
 	},
 	"campaigns": {
 		"status":           true,
@@ -1084,22 +1085,33 @@ func (a *App) getGroupedData(orgID uuid.UUID, widget models.Widget, filters []Fi
 		"message_type": true, "assigned_user_id": true, "channel": true,
 		"is_active": true, "priority": true, "category": true,
 		"type": true, "action_type": true, "provider": true,
+		"tags": true, // TRT custom patch #17: contacts.tags (JSONB array) — unnested below
 	}
 	if !allowedGroupByFields[widget.GroupByField] {
 		a.Log.Error("Invalid GroupByField", "field", widget.GroupByField)
 		return dataPoints
 	}
 
+	// TRT custom patch #17: `tags` is a JSONB array, so grouping by the raw column
+	// would bucket by the whole array. Unnest it to one row per tag and group by the
+	// element, giving a Converted / Lost / Waiting breakdown for pie/bar charts.
+	selectExpr := widget.GroupByField
+	groupByExpr := widget.GroupByField
+	if widget.GroupByField == "tags" {
+		selectExpr = "jsonb_array_elements_text(tags)"
+		groupByExpr = "label"
+	}
+
 	query := fmt.Sprintf(`
 		SELECT %s as label, COUNT(*) as value
 		FROM %s
 		WHERE organization_id = ? AND %s >= ? AND %s <= ?
-	`, widget.GroupByField, tableName, dateField, dateField)
+	`, selectExpr, tableName, dateField, dateField)
 
 	args := []any{orgID, start, end}
 	query, args = appendFilterSQL(widget.DataSource, query, args, filters)
 
-	query += fmt.Sprintf(" GROUP BY %s ORDER BY value DESC", widget.GroupByField)
+	query += fmt.Sprintf(" GROUP BY %s ORDER BY value DESC", groupByExpr)
 
 	type GroupedCount struct {
 		Label string
@@ -1326,6 +1338,19 @@ func buildFilterSQL(dataSource string, filter FilterInput) (string, any, bool) {
 	}
 	field := filter.Field
 	value := filter.Value
+
+	// TRT custom patch #17: `tags` is a JSONB array column, not a scalar. A plain
+	// `tags = ?` / `tags ILIKE ?` never matches. For equals/contains we test array
+	// membership with the containment operator (uses the GIN index on tags), and for
+	// not_equals we negate it. Any value comparison against tags routes through here.
+	if field == "tags" {
+		switch filter.Operator {
+		case "not_equals":
+			return "NOT (tags @> ?::jsonb)", `["` + value + `"]`, true
+		default: // equals, contains, or anything else → membership test
+			return "tags @> ?::jsonb", `["` + value + `"]`, true
+		}
+	}
 
 	switch filter.Operator {
 	case "equals":

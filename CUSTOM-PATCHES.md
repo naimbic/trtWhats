@@ -32,6 +32,8 @@ grep -rn "TRT custom patch" internal/ frontend/src/
 
 | 16 | Gemini model list | `frontend/src/views/settings/ChatbotSettingsView.vue` | AI-model dropdown refreshed to current Gemini models (gemini-3.6-flash, gemini-2.5-flash/pro/flash-lite); the old gemini-2.0/1.5 entries 404 on generateContent (deprecated). | _this change_ |
 
+| 17 | Widget tags reporting | `internal/handlers/widgets.go` (`widgetDataSources`, `allowedFilterFields`, `buildFilterSQL`, `getGroupedData`) | Expose the contacts `tags` JSONB column to the dashboard widget builder so tag-based widgets work (Converted / Lost / Waiting reporting). `tags` is a JSONB array, so a scalar `=`/`ILIKE` never matches and grouping by the raw column buckets by the whole array — special-cased: filters use the containment operator `tags @> ?::jsonb` (GIN-indexed), group_by unnests via `jsonb_array_elements_text(tags)`. Enables a "Converted clients" count widget + a status breakdown pie/bar chart. | _this change_ |
+
 ## Notes for maintainers
 - **No `upstream` remote is configured.** To pull upstream safely:
   `git remote add upstream https://github.com/shridarpatil/whatomate.git`
