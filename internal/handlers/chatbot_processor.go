@@ -402,8 +402,14 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	}
 
 	// If no AI response or AI not enabled, send fallback message (for existing sessions)
-	// Greeting is already sent for new sessions above
-	if settings.FallbackMessage != "" && !isNewSession {
+	// Greeting is already sent for new sessions above.
+	// TRT custom patch (fallback-debounce): only send the fallback if the bot hasn't
+	// messaged this contact in the last 15 min, so an unrecognised message doesn't
+	// trigger the same fallback text over and over (spammy without AI). One nudge,
+	// then quiet until the window passes or an agent/keyword/AI handles it.
+	fbRecentlyMessaged := contact.ChatbotLastMessageAt != nil &&
+		time.Since(*contact.ChatbotLastMessageAt) < 15*time.Minute
+	if settings.FallbackMessage != "" && !isNewSession && !fbRecentlyMessaged {
 		a.Log.Info("Sending fallback message", "response", settings.FallbackMessage)
 		if len(settings.FallbackButtons) > 0 {
 			fallbackButtons := make([]map[string]any, 0)

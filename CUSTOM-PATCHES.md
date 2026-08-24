@@ -28,6 +28,8 @@ grep -rn "TRT custom patch" internal/ frontend/src/
 
 | 14 | Auto-tag Lost (5d) | `internal/handlers/sla_processor.go` (`processOrganizationSLA` + `tagLostContacts`) | Periodic job tags contacts "Lost" (`ضائع - Perdu`) after 5 days with no inbound reply, unless already Converted/Lost. Runs for SLA-enabled orgs. Tag names hardcoded — update constants if tags are renamed. | _this change_ |
 
+| 15 | Fallback debounce | `internal/handlers/chatbot_processor.go` (`processIncomingMessage`) | Only send the unmatched-text `FallbackMessage` if the bot hasn't messaged the contact in the last 15 min — stops the same fallback firing on every unrecognised word (spammy when AI is off). Real fix is a valid AI key. | _this change_ |
+
 ## Notes for maintainers
 - **No `upstream` remote is configured.** To pull upstream safely:
   `git remote add upstream https://github.com/shridarpatil/whatomate.git`
