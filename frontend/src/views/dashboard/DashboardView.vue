@@ -65,7 +65,8 @@ import {
   Zap,
   Shield,
   LineChart,
-  Tags
+  Tags,
+  ExternalLink
 } from 'lucide-vue-next'
 // Centralized Chart.js setup (registered once)
 import { Line, Bar, Pie } from '@/lib/charts'
@@ -863,6 +864,18 @@ onMounted(() => {
                   </span>
                   <span class="ml-1">{{ comparisonPeriodLabel }}</span>
                 </div>
+                <!-- TRT custom patch #17: optional external link (e.g. Google Sheet) -->
+                <a
+                  v-if="getWidgetById(item.i)!.config?.link_url"
+                  :href="getWidgetById(item.i)!.config.link_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  @click.stop
+                  class="inline-flex items-center gap-1 mt-3 text-xs font-medium text-emerald-400 hover:text-emerald-300 light:text-emerald-600"
+                >
+                  {{ getWidgetById(item.i)!.config.link_label || 'Open link' }}
+                  <ExternalLink class="h-3 w-3" />
+                </a>
               </div>
             </div>
 
@@ -924,6 +937,18 @@ onMounted(() => {
                   </div>
                 </template>
               </div>
+              <!-- TRT custom patch #17: optional external link (e.g. Google Sheet) -->
+              <a
+                v-if="getWidgetById(item.i)!.config?.link_url"
+                :href="getWidgetById(item.i)!.config.link_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                @click.stop
+                class="inline-flex items-center gap-1 mt-2 text-xs font-medium text-emerald-400 hover:text-emerald-300 light:text-emerald-600"
+              >
+                {{ getWidgetById(item.i)!.config.link_label || 'Open link' }}
+                <ExternalLink class="h-3 w-3" />
+              </a>
             </div>
 
             <!-- Table widget card -->
