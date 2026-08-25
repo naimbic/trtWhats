@@ -3,11 +3,14 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -218,6 +221,15 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	}
 	a.Log.Info("Chatbot settings loaded", "settings_id", settings.ID, "is_enabled", settings.IsEnabled, "ai_enabled", settings.AI.Enabled, "ai_provider", settings.AI.Provider, "default_response", settings.DefaultResponse)
 
+	// TRT custom patch #19: read any inbound image / voice note so the multimodal AI
+	// can actually see/hear it. Attached to the AI request further down (both to a
+	// captioned photo and to a media-only message). nil when there's no media or AI
+	// is off, so the normal text path is unchanged.
+	var aiMedia []AIMedia
+	if settings.AI.Enabled {
+		aiMedia = a.collectAIMedia(msg.Type, mediaInfo)
+	}
+
 	// Check business hours if enabled
 	if settings.BusinessHours.Enabled && len(settings.BusinessHours.Hours) > 0 {
 		if !a.isWithinBusinessHours(settings.BusinessHours.Hours) {
@@ -238,6 +250,29 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 
 	// Only process text and interactive messages for chatbot
 	if messageText == "" {
+		// TRT custom patch #19 (multimodal AI): a client who sends only a photo or
+		// voice note (no caption) should get a real answer, not a canned line. If AI
+		// is on and we captured the media, let Gemini actually see/hear it and reply.
+		if settings.AI.Enabled && settings.AI.Provider != "" && settings.AI.APIKey != "" && len(aiMedia) > 0 {
+			session, _ := a.getOrCreateSession(account.OrganizationID, contact.ID, account.Name, msg.From, settings.SessionTimeoutMins)
+			placeholder := "[العميل صيفط صورة]" // customer sent an image
+			if msg.Type == "audio" {
+				placeholder = "[العميل صيفط رسالة صوتية]" // customer sent a voice note
+			}
+			a.logSessionMessage(session.ID, models.DirectionIncoming, placeholder, "ai_media")
+			aiResponse, err := a.generateAIResponse(settings, session, placeholder, aiMedia)
+			if err != nil {
+				a.Log.Error("AI media response failed", "error", err, "type", msg.Type)
+			} else if aiResponse != "" {
+				if err := a.sendAndSaveTextMessage(account, contact, aiResponse); err != nil {
+					a.Log.Error("Failed to send AI media response", "error", err, "contact", contact.PhoneNumber)
+				}
+				a.logSessionMessage(session.ID, models.DirectionOutgoing, aiResponse, "ai_response")
+				return
+			}
+			// AI failed or returned empty → fall through to the debounced fallback below.
+		}
+
 		// TRT custom patch (media-reply): whatomate silently drops messages with no
 		// text, so a client who sends only a screenshot/photo/voice note gets no
 		// reply and the conversation stalls (they think we ignored them, and the bot
@@ -382,8 +417,8 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 
 	// If no keyword matched, try AI response if enabled
 	if settings.AI.Enabled && settings.AI.Provider != "" && settings.AI.APIKey != "" {
-		a.Log.Info("Attempting AI response", "provider", settings.AI.Provider, "model", settings.AI.Model)
-		aiResponse, err := a.generateAIResponse(settings, session, messageText)
+		a.Log.Info("Attempting AI response", "provider", settings.AI.Provider, "model", settings.AI.Model, "media_parts", len(aiMedia))
+		aiResponse, err := a.generateAIResponse(settings, session, messageText, aiMedia)
 		if err != nil {
 			a.Log.Error("AI response failed", "error", err, "provider", settings.AI.Provider, "model", settings.AI.Model)
 			// Fall through to default response
@@ -847,7 +882,48 @@ type ApiResponse struct {
 //
 // Mirrors fetchAPIContext in seeding implicit variables (phone_number) so flow-step
 // API templates can interpolate {{phone_number}} just like AI-context API templates.
-func (a *App) generateAIResponse(settings *models.ChatbotSettings, session *models.ChatbotSession, userMessage string) (string, error) {
+// AIMedia is an inbound media attachment (image or voice note) passed to a
+// multimodal AI provider so it can actually see/hear what the customer sent.
+// TRT custom patch #19.
+type AIMedia struct {
+	MimeType string
+	Data     string // base64-encoded bytes
+}
+
+// collectAIMedia reads the already-downloaded inbound media and returns it
+// base64-encoded for a multimodal AI request. Only image + audio (and stickers,
+// which are images) are sent — that is what customers actually send (product
+// photos, screenshots, voice notes) and what Gemini reads best. Returns nil when
+// there is nothing usable, so callers can fall back to the normal text path.
+// TRT custom patch #19.
+func (a *App) collectAIMedia(msgType string, mediaInfo *MediaInfo) []AIMedia {
+	if mediaInfo == nil || mediaInfo.MediaURL == "" {
+		return nil
+	}
+	switch msgType {
+	case "image", "audio", "sticker":
+	default:
+		return nil
+	}
+	fullPath := filepath.Join(a.getMediaStoragePath(), mediaInfo.MediaURL)
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		a.Log.Error("collectAIMedia: failed to read media file", "path", fullPath, "error", err)
+		return nil
+	}
+	// Gemini wants a bare mime type; WhatsApp voice notes arrive as
+	// "audio/ogg; codecs=opus", so strip any parameters.
+	mime := mediaInfo.MediaMimeType
+	if i := strings.IndexByte(mime, ';'); i >= 0 {
+		mime = strings.TrimSpace(mime[:i])
+	}
+	if mime == "" {
+		return nil
+	}
+	return []AIMedia{{MimeType: mime, Data: base64.StdEncoding.EncodeToString(data)}}
+}
+
+func (a *App) generateAIResponse(settings *models.ChatbotSettings, session *models.ChatbotSession, userMessage string, media []AIMedia) (string, error) {
 	// Build context from AIContext entries
 	contextData := a.buildAIContext(settings.OrganizationID, session, userMessage)
 
@@ -857,7 +933,7 @@ func (a *App) generateAIResponse(settings *models.ChatbotSettings, session *mode
 	case models.AIProviderAnthropic:
 		return a.generateAnthropicResponse(settings, session, userMessage, contextData)
 	case models.AIProviderGoogle:
-		return a.generateGoogleResponse(settings, session, userMessage, contextData)
+		return a.generateGoogleResponse(settings, session, userMessage, contextData, media)
 	default:
 		return "", fmt.Errorf("unsupported AI provider: %s", settings.AI.Provider)
 	}
@@ -1166,7 +1242,7 @@ func (a *App) generateAnthropicResponse(settings *models.ChatbotSettings, sessio
 }
 
 // generateGoogleResponse generates a response using Google Gemini API
-func (a *App) generateGoogleResponse(settings *models.ChatbotSettings, session *models.ChatbotSession, userMessage string, contextData string) (string, error) {
+func (a *App) generateGoogleResponse(settings *models.ChatbotSettings, session *models.ChatbotSession, userMessage string, contextData string, media []AIMedia) (string, error) {
 	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
 		settings.AI.Model, settings.AI.APIKey)
 
@@ -1183,19 +1259,28 @@ func (a *App) generateGoogleResponse(settings *models.ChatbotSettings, session *
 			}
 			contents = append(contents, map[string]any{
 				"role": role,
-				"parts": []map[string]string{
+				"parts": []map[string]any{
 					{"text": msg.Message},
 				},
 			})
 		}
 	}
 
-	// Add current user message
+	// Add current user message, plus any inbound media as inline_data parts so
+	// Gemini can actually see the photo / hear the voice note (multimodal).
+	// TRT custom patch #19.
+	currentParts := []map[string]any{{"text": userMessage}}
+	for _, m := range media {
+		currentParts = append(currentParts, map[string]any{
+			"inline_data": map[string]string{
+				"mime_type": m.MimeType,
+				"data":      m.Data,
+			},
+		})
+	}
 	contents = append(contents, map[string]any{
-		"role": "user",
-		"parts": []map[string]string{
-			{"text": userMessage},
-		},
+		"role":  "user",
+		"parts": currentParts,
 	})
 
 	payload := map[string]any{
