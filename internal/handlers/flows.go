@@ -188,6 +188,13 @@ func (a *App) UpdateFlow(r *fastglue.Request) error {
 	if req.Name != "" {
 		updates["name"] = req.Name
 	}
+	// TRT custom patch #21: allow rebinding a flow to a (renamed) WhatsApp account.
+	// Flows resolve their account by exact name, so after an account is renamed the
+	// flow's stored name goes stale and Save-to-Meta/Publish fail with "account not
+	// found". Upstream never let you change the binding — now you can.
+	if req.WhatsAppAccount != "" {
+		updates["whats_app_account"] = req.WhatsAppAccount
+	}
 	if req.Category != "" {
 		updates["category"] = req.Category
 	}
