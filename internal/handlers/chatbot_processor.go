@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -188,6 +189,13 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	buttonID := extracted.ButtonID
 	mediaInfo := extracted.Media
 	flowResponseData := extracted.FlowResponseData
+
+	// TRT custom patch #24: for an order-form submission, download any attached
+	// PhotoPicker media and inline it as base64 (modele_image_b64) so the webhook
+	// can forward the real image to n8n → Drive. No-op when there's no media field.
+	if len(flowResponseData) > 0 {
+		a.resolveFlowMediaBase64(flowResponseData, account)
+	}
 
 	// Save incoming message to messages table (always, even if chatbot is disabled)
 	var replyToWAMID string
@@ -951,6 +959,65 @@ func (a *App) tagContactConverted(contact *models.Contact) {
 	a.Log.Info("Auto-tagged contact Converted (order form submitted)", "contact", contact.ID)
 }
 
+// formatMediaID normalizes a WhatsApp media id (json.Number / float64 / string) to
+// an exact integer string. TRT custom patch #24.
+func formatMediaID(v any) string {
+	switch n := v.(type) {
+	case string:
+		return n
+	case json.Number:
+		return n.String()
+	case float64:
+		return strconv.FormatFloat(n, 'f', -1, 64)
+	case int64:
+		return strconv.FormatInt(n, 10)
+	default:
+		return ""
+	}
+}
+
+// resolveFlowMediaBase64 downloads any WhatsApp Flow PhotoPicker/DocumentPicker media
+// referenced in a flow response and inlines it as base64. WhatsApp returns only a
+// media id/handle for picker fields (e.g. modele_image:[{id,file_name,mime_type,...}]),
+// not the bytes — so we fetch them here with the account token (same path as inbound
+// media) and add <field>_b64 / <field>_mime / <field>_filename to the map. A downstream
+// webhook can then forward the actual image (e.g. to n8n → Google Drive). TRT patch #24.
+func (a *App) resolveFlowMediaBase64(data map[string]any, account *models.WhatsAppAccount) {
+	waAccount := a.toWhatsAppAccount(account)
+	ctx := context.Background()
+	for key, val := range data {
+		arr, ok := val.([]any)
+		if !ok || len(arr) == 0 {
+			continue
+		}
+		first, ok := arr[0].(map[string]any)
+		if !ok {
+			continue
+		}
+		mime, _ := first["mime_type"].(string)
+		mediaID := formatMediaID(first["id"])
+		if mime == "" || mediaID == "" {
+			continue // not a media-picker field
+		}
+		mediaURL, err := a.WhatsApp.GetMediaURL(ctx, mediaID, waAccount)
+		if err != nil {
+			a.Log.Error("resolveFlowMediaBase64: get media URL failed", "field", key, "media_id", mediaID, "error", err)
+			continue
+		}
+		raw, err := a.WhatsApp.DownloadMedia(ctx, mediaURL, waAccount.AccessToken)
+		if err != nil {
+			a.Log.Error("resolveFlowMediaBase64: download failed", "field", key, "media_id", mediaID, "error", err)
+			continue
+		}
+		data[key+"_b64"] = base64.StdEncoding.EncodeToString(raw)
+		data[key+"_mime"] = mime
+		if fn, ok := first["file_name"].(string); ok {
+			data[key+"_filename"] = fn
+		}
+		a.Log.Info("Resolved flow media to base64", "field", key, "media_id", mediaID, "bytes", len(raw))
+	}
+}
+
 func (a *App) generateAIResponse(settings *models.ChatbotSettings, session *models.ChatbotSession, userMessage string, media []AIMedia) (string, error) {
 	// Build context from AIContext entries
 	contextData := a.buildAIContext(settings.OrganizationID, session, userMessage)
@@ -1557,10 +1624,15 @@ func (a *App) extractMessageContent(ctx context.Context, msg IncomingTextMessage
 		if msg.Interactive.NFMReply != nil {
 			extracted.Text = msg.Interactive.NFMReply.Body
 			extracted.Type = "nfm_reply"
-			// Parse the response JSON to extract form data
+			// Parse the response JSON to extract form data.
+			// TRT custom patch #24: decode with UseNumber so a PhotoPicker's media id
+			// (a 16-18 digit integer) keeps full precision instead of being mangled by
+			// float64 — we need the exact id to download the photo.
 			if msg.Interactive.NFMReply.ResponseJSON != "" {
 				var responseData map[string]any
-				if err := json.Unmarshal([]byte(msg.Interactive.NFMReply.ResponseJSON), &responseData); err != nil {
+				dec := json.NewDecoder(strings.NewReader(msg.Interactive.NFMReply.ResponseJSON))
+				dec.UseNumber()
+				if err := dec.Decode(&responseData); err != nil {
 					a.Log.Error("Failed to parse flow response JSON", "error", err, "response_json", msg.Interactive.NFMReply.ResponseJSON)
 				} else {
 					extracted.FlowResponseData = responseData
