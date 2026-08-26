@@ -130,6 +130,38 @@ func (a *App) DownloadAndSaveMedia(ctx context.Context, mediaID string, mimeType
 	return relativePath, nil
 }
 
+// ServeFlowMedia publicly serves a WhatsApp Flow order-photo saved by
+// resolveFlowMedia. Public (no auth) so the link works in a Google Sheet / email;
+// filenames are random UUIDs so they're unguessable. Path-traversal safe.
+// TRT custom patch #24.
+func (a *App) ServeFlowMedia(r *fastglue.Request) error {
+	name, _ := r.RequestCtx.UserValue("name").(string)
+	name = filepath.Base(name) // strip any path components
+	if name == "" || name == "." || name == "/" || strings.Contains(name, "..") {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid name", nil, "")
+	}
+	fullPath := filepath.Join(a.getMediaStoragePath(), "flow-media", name)
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Not found", nil, "")
+	}
+	contentType := "application/octet-stream"
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".png":
+		contentType = "image/png"
+	case ".webp":
+		contentType = "image/webp"
+	case ".pdf":
+		contentType = "application/pdf"
+	}
+	r.RequestCtx.Response.Header.Set("Content-Type", contentType)
+	r.RequestCtx.Response.Header.Set("Cache-Control", "public, max-age=31536000")
+	r.RequestCtx.SetBody(data)
+	return nil
+}
+
 // ServeMedia serves media files from local storage
 // Only authorized users who have access to the message can view the media
 func (a *App) ServeMedia(r *fastglue.Request) error {

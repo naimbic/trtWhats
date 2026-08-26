@@ -521,6 +521,10 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 			path == "/api/auth/logout" || path == "/api/webhook" || path == "/ws" {
 			return r
 		}
+		// TRT custom patch #24: public order-photo links (unguessable UUID filenames)
+		if len(path) >= 12 && path[:12] == "/media/flow/" {
+			return r
+		}
 		// Skip auth for SSO routes (they handle their own auth via state tokens)
 		if len(path) >= 13 && path[:13] == "/api/auth/sso" {
 			return r
@@ -661,6 +665,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 
 	// Media (serves media files for messages, auth-protected)
 	g.GET("/api/media/{message_id}", app.ServeMedia)
+	g.GET("/media/flow/{name}", app.ServeFlowMedia) // TRT custom patch #24: public order-photo links
 
 	// Templates
 	g.GET("/api/templates", app.ListTemplates)

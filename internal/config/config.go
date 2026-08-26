@@ -105,6 +105,10 @@ type AppConfig struct {
 	Environment   string `koanf:"environment"` // development, staging, production
 	Debug         bool   `koanf:"debug"`
 	EncryptionKey string `koanf:"encryption_key"` // AES-256 key for encrypting secrets at rest
+	// TRT custom patch #24: public base URL of this app, used to build absolute links
+	// to served media (e.g. order-form photos put in the Google Sheet). Override with
+	// WHATOMATE_APP__PUBLIC_URL if the domain changes.
+	PublicURL string `koanf:"public_url"`
 }
 
 type ServerConfig struct {
@@ -341,6 +345,9 @@ func setDefaults(cfg *Config) {
 	}
 	if cfg.Server.Host == "" {
 		cfg.Server.Host = "0.0.0.0"
+	}
+	if cfg.App.PublicURL == "" {
+		cfg.App.PublicURL = "https://trtwhats.3a.ma" // TRT custom patch #24 default
 	}
 	if cfg.Server.Port == 0 {
 		cfg.Server.Port = 8080

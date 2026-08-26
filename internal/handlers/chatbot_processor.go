@@ -191,10 +191,10 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	flowResponseData := extracted.FlowResponseData
 
 	// TRT custom patch #24: for an order-form submission, download any attached
-	// PhotoPicker media and inline it as base64 (modele_image_b64) so the webhook
-	// can forward the real image to n8n → Drive. No-op when there's no media field.
+	// PhotoPicker media, save it, and inject a public URL (modele_image_url) so the
+	// webhook can forward a viewable link to the Sheet. No-op when there's no media.
 	if len(flowResponseData) > 0 {
-		a.resolveFlowMediaBase64(flowResponseData, account)
+		a.resolveFlowMedia(flowResponseData, account)
 	}
 
 	// Save incoming message to messages table (always, even if chatbot is disabled)
@@ -976,13 +976,30 @@ func formatMediaID(v any) string {
 	}
 }
 
-// resolveFlowMediaBase64 downloads any WhatsApp Flow PhotoPicker/DocumentPicker media
-// referenced in a flow response and inlines it as base64. WhatsApp returns only a
-// media id/handle for picker fields (e.g. modele_image:[{id,file_name,mime_type,...}]),
-// not the bytes — so we fetch them here with the account token (same path as inbound
-// media) and add <field>_b64 / <field>_mime / <field>_filename to the map. A downstream
-// webhook can then forward the actual image (e.g. to n8n → Google Drive). TRT patch #24.
-func (a *App) resolveFlowMediaBase64(data map[string]any, account *models.WhatsAppAccount) {
+// flowMediaExt maps a mime type to a file extension for saved flow media.
+func flowMediaExt(mime string) string {
+	switch mime {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/webp":
+		return ".webp"
+	case "application/pdf":
+		return ".pdf"
+	default:
+		return ".bin"
+	}
+}
+
+// resolveFlowMedia downloads any WhatsApp Flow PhotoPicker/DocumentPicker media
+// referenced in a flow response, saves it to the public flow-media dir, and injects a
+// public URL back into the map. WhatsApp returns only a media id/handle for picker
+// fields (e.g. modele_image:[{id,file_name,mime_type,...}]), not the bytes — so we
+// fetch them here with the account token (same path as inbound media) and add
+// <field>_url / <field>_mime / <field>_filename. A downstream webhook forwards the URL
+// (e.g. to a Google Sheet, viewable with =IMAGE()). TRT custom patch #24.
+func (a *App) resolveFlowMedia(data map[string]any, account *models.WhatsAppAccount) {
 	waAccount := a.toWhatsAppAccount(account)
 	ctx := context.Background()
 	for key, val := range data {
@@ -1001,20 +1018,31 @@ func (a *App) resolveFlowMediaBase64(data map[string]any, account *models.WhatsA
 		}
 		mediaURL, err := a.WhatsApp.GetMediaURL(ctx, mediaID, waAccount)
 		if err != nil {
-			a.Log.Error("resolveFlowMediaBase64: get media URL failed", "field", key, "media_id", mediaID, "error", err)
+			a.Log.Error("resolveFlowMedia: get media URL failed", "field", key, "media_id", mediaID, "error", err)
 			continue
 		}
 		raw, err := a.WhatsApp.DownloadMedia(ctx, mediaURL, waAccount.AccessToken)
 		if err != nil {
-			a.Log.Error("resolveFlowMediaBase64: download failed", "field", key, "media_id", mediaID, "error", err)
+			a.Log.Error("resolveFlowMedia: download failed", "field", key, "media_id", mediaID, "error", err)
 			continue
 		}
-		data[key+"_b64"] = base64.StdEncoding.EncodeToString(raw)
+		fname := uuid.New().String() + flowMediaExt(mime)
+		dir := filepath.Join(a.getMediaStoragePath(), "flow-media")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			a.Log.Error("resolveFlowMedia: mkdir failed", "error", err)
+			continue
+		}
+		if err := os.WriteFile(filepath.Join(dir, fname), raw, 0o644); err != nil {
+			a.Log.Error("resolveFlowMedia: write failed", "error", err)
+			continue
+		}
+		publicURL := strings.TrimRight(a.Config.App.PublicURL, "/") + "/media/flow/" + fname
+		data[key+"_url"] = publicURL
 		data[key+"_mime"] = mime
 		if fn, ok := first["file_name"].(string); ok {
 			data[key+"_filename"] = fn
 		}
-		a.Log.Info("Resolved flow media to base64", "field", key, "media_id", mediaID, "bytes", len(raw))
+		a.Log.Info("Saved flow media", "field", key, "url", publicURL, "bytes", len(raw))
 	}
 }
 
