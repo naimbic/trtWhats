@@ -544,6 +544,32 @@ type ButtonContent struct {
 
 // SendMessage sends a message to a contact
 // Agents can only send messages to their assigned contacts
+// ensureAgentTakeoverTransfer pauses the chatbot for a contact once a human agent
+// replies, by creating an active agent transfer if the contact doesn't already have
+// one. hasActiveAgentTransfer then makes processIncomingMessageFull skip the bot for
+// this contact until an agent Resumes it. TRT custom patch #25.
+func (a *App) ensureAgentTakeoverTransfer(orgID uuid.UUID, contact *models.Contact, accountName string, agentID uuid.UUID) {
+	if a.hasActiveAgentTransfer(orgID, contact.ID) {
+		return // already handed to an agent
+	}
+	transfer := models.AgentTransfer{
+		BaseModel:       models.BaseModel{ID: uuid.New()},
+		OrganizationID:  orgID,
+		ContactID:       contact.ID,
+		WhatsAppAccount: accountName,
+		PhoneNumber:     contact.PhoneNumber,
+		Status:          models.TransferStatusActive,
+		Source:          models.TransferSourceManual,
+		AgentID:         &agentID,
+		TransferredAt:   time.Now(),
+	}
+	if err := a.DB.Create(&transfer).Error; err != nil {
+		a.Log.Error("ensureAgentTakeoverTransfer: failed to create transfer", "error", err, "contact_id", contact.ID)
+		return
+	}
+	a.Log.Info("Chatbot paused — agent joined conversation", "contact_id", contact.ID, "agent_id", agentID, "transfer_id", transfer.ID)
+}
+
 func (a *App) SendMessage(r *fastglue.Request) error {
 	orgID, userID, err := a.getOrgAndUserID(r)
 	if err != nil {
@@ -674,6 +700,12 @@ func (a *App) SendMessage(r *fastglue.Request) error {
 		a.Log.Error("Failed to send message", "error", err)
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to send message", nil, "")
 	}
+
+	// TRT custom patch #25: when a human agent replies in a conversation, pause the
+	// chatbot for that contact so the AI doesn't talk over the agent. Creates an
+	// active transfer (if none) assigned to the agent — the existing Resume button
+	// clears it and hands the contact back to the bot.
+	a.ensureAgentTakeoverTransfer(orgID, &contact, account.Name, userID)
 
 	// Build response
 	response := MessageResponse{
