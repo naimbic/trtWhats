@@ -251,11 +251,7 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 			// If automated responses are not allowed outside hours, send out-of-hours message and stop
 			if !settings.BusinessHours.AllowAutomatedOutside {
 				a.Log.Info("Outside business hours, sending out of hours message")
-				if settings.BusinessHours.OutOfHoursMessage != "" {
-					if err := a.sendAndSaveTextMessage(account, contact, settings.BusinessHours.OutOfHoursMessage); err != nil {
-						a.Log.Error("Failed to send out of hours message", "error", err, "contact", contact.PhoneNumber)
-					}
-				}
+				a.sendOutOfHoursOnce(account, contact, settings.BusinessHours.OutOfHoursMessage)
 				return
 			}
 			// AllowAutomatedOutsideHours is true, continue processing flows/keywords/AI
@@ -325,11 +321,7 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		if settings.BusinessHours.Enabled && len(settings.BusinessHours.Hours) > 0 {
 			if !a.isWithinBusinessHours(settings.BusinessHours.Hours) {
 				a.Log.Info("Outside business hours, sending out of hours message instead of transfer")
-				if settings.BusinessHours.OutOfHoursMessage != "" {
-					if err := a.sendAndSaveTextMessage(account, contact, settings.BusinessHours.OutOfHoursMessage); err != nil {
-						a.Log.Error("Failed to send out of hours message", "error", err, "contact", contact.PhoneNumber)
-					}
-				}
+				a.sendOutOfHoursOnce(account, contact, settings.BusinessHours.OutOfHoursMessage)
 				return
 			}
 		}
@@ -941,6 +933,27 @@ func (a *App) collectAIMedia(msgType string, mediaInfo *MediaInfo) []AIMedia {
 // tagContactConverted adds the "Converted" tag to a contact if it isn't already
 // present (idempotent). Called when an order form is submitted. Tag name must match
 // the org's tag exactly (same constant as the Lost auto-tagger). TRT custom patch #22.
+// sendOutOfHoursOnce sends the out-of-hours message, but only if it wasn't already the
+// last thing we sent this contact within the debounce window — so a client who messages
+// several times after closing gets one reply ("we'll contact you tomorrow"), not many.
+// TRT custom patch #26.
+func (a *App) sendOutOfHoursOnce(account *models.WhatsAppAccount, contact *models.Contact, message string) {
+	if message == "" {
+		return
+	}
+	var last models.Message
+	if err := a.DB.Where("contact_id = ? AND direction = ?", contact.ID, models.DirectionOutgoing).
+		Order("created_at DESC").Limit(1).First(&last).Error; err == nil {
+		if last.Content == message && time.Since(last.CreatedAt) < 8*time.Hour {
+			a.Log.Debug("Out-of-hours message already sent recently, skipping", "contact", contact.ID)
+			return
+		}
+	}
+	if err := a.sendAndSaveTextMessage(account, contact, message); err != nil {
+		a.Log.Error("Failed to send out of hours message", "error", err, "contact", contact.PhoneNumber)
+	}
+}
+
 func (a *App) tagContactConverted(contact *models.Contact) {
 	const convertedTag = "تم البيع - Converti"
 	for _, t := range contact.Tags {
