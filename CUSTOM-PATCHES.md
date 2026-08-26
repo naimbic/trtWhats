@@ -32,6 +32,8 @@ grep -rn "TRT custom patch" internal/ frontend/src/
 
 | 16 | Gemini model list | `frontend/src/views/settings/ChatbotSettingsView.vue` | AI-model dropdown refreshed to current Gemini models (gemini-3.6-flash, gemini-2.5-flash/pro/flash-lite); the old gemini-2.0/1.5 entries 404 on generateContent (deprecated). | _this change_ |
 
+| 23 | `{{json:}}` template directive | `internal/handlers/template_engine.go` (`processVariables`) | New `{{json:var}}` directive emits a value as valid JSON. Needed so a webhook/API-node body can forward complex values (e.g. a WhatsApp Flow PhotoPicker photo array, which carries the base64 image) — plain `{{var}}` uses `fmt %v` and produces invalid JSON. The Belle Tulipe order webhook now sends `"modele_image":{{json:modele_image}}` so the uploaded model photo reaches n8n. | _this change_ |
+
 | 22 | Auto-Converted on order | `internal/handlers/chatbot_processor.go` (`processIncomingMessageFull`, `tagContactConverted`) | When a customer submits an order form (WhatsApp Flow `nfm_reply`), auto-tag them "تم البيع - Converti" (Converted) — idempotent. Surfaces them on the dashboard and excludes them from the 5-day Lost auto-tagging (#14). | _this change_ |
 
 | 21 | Flow account rebind | `internal/handlers/flows.go` (`UpdateFlow`) | Flows resolve their WhatsApp account by **exact name**, so renaming an account (e.g. "Belle Tulipe 1430" → "Belle Tulipe inezgane 1430") leaves every flow bound to the old name → Save-to-Meta/Publish fail with "WhatsApp account not found". Upstream's `UpdateFlow` never persisted `whatsapp_account`, so the binding couldn't be fixed from UI **or** API. Now a PUT with `whatsapp_account` rebinds the flow to the current account name. | _this change_ |

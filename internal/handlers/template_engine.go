@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -155,7 +156,23 @@ func processConditionals(template string, data map[string]any) string {
 func processVariables(template string, data map[string]any) string {
 	return variablePattern.ReplaceAllStringFunc(template, func(match string) string {
 		// Remove {{ and }}
-		path := match[2 : len(match)-2]
+		path := strings.TrimSpace(match[2 : len(match)-2])
+
+		// TRT custom patch #23: {{json:var}} emits the value as valid JSON. Needed to
+		// forward complex values (e.g. a WhatsApp Flow PhotoPicker photo array, which
+		// carries the base64 image) inside a webhook JSON body — formatValue would
+		// otherwise render them with fmt %v and produce invalid JSON.
+		if strings.HasPrefix(path, "json:") {
+			value := getNestedValue(data, strings.TrimSpace(path[len("json:"):]))
+			if value == nil {
+				return "null"
+			}
+			b, err := json.Marshal(value)
+			if err != nil {
+				return "null"
+			}
+			return string(b)
+		}
 
 		value := getNestedValue(data, path)
 		return formatValue(value)
