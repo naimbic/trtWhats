@@ -196,6 +196,13 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	}
 	a.saveIncomingMessage(account, contact, msg.ID, messageType, messageText, mediaInfo, replyToWAMID)
 
+	// TRT custom patch #22: a WhatsApp Flow submission (nfm_reply) means the customer
+	// completed the order form → auto-tag them Converted (shows on the dashboard and
+	// keeps them out of the 5-day Lost auto-tagging). Idempotent.
+	if messageType == "nfm_reply" || len(flowResponseData) > 0 {
+		a.tagContactConverted(contact)
+	}
+
 	// Clear chatbot tracking since client has replied
 	a.ClearContactChatbotTracking(contact.ID)
 
@@ -921,6 +928,27 @@ func (a *App) collectAIMedia(msgType string, mediaInfo *MediaInfo) []AIMedia {
 		return nil
 	}
 	return []AIMedia{{MimeType: mime, Data: base64.StdEncoding.EncodeToString(data)}}
+}
+
+// tagContactConverted adds the "Converted" tag to a contact if it isn't already
+// present (idempotent). Called when an order form is submitted. Tag name must match
+// the org's tag exactly (same constant as the Lost auto-tagger). TRT custom patch #22.
+func (a *App) tagContactConverted(contact *models.Contact) {
+	const convertedTag = "تم البيع - Converti"
+	for _, t := range contact.Tags {
+		if s, ok := t.(string); ok && s == convertedTag {
+			return // already Converted
+		}
+	}
+	newTags := append(models.JSONBArray{}, contact.Tags...)
+	newTags = append(newTags, convertedTag)
+	if err := a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).
+		Update("tags", newTags).Error; err != nil {
+		a.Log.Error("tagContactConverted failed", "error", err, "contact", contact.ID)
+		return
+	}
+	contact.Tags = newTags
+	a.Log.Info("Auto-tagged contact Converted (order form submitted)", "contact", contact.ID)
 }
 
 func (a *App) generateAIResponse(settings *models.ChatbotSettings, session *models.ChatbotSession, userMessage string, media []AIMedia) (string, error) {
