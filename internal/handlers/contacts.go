@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -778,6 +779,36 @@ func truncateString(s string, maxLen int) string {
 }
 
 // SendMediaMessage sends a media message (image, document, video, audio) to a contact
+// transcodeAudioToOgg converts recorded audio (e.g. Chrome's audio/webm) to the
+// ogg/opus format WhatsApp accepts for voice notes, using ffmpeg (shipped in the
+// image). Returns (data, mime, true) on success; (nil, "", false) if the input is
+// already a supported type or on any error (caller keeps the original bytes).
+// TRT custom patch #28.
+func (a *App) transcodeAudioToOgg(data []byte, mime string) ([]byte, string, bool) {
+	base := strings.ToLower(strings.TrimSpace(strings.SplitN(mime, ";", 2)[0]))
+	switch base {
+	case "audio/ogg", "audio/aac", "audio/mp4", "audio/mpeg", "audio/amr":
+		return nil, "", false // already WhatsApp-supported
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	// mono 48kHz opus in an ogg container = WhatsApp voice-note format
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-loglevel", "error",
+		"-i", "pipe:0", "-vn", "-c:a", "libopus", "-b:a", "32k", "-ar", "48000", "-ac", "1", "-f", "ogg", "pipe:1")
+	cmd.Stdin = bytes.NewReader(data)
+	var out, errb bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errb
+	if err := cmd.Run(); err != nil {
+		a.Log.Error("audio transcode to ogg/opus failed", "error", err, "stderr", errb.String(), "mime", mime)
+		return nil, "", false
+	}
+	if out.Len() == 0 {
+		return nil, "", false
+	}
+	return out.Bytes(), "audio/ogg; codecs=opus", true
+}
+
 func (a *App) SendMediaMessage(r *fastglue.Request) error {
 	orgID, userID, err := a.getOrgAndUserID(r)
 	if err != nil {
@@ -843,6 +874,17 @@ func (a *App) SendMediaMessage(r *fastglue.Request) error {
 	mimeType := fileHeader.Header.Get("Content-Type")
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
+	}
+
+	// TRT custom patch #28: browsers (Chrome/Edge) record voice notes as audio/webm,
+	// which Meta rejects. Transcode any non-WhatsApp audio to ogg/opus (ffmpeg ships in
+	// the image) so a mic recording sends as a proper voice note.
+	if mediaType == "audio" {
+		if converted, newMime, ok := a.transcodeAudioToOgg(fileData, mimeType); ok {
+			fileData = converted
+			mimeType = newMime
+			fileHeader.Filename = "voice.ogg"
+		}
 	}
 
 	// Get contact (users without full read permission can only message their assigned contacts)

@@ -59,6 +59,7 @@ import {
   Search,
   Send,
   Paperclip,
+  Mic,
   FileText,
   Smile,
   MoreVertical,
@@ -1690,6 +1691,93 @@ async function sendMediaMessage() {
     isUploadingMedia.value = false
   }
 }
+
+// TRT custom patch #28: record + send a voice note from the mic (tap to start/stop).
+const isRecording = ref(false)
+const recordSeconds = ref(0)
+let mediaRecorder: MediaRecorder | null = null
+let recordedChunks: Blob[] = []
+let recordStream: MediaStream | null = null
+let recordTimer: number | null = null
+let recordCancelled = false
+
+const recordTimeLabel = computed(() => {
+  const s = recordSeconds.value
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+})
+
+async function startRecording() {
+  if (isRecording.value || !contactsStore.currentContact) return
+  try {
+    recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  } catch {
+    toast.error(t('chat.micDenied') || 'Microphone access denied')
+    return
+  }
+  recordedChunks = []
+  recordCancelled = false
+  const preferred = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm']
+  const mime = preferred.find(m => (window as any).MediaRecorder?.isTypeSupported?.(m)) || ''
+  mediaRecorder = mime ? new MediaRecorder(recordStream, { mimeType: mime }) : new MediaRecorder(recordStream)
+  mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data) }
+  mediaRecorder.onstop = async () => {
+    recordStream?.getTracks().forEach(tr => tr.stop())
+    recordStream = null
+    if (recordTimer) { clearInterval(recordTimer); recordTimer = null }
+    isRecording.value = false
+    const secs = recordSeconds.value
+    recordSeconds.value = 0
+    if (recordCancelled || recordedChunks.length === 0 || secs < 1) return
+    const blob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
+    await sendAudioBlob(blob)
+  }
+  mediaRecorder.start()
+  isRecording.value = true
+  recordSeconds.value = 0
+  recordTimer = window.setInterval(() => {
+    recordSeconds.value++
+    if (recordSeconds.value >= 300) stopRecording() // 5-min safety cap
+  }, 1000)
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording.value) mediaRecorder.stop()
+}
+function cancelRecording() {
+  recordCancelled = true
+  if (mediaRecorder && isRecording.value) mediaRecorder.stop()
+}
+
+async function sendAudioBlob(blob: Blob) {
+  if (!contactsStore.currentContact) return
+  const ext = blob.type.includes('ogg') ? 'ogg' : 'webm'
+  const file = new File([blob], `voice.${ext}`, { type: blob.type })
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('contact_id', contactsStore.currentContact.id)
+    formData.append('type', 'audio')
+    if (selectedAccount.value) formData.append('whatsapp_account', selectedAccount.value)
+    const basePath = ((window as any).__BASE_PATH__ ?? '').replace(/\/$/, '')
+    const response = await fetch(`${basePath}/api/messages/media`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: getRequestHeaders({ csrf: true }),
+      body: formData
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to send voice note')
+    }
+    const result = await response.json()
+    if (result.data) {
+      contactsStore.addMessage(result.data)
+      scrollToBottom()
+    }
+  } catch (error: any) {
+    toast.error(t('chat.mediaFailed'), { description: error.message || t('chat.mediaFailedDesc') })
+  }
+}
 </script>
 
 <template>
@@ -2517,6 +2605,14 @@ async function sendMediaMessage() {
               </TooltipTrigger>
               <TooltipContent>{{ $t('chat.attachFile') }}</TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button v-if="!isRecording" type="button" class="w-9 h-9 rounded-lg hover:bg-white/[0.08] light:hover:bg-gray-200 flex items-center justify-center transition-colors" @click="startRecording">
+                  <Mic class="w-[18px] h-[18px] text-white/40 light:text-gray-500" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{{ $t('chat.recordVoice') || 'Record voice' }}</TooltipContent>
+            </Tooltip>
             <input
               ref="fileInputRef"
               type="file"
@@ -2524,18 +2620,35 @@ async function sendMediaMessage() {
               class="hidden"
               @change="handleFileSelect"
             />
-            <textarea
-              ref="messageInputRef"
-              v-model="messageInput"
-              :placeholder="$t('chat.typeMessage') + '...'"
-              rows="1"
-              class="flex-1 bg-transparent text-[14px] text-white light:text-gray-900 placeholder:text-white/30 light:placeholder:text-gray-400 focus:outline-none resize-none min-h-[36px] max-h-[120px] py-2 overflow-y-auto"
-              @keydown.enter.exact.prevent="sendMessage"
-              @input="autoResizeTextarea"
-            />
-            <button type="submit" class="w-9 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 light:bg-emerald-500 light:hover:bg-emerald-600 flex items-center justify-center transition-colors disabled:opacity-50" :disabled="!messageInput.trim() || isSending">
-              <Send class="w-4 h-4 text-white" />
-            </button>
+            <!-- Normal typing -->
+            <template v-if="!isRecording">
+              <textarea
+                ref="messageInputRef"
+                v-model="messageInput"
+                :placeholder="$t('chat.typeMessage') + '...'"
+                rows="1"
+                class="flex-1 bg-transparent text-[14px] text-white light:text-gray-900 placeholder:text-white/30 light:placeholder:text-gray-400 focus:outline-none resize-none min-h-[36px] max-h-[120px] py-2 overflow-y-auto"
+                @keydown.enter.exact.prevent="sendMessage"
+                @input="autoResizeTextarea"
+              />
+              <button type="submit" class="w-9 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 light:bg-emerald-500 light:hover:bg-emerald-600 flex items-center justify-center transition-colors disabled:opacity-50" :disabled="!messageInput.trim() || isSending">
+                <Send class="w-4 h-4 text-white" />
+              </button>
+            </template>
+            <!-- Recording a voice note -->
+            <template v-else>
+              <div class="flex-1 flex items-center gap-2 px-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+                <span class="text-[14px] text-white/80 light:text-gray-700 tabular-nums">{{ recordTimeLabel }}</span>
+                <span class="text-xs text-white/40 light:text-gray-400">{{ $t('chat.recording') || 'Recording…' }}</span>
+              </div>
+              <button type="button" class="w-9 h-9 rounded-lg hover:bg-white/[0.08] light:hover:bg-gray-200 flex items-center justify-center transition-colors" @click="cancelRecording" :title="$t('common.cancel')">
+                <X class="w-[18px] h-[18px] text-white/50 light:text-gray-500" />
+              </button>
+              <button type="button" class="w-9 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center transition-colors" @click="stopRecording" :title="$t('chat.send') || 'Send'">
+                <Send class="w-4 h-4 text-white" />
+              </button>
+            </template>
           </form>
         </div>
       </template>
