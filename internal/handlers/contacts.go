@@ -795,23 +795,42 @@ func (a *App) transcodeAudioToOgg(data []byte, mime string) ([]byte, string, boo
 	// re-encode it through ffmpeg to a guaranteed-clean ogg/opus. TRT custom patch #28.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	// Write input + read output via temp files. ffmpeg's ogg muxer must seek back to
+	// finalize page headers / granule positions; piping to stdout leaves the ogg
+	// technically-malformed and Meta processes it as octet-stream (error 131053).
+	// A seekable output file produces a valid ogg. TRT custom patch #28.
+	inF, err := os.CreateTemp("", "voice-in-*")
+	if err != nil {
+		return nil, "", false
+	}
+	defer func() { _ = os.Remove(inF.Name()) }()
+	if _, err := inF.Write(data); err != nil {
+		_ = inF.Close()
+		return nil, "", false
+	}
+	_ = inF.Close()
+
+	outPath := inF.Name() + ".ogg"
+	defer func() { _ = os.Remove(outPath) }()
+
 	// mono 48kHz opus in an ogg container = WhatsApp voice-note format
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-loglevel", "error",
-		"-i", "pipe:0", "-vn", "-c:a", "libopus", "-b:a", "32k", "-ar", "48000", "-ac", "1", "-f", "ogg", "pipe:1")
-	cmd.Stdin = bytes.NewReader(data)
-	var out, errb bytes.Buffer
-	cmd.Stdout = &out
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+		"-i", inF.Name(), "-vn", "-c:a", "libopus", "-b:a", "32k", "-ar", "48000", "-ac", "1", "-f", "ogg", outPath)
+	var errb bytes.Buffer
 	cmd.Stderr = &errb
 	if err := cmd.Run(); err != nil {
 		a.Log.Error("audio transcode to ogg/opus failed", "error", err, "stderr", errb.String(), "mime", mime)
 		return nil, "", false
 	}
-	if out.Len() == 0 {
+	out, err := os.ReadFile(outPath)
+	if err != nil || len(out) == 0 {
+		a.Log.Error("audio transcode produced no output", "error", err, "mime", mime)
 		return nil, "", false
 	}
 	// Meta's media allowlist wants a clean "audio/ogg" — a "; codecs=opus" param makes
 	// it fall back to octet-stream and reject the upload. TRT custom patch #28.
-	return out.Bytes(), "audio/ogg", true
+	return out, "audio/ogg", true
 }
 
 func (a *App) SendMediaMessage(r *fastglue.Request) error {
