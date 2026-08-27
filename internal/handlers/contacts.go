@@ -1337,8 +1337,10 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
 	}
 
-	// Check permission - need contacts:write to update tags on contacts
-	if !a.HasPermission(userID, models.ResourceContacts, models.ActionWrite, orgID) {
+	// TRT custom patch #29: gate contact-tagging by tags:write (not contacts:write) so
+	// agents can be granted the Tags permission to apply Converted/Lost/Waiting without
+	// full contact-edit rights.
+	if !a.HasPermission(userID, models.ResourceTags, models.ActionWrite, orgID) {
 		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You do not have permission to update contact tags", nil, "")
 	}
 

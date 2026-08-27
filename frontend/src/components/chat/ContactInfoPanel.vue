@@ -86,7 +86,9 @@ const panelWidth = ref(MAX_WIDTH) // Default to max width
 const isResizing = ref(false)
 
 // Check if user can edit tags
-const canEditTags = computed(() => authStore.hasPermission('contacts', 'write'))
+// TRT custom patch #29: tagging is gated by tags:write (not contacts:write) so agents
+// can be granted the Tags permission to apply Converted/Lost/Waiting.
+const canEditTags = computed(() => authStore.hasPermission('tags', 'write'))
 
 // Fetch tags on mount
 onMounted(async () => {
