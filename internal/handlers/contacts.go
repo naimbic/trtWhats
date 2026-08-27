@@ -814,9 +814,11 @@ func (a *App) transcodeAudioToOgg(data []byte, mime string) ([]byte, string, boo
 	outPath := inF.Name() + ".ogg"
 	defer func() { _ = os.Remove(outPath) }()
 
-	// mono 48kHz opus in an ogg container = WhatsApp voice-note format
+	// mono 48kHz opus in an ogg container = WhatsApp voice-note format. -application voip
+	// + -map_metadata -1 keep it to a clean single opus stream with no side metadata.
 	cmd := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-		"-i", inF.Name(), "-vn", "-c:a", "libopus", "-b:a", "32k", "-ar", "48000", "-ac", "1", "-f", "ogg", outPath)
+		"-i", inF.Name(), "-vn", "-map_metadata", "-1", "-c:a", "libopus", "-b:a", "32k",
+		"-ar", "48000", "-ac", "1", "-application", "voip", "-f", "ogg", outPath)
 	var errb bytes.Buffer
 	cmd.Stderr = &errb
 	if err := cmd.Run(); err != nil {
@@ -828,9 +830,16 @@ func (a *App) transcodeAudioToOgg(data []byte, mime string) ([]byte, string, boo
 		a.Log.Error("audio transcode produced no output", "error", err, "mime", mime)
 		return nil, "", false
 	}
-	// Meta's media allowlist wants a clean "audio/ogg" — a "; codecs=opus" param makes
-	// it fall back to octet-stream and reject the upload. TRT custom patch #28.
-	return out, "audio/ogg", true
+
+	// Diagnostic: log what ffprobe reports for the produced file, so a Meta 131053
+	// (octet-stream) rejection can be matched against the actual codec/format we made.
+	if probe, perr := exec.CommandContext(ctx, "ffprobe", "-hide_banner", "-v", "error",
+		"-show_entries", "stream=codec_name:format=format_name", "-of", "default=nw=1", outPath).Output(); perr == nil {
+		a.Log.Info("Transcoded audio", "in_mime", mime, "out_bytes", len(out), "ffprobe", strings.ReplaceAll(strings.TrimSpace(string(probe)), "\n", " "))
+	}
+
+	// Meta's documented supported type is exactly "audio/ogg; codecs=opus".
+	return out, "audio/ogg; codecs=opus", true
 }
 
 func (a *App) SendMediaMessage(r *fastglue.Request) error {

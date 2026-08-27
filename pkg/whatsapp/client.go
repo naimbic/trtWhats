@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/zerodha/logf"
@@ -303,13 +302,6 @@ type UploadMediaResponse struct {
 // UploadMedia uploads media to WhatsApp's servers and returns the media ID
 func (c *Client) UploadMedia(ctx context.Context, account *Account, data []byte, mimeType, filename string) (string, error) {
 	url := fmt.Sprintf("%s/%s/%s/media", c.getBaseURL(), account.APIVersion, account.PhoneID)
-
-	// TRT custom patch #28: Meta's media allowlist matches the bare mime type; a
-	// "; codecs=opus" (or any) parameter makes it fall back to octet-stream and reject
-	// the file. Strip parameters before declaring the part's Content-Type.
-	if i := strings.IndexByte(mimeType, ';'); i >= 0 {
-		mimeType = strings.TrimSpace(mimeType[:i])
-	}
 
 	// Create multipart form body
 	body := &bytes.Buffer{}
