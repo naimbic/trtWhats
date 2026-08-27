@@ -787,9 +787,12 @@ func truncateString(s string, maxLen int) string {
 func (a *App) transcodeAudioToOgg(data []byte, mime string) ([]byte, string, bool) {
 	base := strings.ToLower(strings.TrimSpace(strings.SplitN(mime, ";", 2)[0]))
 	switch base {
-	case "audio/ogg", "audio/aac", "audio/mp4", "audio/mpeg", "audio/amr":
-		return nil, "", false // already WhatsApp-supported
+	case "audio/aac", "audio/mp4", "audio/mpeg", "audio/amr":
+		return nil, "", false // already a clean WhatsApp-supported type
 	}
+	// Note: audio/ogg is intentionally NOT skipped — browser MediaRecorder ogg-opus
+	// (Firefox) can carry parameters/structure Meta sniffs as octet-stream, so we
+	// re-encode it through ffmpeg to a guaranteed-clean ogg/opus. TRT custom patch #28.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	// mono 48kHz opus in an ogg container = WhatsApp voice-note format
