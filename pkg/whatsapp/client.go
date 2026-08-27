@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/zerodha/logf"
@@ -303,6 +304,16 @@ type UploadMediaResponse struct {
 func (c *Client) UploadMedia(ctx context.Context, account *Account, data []byte, mimeType, filename string) (string, error) {
 	url := fmt.Sprintf("%s/%s/%s/media", c.getBaseURL(), account.APIVersion, account.PhoneID)
 
+	// TRT custom patch #28: Meta's /media upload needs a bare mime for both the `type`
+	// form field and the file part's Content-Type (its allowlist is audio/ogg,
+	// audio/aac, ... — bare, no "; codecs=opus" parameter). Without the `type` field,
+	// Meta can't classify the stored file and later processes it as octet-stream
+	// (error 131053), even for a valid opus/ogg voice note.
+	bareType := mimeType
+	if i := strings.IndexByte(bareType, ';'); i >= 0 {
+		bareType = strings.TrimSpace(bareType[:i])
+	}
+
 	// Create multipart form body
 	body := &bytes.Buffer{}
 	boundary := "----WebKitFormBoundary7MA4YWxkTrZu0gW"
@@ -313,8 +324,12 @@ func (c *Client) UploadMedia(ctx context.Context, account *Account, data []byte,
 	body.WriteString("whatsapp\r\n")
 
 	fmt.Fprintf(body, "--%s\r\n", boundary)
+	body.WriteString("Content-Disposition: form-data; name=\"type\"\r\n\r\n")
+	fmt.Fprintf(body, "%s\r\n", bareType)
+
+	fmt.Fprintf(body, "--%s\r\n", boundary)
 	fmt.Fprintf(body, "Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n", filename)
-	fmt.Fprintf(body, "Content-Type: %s\r\n\r\n", mimeType)
+	fmt.Fprintf(body, "Content-Type: %s\r\n\r\n", bareType)
 	body.Write(data)
 	body.WriteString("\r\n")
 
