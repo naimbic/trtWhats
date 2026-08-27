@@ -811,18 +811,31 @@ func (a *App) transcodeAudioToOgg(data []byte, mime string) ([]byte, string, boo
 	}
 	_ = inF.Close()
 
+	wavPath := inF.Name() + ".wav"
+	defer func() { _ = os.Remove(wavPath) }()
 	outPath := inF.Name() + ".ogg"
 	defer func() { _ = os.Remove(outPath) }()
 
-	// mono 48kHz opus in an ogg container = WhatsApp voice-note format. -application voip
-	// + -map_metadata -1 keep it to a clean single opus stream with no side metadata.
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-		"-i", inF.Name(), "-vn", "-map_metadata", "-1", "-c:a", "libopus", "-b:a", "32k",
-		"-ar", "48000", "-ac", "1", "-application", "voip", "-f", "ogg", outPath)
-	var errb bytes.Buffer
-	cmd.Stderr = &errb
-	if err := cmd.Run(); err != nil {
-		a.Log.Error("audio transcode to ogg/opus failed", "error", err, "stderr", errb.String(), "mime", mime)
+	// Two-step, using the reference opus encoder (opusenc, from opus-tools in the image)
+	// instead of ffmpeg's libopus muxer: ffmpeg's ogg/opus was valid per ffprobe but
+	// Meta still processed it as octet-stream (131053). opusenc produces the canonical
+	// ogg/opus WhatsApp voice notes use. TRT custom patch #28.
+	// 1) decode whatever the browser sent → 48kHz mono 16-bit WAV
+	dec := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+		"-i", inF.Name(), "-vn", "-map_metadata", "-1", "-ar", "48000", "-ac", "1",
+		"-c:a", "pcm_s16le", "-f", "wav", wavPath)
+	var decErr bytes.Buffer
+	dec.Stderr = &decErr
+	if err := dec.Run(); err != nil {
+		a.Log.Error("audio decode to wav failed", "error", err, "stderr", decErr.String(), "mime", mime)
+		return nil, "", false
+	}
+	// 2) encode WAV → ogg/opus with the reference encoder
+	enc := exec.CommandContext(ctx, "opusenc", "--quiet", "--bitrate", "32", "--downmix-mono", wavPath, outPath)
+	var encErr bytes.Buffer
+	enc.Stderr = &encErr
+	if err := enc.Run(); err != nil {
+		a.Log.Error("opusenc encode failed", "error", err, "stderr", encErr.String(), "mime", mime)
 		return nil, "", false
 	}
 	out, err := os.ReadFile(outPath)
