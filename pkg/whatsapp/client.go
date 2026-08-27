@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"time"
 
@@ -314,26 +316,27 @@ func (c *Client) UploadMedia(ctx context.Context, account *Account, data []byte,
 		bareType = strings.TrimSpace(bareType[:i])
 	}
 
-	// Create multipart form body
+	// TRT custom patch #28: build the multipart form with the standard library rather
+	// than hand-rolled strings, and set the file part's Content-Type explicitly (the
+	// default is application/octet-stream — the exact type Meta was storing → 131053).
+	// Also send the `type` field. Fixes voice-note uploads.
 	body := &bytes.Buffer{}
-	boundary := "----WebKitFormBoundary7MA4YWxkTrZu0gW"
-
-	// Build multipart body manually
-	fmt.Fprintf(body, "--%s\r\n", boundary)
-	body.WriteString("Content-Disposition: form-data; name=\"messaging_product\"\r\n\r\n")
-	body.WriteString("whatsapp\r\n")
-
-	fmt.Fprintf(body, "--%s\r\n", boundary)
-	body.WriteString("Content-Disposition: form-data; name=\"type\"\r\n\r\n")
-	fmt.Fprintf(body, "%s\r\n", bareType)
-
-	fmt.Fprintf(body, "--%s\r\n", boundary)
-	fmt.Fprintf(body, "Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n", filename)
-	fmt.Fprintf(body, "Content-Type: %s\r\n\r\n", bareType)
-	body.Write(data)
-	body.WriteString("\r\n")
-
-	fmt.Fprintf(body, "--%s--\r\n", boundary)
+	w := multipart.NewWriter(body)
+	_ = w.WriteField("messaging_product", "whatsapp")
+	_ = w.WriteField("type", bareType)
+	h := textproto.MIMEHeader{}
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, filename))
+	h.Set("Content-Type", bareType)
+	part, err := w.CreatePart(h)
+	if err != nil {
+		return "", fmt.Errorf("failed to create multipart part: %w", err)
+	}
+	if _, err := part.Write(data); err != nil {
+		return "", fmt.Errorf("failed to write media data: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return "", fmt.Errorf("failed to finalize multipart: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
@@ -341,7 +344,7 @@ func (c *Client) UploadMedia(ctx context.Context, account *Account, data []byte,
 	}
 
 	req.Header.Set("Authorization", "Bearer "+account.AccessToken)
-	req.Header.Set("Content-Type", fmt.Sprintf("multipart/form-data; boundary=%s", boundary))
+	req.Header.Set("Content-Type", w.FormDataContentType())
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -367,7 +370,26 @@ func (c *Client) UploadMedia(ctx context.Context, account *Account, data []byte,
 		return "", fmt.Errorf("no media ID in upload response")
 	}
 
-	c.Log.Info("Media uploaded", "media_id", uploadResp.ID)
+	// Diagnostic: ask Meta what it actually stored, so an octet-stream mismatch is
+	// visible instead of inferred. TRT custom patch #28.
+	if infoURL := fmt.Sprintf("%s/%s/%s", c.getBaseURL(), account.APIVersion, uploadResp.ID); infoURL != "" {
+		if infoReq, ierr := http.NewRequestWithContext(ctx, http.MethodGet, infoURL, nil); ierr == nil {
+			infoReq.Header.Set("Authorization", "Bearer "+account.AccessToken)
+			if infoResp, ierr := c.HTTPClient.Do(infoReq); ierr == nil {
+				ib, _ := io.ReadAll(infoResp.Body)
+				_ = infoResp.Body.Close()
+				var meta struct {
+					MimeType string `json:"mime_type"`
+					FileSize int    `json:"file_size"`
+				}
+				_ = json.Unmarshal(ib, &meta)
+				c.Log.Info("Media uploaded", "media_id", uploadResp.ID, "sent_type", bareType, "stored_mime", meta.MimeType, "stored_size", meta.FileSize)
+				return uploadResp.ID, nil
+			}
+		}
+	}
+
+	c.Log.Info("Media uploaded", "media_id", uploadResp.ID, "sent_type", bareType)
 	return uploadResp.ID, nil
 }
 
