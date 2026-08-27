@@ -32,6 +32,8 @@ grep -rn "TRT custom patch" internal/ frontend/src/
 
 | 16 | Gemini model list | `frontend/src/views/settings/ChatbotSettingsView.vue` | AI-model dropdown refreshed to current Gemini models (gemini-3.6-flash, gemini-2.5-flash/pro/flash-lite); the old gemini-2.0/1.5 entries 404 on generateContent (deprecated). | _this change_ |
 
+| 30 | Log message-failure reason | `internal/handlers/webhook.go` (`updateMessageStatus`) | Meta's status webhook carries the failure code/reason, which was stored on the message but not logged — a `status=failed` gave no clue why. Now a failed delivery logs `Message delivery failed` with `error_code` + `error_reason` (e.g. 131047 = outside 24h window), so failures are diagnosable from the logs. | _this change_ |
+
 | 29 | Tag contacts via tags perm | `internal/handlers/contacts.go` (`UpdateContactTags`) + `frontend/src/components/chat/ContactInfoPanel.vue` (`canEditTags`) | Applying a tag to a contact was gated by `contacts:write` (both backend and the UI button), so granting agents the Tags permission never let them tag — agents only have `contacts:read`. Now gated by `tags:write`, so an agent role with tags:write can apply Converted/Lost/Waiting without full contact-edit rights. | _this change_ |
 
 | 28 | Voice-note recording | `internal/handlers/contacts.go` (`SendMediaMessage`, `transcodeAudioToOgg`) + `frontend/src/views/chat/ChatView.vue` (mic button + MediaRecorder) | Agents can record and send a voice note from the inbox composer (tap mic to start, tap send/cancel, live timer). The browser records opus (webm on Chrome); the backend auto-transcodes any non-WhatsApp audio to ogg/opus via ffmpeg (shipped in the image) before uploading to Meta, so it lands as a proper voice note. | _this change_ |

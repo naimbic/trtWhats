@@ -424,6 +424,11 @@ func (a *App) updateMessageStatus(whatsappMsgID, statusValue string, errors []We
 
 	updates := map[string]any{}
 
+	// TRT custom patch #30: capture the Meta failure reason/code so it's in the logs,
+	// not just the DB — makes a status=failed diagnosable (e.g. outside the 24h window).
+	var failReason string
+	var failCode int
+
 	switch newStatus {
 	case models.MessageStatusSent:
 		updates["status"] = models.MessageStatusSent
@@ -444,6 +449,8 @@ func (a *App) updateMessageStatus(whatsappMsgID, statusValue string, errors []We
 			}
 
 			updates["error_message"] = errText
+			failReason = errText
+			failCode = errors[0].Code
 		}
 	default:
 		a.Log.Debug("Ignoring message status update", "status", statusValue)
@@ -455,7 +462,12 @@ func (a *App) updateMessageStatus(whatsappMsgID, statusValue string, errors []We
 		return
 	}
 
-	a.Log.Info("Updated message status", "message_id", message.ID, "status", statusValue)
+	if newStatus == models.MessageStatusFailed {
+		a.Log.Warn("Message delivery failed", "message_id", message.ID, "type", message.MessageType,
+			"error_code", failCode, "error_reason", failReason)
+	} else {
+		a.Log.Info("Updated message status", "message_id", message.ID, "status", statusValue)
+	}
 
 	// Update campaign stats and recipient status if this is a campaign message
 	if message.Metadata != nil {
