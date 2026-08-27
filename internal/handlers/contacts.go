@@ -806,7 +806,9 @@ func (a *App) transcodeAudioToOgg(data []byte, mime string) ([]byte, string, boo
 	if out.Len() == 0 {
 		return nil, "", false
 	}
-	return out.Bytes(), "audio/ogg; codecs=opus", true
+	// Meta's media allowlist wants a clean "audio/ogg" — a "; codecs=opus" param makes
+	// it fall back to octet-stream and reject the upload. TRT custom patch #28.
+	return out.Bytes(), "audio/ogg", true
 }
 
 func (a *App) SendMediaMessage(r *fastglue.Request) error {
