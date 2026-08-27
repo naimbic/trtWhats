@@ -13,17 +13,20 @@ import (
 )
 
 const (
-	// Cache TTLs - 6 hours since these rarely change (invalidated on update anyway)
-	settingsCacheTTL        = 6 * time.Hour
-	flowsCacheTTL           = 6 * time.Hour
-	keywordRulesCacheTTL    = 6 * time.Hour
-	whatsappAccountCacheTTL = 6 * time.Hour
-	webhooksCacheTTL        = 6 * time.Hour
-	slaSettingsCacheTTL     = 6 * time.Hour
-	aiContextsCacheTTL      = 6 * time.Hour
-	userPermissionsCacheTTL = 6 * time.Hour
-	rolePermissionsCacheTTL = 6 * time.Hour
-	tagsCacheTTL            = 6 * time.Hour
+	// TRT custom patch #27: cache TTLs cut from 6h to 60s. These are invalidated on
+	// update, but any handler that forgets (or a change made directly in the DB) used
+	// to stay stale for up to 6 hours — so settings/permissions edits "didn't take
+	// effect". 60s is a safety net so every change applies within a minute regardless.
+	settingsCacheTTL        = 60 * time.Second
+	flowsCacheTTL           = 60 * time.Second
+	keywordRulesCacheTTL    = 60 * time.Second
+	whatsappAccountCacheTTL = 60 * time.Second
+	webhooksCacheTTL        = 60 * time.Second
+	slaSettingsCacheTTL     = 60 * time.Second
+	aiContextsCacheTTL      = 60 * time.Second
+	userPermissionsCacheTTL = 60 * time.Second
+	rolePermissionsCacheTTL = 60 * time.Second
+	tagsCacheTTL            = 60 * time.Second
 
 	// Cache key prefixes
 	settingsCachePrefix        = "chatbot:settings:"

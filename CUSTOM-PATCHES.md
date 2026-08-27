@@ -32,6 +32,8 @@ grep -rn "TRT custom patch" internal/ frontend/src/
 
 | 16 | Gemini model list | `frontend/src/views/settings/ChatbotSettingsView.vue` | AI-model dropdown refreshed to current Gemini models (gemini-3.6-flash, gemini-2.5-flash/pro/flash-lite); the old gemini-2.0/1.5 entries 404 on generateContent (deprecated). | _this change_ |
 
+| 27 | Cache TTL 6h → 60s | `internal/handlers/cache.go` | All server-side caches (settings, flows, keywords, WhatsApp accounts, webhooks, SLA, AI contexts, user/role permissions, tags) had a 6-hour TTL, so any settings/permission edit whose handler forgot to invalidate (or a direct DB change) stayed stale for up to 6h — edits "didn't take effect". TTLs cut to 60s as a safety net so every change applies within a minute regardless of invalidation. | _this change_ |
+
 | 26 | Out-of-hours debounce | `internal/handlers/chatbot_processor.go` (`sendOutOfHoursOnce`) | The built-in out-of-hours message fired on every inbound after closing (spam). Now it is sent only if it was not already the last message to that contact within 8h — so a client messaging several times after hours gets one "we'll contact you tomorrow" reply, not many. Used by both out-of-hours branches. | _this change_ |
 
 | 25 | Agent takeover pauses bot | `internal/handlers/contacts.go` (`SendMessage`, `ensureAgentTakeoverTransfer`) | When a human agent sends a message in a conversation, the chatbot/AI now stops replying to that contact — it creates an active agent transfer (if none), which `hasActiveAgentTransfer` uses to skip the bot in `processIncomingMessageFull`. The existing **Resume** button on the transfer hands the contact back to the bot. Previously the AI kept replying alongside the agent unless a flow/keyword transfer had fired. | _this change_ |
