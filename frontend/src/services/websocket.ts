@@ -393,11 +393,25 @@ class WebSocketService {
     const alreadyRead = payload.status === 'read'
     const userActive = typeof document === 'undefined'
       || (document.visibilityState === 'visible' && document.hasFocus())
+
+    // TRT custom patch #32: update the affected conversation in place instead
+    // of refetching the whole list on every message. A full fetchContacts()
+    // per message rebuilt the sidebar array, which made the list flicker/jump
+    // (Belle Tulipe ~2000 msgs/day) and reset the active date/tag filter and
+    // loaded pagination back to page 1. We only fall back to a fetch when the
+    // contact isn't already in the current (possibly filtered) list — e.g. a
+    // brand-new conversation that should now appear.
+    const inList = store.applyRealtimeContactUpdate(payload, { isViewing: !!isViewingThisContact })
+
     if (isViewingThisContact && currentContact && payload.direction === 'incoming' && !alreadyRead && userActive) {
       contactsService.markRead(currentContact.id)
+        .then(() => store.markContactReadLocal(currentContact.id))
         .catch(() => { /* non-critical, will resync on next chat-open */ })
-        .finally(() => store.fetchContacts())
-    } else {
+    }
+
+    if (!inList) {
+      // New conversation not in the current view — bring it in (respects the
+      // active filter, since fetchContacts carries dateFrom/dateTo/tags).
       store.fetchContacts()
     }
   }

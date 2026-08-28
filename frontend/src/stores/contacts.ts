@@ -300,7 +300,9 @@ export const useContactsStore = defineStore('contacts', () => {
     if (contact) {
       contact.last_message_at = message.created_at
       if (message.direction === 'incoming') {
-        contact.unread_count++
+        // Don't bump the badge for the conversation that's currently open.
+        const viewing = currentContact.value?.id === message.contact_id
+        if (!viewing) contact.unread_count++
         contact.last_inbound_at = message.created_at
         contact.service_window_open = true
       }
@@ -371,6 +373,35 @@ export const useContactsStore = defineStore('contacts', () => {
     }
   }
 
+  // TRT custom patch #32: update a single contact in the list from a realtime
+  // (WebSocket) message, in place — instead of refetching the whole list on
+  // every message. Returns false when the contact isn't in the current
+  // (possibly filtered/paginated) list, so the caller can decide to fetch.
+  // Updating last_message_at lets the `sortedContacts` computed reorder just
+  // that one row, so the sidebar no longer flickers/jumps and the active
+  // date/tag filter + loaded pages are preserved.
+  function applyRealtimeContactUpdate(
+    payload: { contact_id: string; created_at: string; direction: string },
+    opts: { isViewing: boolean }
+  ): boolean {
+    const contact = contacts.value.find(c => c.id === payload.contact_id)
+    if (!contact) return false
+    if (payload.created_at) contact.last_message_at = payload.created_at
+    if (payload.direction === 'incoming') {
+      contact.last_inbound_at = payload.created_at
+      contact.service_window_open = true
+      if (!opts.isViewing) contact.unread_count = (contact.unread_count ?? 0) + 1
+    }
+    return true
+  }
+
+  // Clear the unread badge for one contact locally (used after markRead
+  // succeeds, so we don't refetch the whole list just to reset a counter).
+  function markContactReadLocal(contactId: string) {
+    const contact = contacts.value.find(c => c.id === contactId)
+    if (contact) contact.unread_count = 0
+  }
+
   // Debounce server-side search so each keystroke doesn't fire a request.
   let searchDebounceHandle: ReturnType<typeof setTimeout> | null = null
   watch(searchQuery, (query) => {
@@ -416,6 +447,8 @@ export const useContactsStore = defineStore('contacts', () => {
     setReplyingTo,
     clearReplyingTo,
     updateMessageReactions,
-    updateContactTags
+    updateContactTags,
+    applyRealtimeContactUpdate,
+    markContactReadLocal
   }
 })
