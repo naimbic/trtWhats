@@ -92,6 +92,9 @@ export const useContactsStore = defineStore('contacts', () => {
   const hasMoreMessages = ref(false)
   const searchQuery = ref('')
   const selectedTags = ref<string[]>([])
+  // TRT custom patch #31: date-range filter on last activity (ISO strings, null = off)
+  const dateFrom = ref<string | null>(null)
+  const dateTo = ref<string | null>(null)
   const replyingTo = ref<Message | null>(null)
   const accountFilter = ref<string | null>(null)
 
@@ -122,6 +125,8 @@ export const useContactsStore = defineStore('contacts', () => {
         page: 1,
         limit: contactsLimit.value,
         tags: tagsParam,
+        from: dateFrom.value || undefined,
+        to: dateTo.value || undefined,
         ...params
       })
       // API returns { status: "success", data: { contacts: [...], total: number } }
@@ -148,6 +153,8 @@ export const useContactsStore = defineStore('contacts', () => {
         page: nextPage,
         limit: contactsLimit.value,
         tags: tagsParam,
+        from: dateFrom.value || undefined,
+        to: dateTo.value || undefined,
         search
       })
       const data = response.data.data || response.data
@@ -384,6 +391,8 @@ export const useContactsStore = defineStore('contacts', () => {
     hasMoreMessages,
     searchQuery,
     selectedTags,
+    dateFrom,
+    dateTo,
     replyingTo,
     filteredContacts,
     sortedContacts,

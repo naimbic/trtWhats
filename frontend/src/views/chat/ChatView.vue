@@ -89,6 +89,7 @@ import {
   Code,
   RotateCw,
   Filter,
+  CalendarDays,
   StickyNote
 } from 'lucide-vue-next'
 import { getInitials, getAvatarGradient } from '@/lib/utils'
@@ -354,6 +355,81 @@ function toggleTagFilter(tagName: string) {
 function clearTagFilter() {
   contactsStore.selectedTags = []
   contactsStore.fetchContacts()
+}
+
+// TRT custom patch #31: date-range filter on last activity.
+const isDateFilterOpen = ref(false)
+const dateRangePreset = ref<'all' | 'today' | 'yesterday' | '7days' | '30days' | 'custom'>('all')
+const customFrom = ref('')
+const customTo = ref('')
+
+const dateRangeLabel = computed(() => {
+  switch (dateRangePreset.value) {
+    case 'today': return t('chat.dateToday')
+    case 'yesterday': return t('chat.dateYesterday')
+    case '7days': return t('chat.date7Days')
+    case '30days': return t('chat.date30Days')
+    case 'custom': return t('chat.dateCustom')
+    default: return t('chat.dateAllTime')
+  }
+})
+
+function startOfDay(d: Date): Date {
+  const c = new Date(d)
+  c.setHours(0, 0, 0, 0)
+  return c
+}
+
+function applyDatePreset(preset: 'all' | 'today' | 'yesterday' | '7days' | '30days') {
+  dateRangePreset.value = preset
+  const now = new Date()
+  let from: Date | null = null
+  let to: Date | null = null
+  switch (preset) {
+    case 'today':
+      from = startOfDay(now)
+      break
+    case 'yesterday':
+      from = startOfDay(new Date(now.getTime() - 24 * 60 * 60 * 1000))
+      to = startOfDay(now)
+      break
+    case '7days':
+      from = startOfDay(new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000))
+      break
+    case '30days':
+      from = startOfDay(new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000))
+      break
+    case 'all':
+    default:
+      from = null
+      to = null
+      break
+  }
+  contactsStore.dateFrom = from ? from.toISOString() : null
+  contactsStore.dateTo = to ? to.toISOString() : null
+  contactsStore.fetchContacts()
+  isDateFilterOpen.value = false
+}
+
+function applyCustomRange() {
+  dateRangePreset.value = 'custom'
+  contactsStore.dateFrom = customFrom.value ? startOfDay(new Date(customFrom.value)).toISOString() : null
+  // include the whole "to" day
+  contactsStore.dateTo = customTo.value
+    ? new Date(new Date(customTo.value).setHours(23, 59, 59, 999)).toISOString()
+    : null
+  contactsStore.fetchContacts()
+  isDateFilterOpen.value = false
+}
+
+function clearDateFilter() {
+  dateRangePreset.value = 'all'
+  customFrom.value = ''
+  customTo.value = ''
+  contactsStore.dateFrom = null
+  contactsStore.dateTo = null
+  contactsStore.fetchContacts()
+  isDateFilterOpen.value = false
 }
 
 async function executeCustomAction(action: CustomAction) {
@@ -1862,6 +1938,83 @@ async function sendAudioBlob(blob: Blob) {
               </div>
             </PopoverContent>
           </Popover>
+          <!-- Date Range Filter (TRT patch #31) -->
+          <Popover v-model:open="isDateFilterOpen">
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-8 w-8 shrink-0 relative"
+                :class="dateRangePreset !== 'all' ? 'text-emerald-400 bg-emerald-500/10' : 'text-white/40 hover:text-white hover:bg-white/[0.08] light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100'"
+              >
+                <CalendarDays class="h-4 w-4" />
+                <span v-if="dateRangePreset !== 'all'" class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-500" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" class="w-56 p-2">
+              <div class="space-y-1">
+                <div class="flex items-center justify-between px-1 pb-1">
+                  <span class="text-sm font-medium">{{ $t('chat.filterByDate') }}</span>
+                  <Button
+                    v-if="dateRangePreset !== 'all'"
+                    variant="ghost"
+                    size="sm"
+                    class="h-6 px-2 text-xs"
+                    @click="clearDateFilter"
+                  >
+                    Clear
+                  </Button>
+                </div>
+                <Separator />
+                <button
+                  v-for="opt in [
+                    { key: 'today', label: $t('chat.dateToday') },
+                    { key: 'yesterday', label: $t('chat.dateYesterday') },
+                    { key: '7days', label: $t('chat.date7Days') },
+                    { key: '30days', label: $t('chat.date30Days') },
+                  ]"
+                  :key="opt.key"
+                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-white/[0.08] light:hover:bg-gray-100 transition-colors"
+                  :class="dateRangePreset === opt.key && 'bg-white/[0.08] light:bg-gray-100'"
+                  @click="applyDatePreset(opt.key as any)"
+                >
+                  <span class="flex-1 text-left truncate">{{ opt.label }}</span>
+                  <Check v-if="dateRangePreset === opt.key" class="h-4 w-4 text-emerald-400 shrink-0" />
+                </button>
+                <Separator />
+                <div class="px-1 py-1 space-y-1.5">
+                  <span class="text-xs text-muted-foreground">{{ $t('chat.dateCustom') }}</span>
+                  <input
+                    v-model="customFrom"
+                    type="date"
+                    class="w-full h-8 px-2 text-sm rounded-md bg-white/[0.04] border border-white/[0.1] text-white light:bg-gray-50 light:border-gray-200 light:text-gray-900"
+                  />
+                  <input
+                    v-model="customTo"
+                    type="date"
+                    class="w-full h-8 px-2 text-sm rounded-md bg-white/[0.04] border border-white/[0.1] text-white light:bg-gray-50 light:border-gray-200 light:text-gray-900"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    class="w-full h-7 text-xs"
+                    :disabled="!customFrom && !customTo"
+                    @click="applyCustomRange"
+                  >
+                    {{ $t('chat.applyRange') }}
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <!-- Active date filter -->
+        <div v-if="dateRangePreset !== 'all'" class="flex items-center gap-1 mt-2">
+          <Badge variant="secondary" class="cursor-pointer hover:opacity-80 gap-1" @click="clearDateFilter">
+            <CalendarDays class="h-3 w-3" />
+            {{ dateRangeLabel }}
+            <X class="h-3 w-3 ml-0.5" />
+          </Badge>
         </div>
         <!-- Active tag filters -->
         <div v-if="contactsStore.selectedTags.length > 0" class="flex flex-wrap gap-1 mt-2">

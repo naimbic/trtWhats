@@ -10,6 +10,7 @@ grep -rn "TRT custom patch" internal/ frontend/src/
 
 | # | Area | File(s) | What / Why | Commit |
 |---|------|---------|------------|--------|
+| 31 | Conversations date filter | `internal/handlers/contacts.go` (`ListContacts`) + `frontend/src/services/api.ts` + `frontend/src/stores/contacts.ts` + `frontend/src/views/chat/ChatView.vue` + `frontend/src/i18n/locales/en.json` | Filter the conversation list by **last activity** window. Backend accepts `from`/`to` (RFC3339) query args and adds `last_message_at >= / <=` WHERE clauses. Frontend adds a calendar dropdown in the inbox header (Today / Yesterday / Last 7 days / Last 30 days / Custom range) alongside the tag filter; the store carries `dateFrom`/`dateTo` and passes them through both `fetchContacts` and `loadMoreContacts` (pagination preserves the filter). An active filter shows a removable badge. | _this change_ |
 | 1 | Config | `internal/config/config.go` | Parse `DATABASE_URL` / `REDIS_URL` connection strings (managed Postgres/Redis on Coolify). Adds `applyDatabaseURL`/`applyRedisURL`. | a7df019 |
 | 2 | Redis TLS | `internal/config/config.go`, `internal/database/redis.go` | `RedisConfig.TLSSkipVerify` + `redis://` disables TLS, `?tls_skip_verify=true` for self-signed certs. | c28f2b0 |
 | 3 | Deploy | root `Dockerfile`, `docker-compose.coolify.yaml`, `.env.coolify.example`, `DEPLOY-COOLIFY.md`, `.dockerignore` | Root Dockerfile (multi-stage + ffmpeg/Piper TTS) so Coolify's default build pack finds it; Coolify deploy assets. | 61299c6, 91dc551, 1519318 |

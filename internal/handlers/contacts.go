@@ -95,6 +95,10 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 	pg := parsePagination(r)
 	search := string(r.RequestCtx.QueryArgs().Peek("search"))
 	tagsParam := string(r.RequestCtx.QueryArgs().Peek("tags"))
+	// TRT custom patch #31: date-range filter on last activity (Today / Yesterday /
+	// 7 / 30 days / Custom in the UI). RFC3339 timestamps; either bound is optional.
+	fromParam := string(r.RequestCtx.QueryArgs().Peek("from"))
+	toParam := string(r.RequestCtx.QueryArgs().Peek("to"))
 
 	var contacts []models.Contact
 	query := a.ScopeToOrg(a.DB, userID, orgID)
@@ -131,6 +135,18 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 		}
 		if len(conditions) > 0 {
 			query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
+		}
+	}
+
+	// TRT custom patch #31: filter by last activity window.
+	if fromParam != "" {
+		if t, perr := time.Parse(time.RFC3339, fromParam); perr == nil {
+			query = query.Where("last_message_at >= ?", t)
+		}
+	}
+	if toParam != "" {
+		if t, perr := time.Parse(time.RFC3339, toParam); perr == nil {
+			query = query.Where("last_message_at <= ?", t)
 		}
 	}
 
