@@ -95,6 +95,8 @@ export const useContactsStore = defineStore('contacts', () => {
   // TRT custom patch #31: date-range filter on last activity (ISO strings, null = off)
   const dateFrom = ref<string | null>(null)
   const dateTo = ref<string | null>(null)
+  // TRT custom patch #33: read/unread filter (null = all)
+  const readFilter = ref<'read' | 'unread' | null>(null)
   const replyingTo = ref<Message | null>(null)
   const accountFilter = ref<string | null>(null)
 
@@ -117,7 +119,14 @@ export const useContactsStore = defineStore('contacts', () => {
     })
   })
 
+  // TRT custom patch #33: guard against out-of-order responses. Switching
+  // filters quickly (read/date/tags/search) fires several fetchContacts calls;
+  // without this, an older response can resolve last and overwrite the list
+  // with stale results. Only the newest request is allowed to apply.
+  let fetchContactsSeq = 0
+
   async function fetchContacts(params?: { search?: string; page?: number; limit?: number; tags?: string }) {
+    const seq = ++fetchContactsSeq
     isLoading.value = true
     try {
       const tagsParam = selectedTags.value.length > 0 ? selectedTags.value.join(',') : undefined
@@ -127,8 +136,10 @@ export const useContactsStore = defineStore('contacts', () => {
         tags: tagsParam,
         from: dateFrom.value || undefined,
         to: dateTo.value || undefined,
+        read: readFilter.value === null ? undefined : readFilter.value === 'read',
         ...params
       })
+      if (seq !== fetchContactsSeq) return // superseded by a newer fetch
       // API returns { status: "success", data: { contacts: [...], total: number } }
       const data = response.data.data || response.data
       contacts.value = data.contacts || []
@@ -137,7 +148,7 @@ export const useContactsStore = defineStore('contacts', () => {
     } catch (error) {
       console.error('Failed to fetch contacts:', error)
     } finally {
-      isLoading.value = false
+      if (seq === fetchContactsSeq) isLoading.value = false
     }
   }
 
@@ -155,6 +166,7 @@ export const useContactsStore = defineStore('contacts', () => {
         tags: tagsParam,
         from: dateFrom.value || undefined,
         to: dateTo.value || undefined,
+        read: readFilter.value === null ? undefined : readFilter.value === 'read',
         search
       })
       const data = response.data.data || response.data
@@ -424,6 +436,7 @@ export const useContactsStore = defineStore('contacts', () => {
     selectedTags,
     dateFrom,
     dateTo,
+    readFilter,
     replyingTo,
     filteredContacts,
     sortedContacts,

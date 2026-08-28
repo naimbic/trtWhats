@@ -90,6 +90,7 @@ import {
   RotateCw,
   Filter,
   CalendarDays,
+  MailOpen,
   StickyNote
 } from 'lucide-vue-next'
 import { getInitials, getAvatarGradient } from '@/lib/utils'
@@ -430,6 +431,21 @@ function clearDateFilter() {
   contactsStore.dateTo = null
   contactsStore.fetchContacts()
   isDateFilterOpen.value = false
+}
+
+// TRT custom patch #33: read/unread (new messages) filter.
+const isReadFilterOpen = ref(false)
+
+const readFilterLabel = computed(() => {
+  if (contactsStore.readFilter === 'unread') return t('chat.readUnread')
+  if (contactsStore.readFilter === 'read') return t('chat.readRead')
+  return t('chat.readAll')
+})
+
+function applyReadFilter(value: 'read' | 'unread' | null) {
+  contactsStore.readFilter = value
+  contactsStore.fetchContacts()
+  isReadFilterOpen.value = false
 }
 
 async function executeCustomAction(action: CustomAction) {
@@ -2007,6 +2023,50 @@ async function sendAudioBlob(blob: Blob) {
               </div>
             </PopoverContent>
           </Popover>
+          <!-- Read / Unread Filter (TRT patch #33) -->
+          <Popover v-model:open="isReadFilterOpen">
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-8 w-8 shrink-0 relative"
+                :class="contactsStore.readFilter !== null ? 'text-emerald-400 bg-emerald-500/10' : 'text-white/40 hover:text-white hover:bg-white/[0.08] light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100'"
+              >
+                <MailOpen class="h-4 w-4" />
+                <span v-if="contactsStore.readFilter !== null" class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-500" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" class="w-48 p-2">
+              <div class="space-y-1">
+                <div class="px-1 pb-1">
+                  <span class="text-sm font-medium">{{ $t('chat.filterByStatus') }}</span>
+                </div>
+                <Separator />
+                <button
+                  v-for="opt in [
+                    { key: null, label: $t('chat.readAll') },
+                    { key: 'unread', label: $t('chat.readUnread') },
+                    { key: 'read', label: $t('chat.readRead') },
+                  ]"
+                  :key="String(opt.key)"
+                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-white/[0.08] light:hover:bg-gray-100 transition-colors"
+                  :class="contactsStore.readFilter === opt.key && 'bg-white/[0.08] light:bg-gray-100'"
+                  @click="applyReadFilter(opt.key as any)"
+                >
+                  <span class="flex-1 text-left truncate">{{ opt.label }}</span>
+                  <Check v-if="contactsStore.readFilter === opt.key" class="h-4 w-4 text-emerald-400 shrink-0" />
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <!-- Active read/unread filter -->
+        <div v-if="contactsStore.readFilter !== null" class="flex items-center gap-1 mt-2">
+          <Badge variant="secondary" class="cursor-pointer hover:opacity-80 gap-1" @click="applyReadFilter(null)">
+            <MailOpen class="h-3 w-3" />
+            {{ readFilterLabel }}
+            <X class="h-3 w-3 ml-0.5" />
+          </Badge>
         </div>
         <!-- Active date filter -->
         <div v-if="dateRangePreset !== 'all'" class="flex items-center gap-1 mt-2">

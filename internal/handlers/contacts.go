@@ -99,6 +99,9 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 	// 7 / 30 days / Custom in the UI). RFC3339 timestamps; either bound is optional.
 	fromParam := string(r.RequestCtx.QueryArgs().Peek("from"))
 	toParam := string(r.RequestCtx.QueryArgs().Peek("to"))
+	// TRT custom patch #33: read/unread filter. "read=false" -> only conversations
+	// with unread (new) incoming messages; "read=true" -> only fully-read ones.
+	readParam := string(r.RequestCtx.QueryArgs().Peek("read"))
 
 	var contacts []models.Contact
 	query := a.ScopeToOrg(a.DB, userID, orgID)
@@ -147,6 +150,18 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 	if toParam != "" {
 		if t, perr := time.Parse(time.RFC3339, toParam); perr == nil {
 			query = query.Where("last_message_at <= ?", t)
+		}
+	}
+
+	// TRT custom patch #33: filter by read/unread. A conversation is "unread"
+	// when it has at least one incoming message not yet marked read — the same
+	// rule that drives the per-contact unread badge below.
+	if readParam == "true" || readParam == "false" {
+		unreadExists := "EXISTS (SELECT 1 FROM messages m WHERE m.contact_id = contacts.id AND m.direction = ? AND m.status <> ? AND m.deleted_at IS NULL)"
+		if readParam == "false" {
+			query = query.Where(unreadExists, models.DirectionIncoming, models.MessageStatusRead)
+		} else {
+			query = query.Where("NOT "+unreadExists, models.DirectionIncoming, models.MessageStatusRead)
 		}
 	}
 
