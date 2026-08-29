@@ -8,30 +8,26 @@ export type MessageSchema = typeof en
 // Using import: 'default' to get JSON content directly (required for Vite 5+)
 const localeModules = import.meta.glob('./locales/*.json', { eager: true, import: 'default' }) as Record<string, MessageSchema>
 
-// Build supported locales list from available files
+// Supported locales for trtWhats: English, French, Arabic only.
 const localeNames: Record<string, { name: string; nativeName: string }> = {
   en: { name: 'English', nativeName: 'English' },
-  es: { name: 'Spanish', nativeName: 'Español' },
   fr: { name: 'French', nativeName: 'Français' },
-  de: { name: 'German', nativeName: 'Deutsch' },
-  hi: { name: 'Hindi', nativeName: 'हिंदी' },
-  pt: { name: 'Portuguese', nativeName: 'Português' },
-  zh: { name: 'Chinese', nativeName: '中文' },
-  ja: { name: 'Japanese', nativeName: '日本語' },
-  ko: { name: 'Korean', nativeName: '한국어' },
   ar: { name: 'Arabic', nativeName: 'العربية' },
-  ru: { name: 'Russian', nativeName: 'Русский' },
-  it: { name: 'Italian', nativeName: 'Italiano' },
-  nl: { name: 'Dutch', nativeName: 'Nederlands' },
-  tr: { name: 'Turkish', nativeName: 'Türkçe' },
-  vi: { name: 'Vietnamese', nativeName: 'Tiếng Việt' },
-  th: { name: 'Thai', nativeName: 'ไทย' },
-  id: { name: 'Indonesian', nativeName: 'Bahasa Indonesia' },
-  ms: { name: 'Malay', nativeName: 'Bahasa Melayu' },
-  pl: { name: 'Polish', nativeName: 'Polski' },
-  uk: { name: 'Ukrainian', nativeName: 'Українська' },
-  ta: { name: 'Tamil', nativeName: 'தமிழ்' },
+}
 
+// Right-to-left locales. When one is active the whole UI is mirrored
+// (sidebar/menu moves to the right, chat list + messages align right).
+const RTL_LOCALES = new Set(['ar', 'he', 'fa', 'ur'])
+
+export function isRTL(locale: string): boolean {
+  return RTL_LOCALES.has(locale)
+}
+
+// Apply text direction to the document for the given locale.
+export function applyDir(locale: string) {
+  const dir = isRTL(locale) ? 'rtl' : 'ltr'
+  document.documentElement.setAttribute('dir', dir)
+  document.documentElement.setAttribute('lang', locale)
 }
 
 // Auto-generate SUPPORTED_LOCALES from available files
@@ -74,6 +70,9 @@ export const i18n = createI18n({
   messages,
 })
 
+// Apply the initial text direction (RTL for Arabic) on load.
+applyDir(i18n.global.locale.value)
+
 // Helper to change locale
 export function setLocale(locale: string) {
   if (!messages[locale]) {
@@ -82,7 +81,7 @@ export function setLocale(locale: string) {
   }
   i18n.global.locale.value = locale
   localStorage.setItem('locale', locale)
-  document.documentElement.setAttribute('lang', locale)
+  applyDir(locale)
 }
 
 // Get current locale

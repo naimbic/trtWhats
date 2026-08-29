@@ -1875,7 +1875,7 @@ async function sendAudioBlob(blob: Blob) {
 <template>
   <div class="flex h-full bg-[#0a0a0b] light:bg-gray-50">
     <!-- Contacts List -->
-    <div class="w-80 border-r border-white/[0.08] light:border-gray-200 flex flex-col bg-[#0a0a0b] light:bg-white">
+    <div class="w-80 border-e border-white/[0.08] light:border-gray-200 flex flex-col bg-[#0a0a0b] light:bg-white">
       <!-- Search Header -->
       <div class="p-2 border-b border-white/[0.08] light:border-gray-200">
         <div class="flex items-center gap-2">

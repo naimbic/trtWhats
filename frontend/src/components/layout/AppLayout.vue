@@ -138,10 +138,10 @@ const handleLogout = async () => {
     <!-- Sidebar -->
     <aside
       :class="[
-        'flex flex-col border-r border-white/[0.08] light:border-gray-200 bg-[#0a0a0b] light:bg-white transition-all duration-300',
-        'fixed inset-y-0 left-0 z-40 md:relative',
+        'flex flex-col border-e border-white/[0.08] light:border-gray-200 bg-[#0a0a0b] light:bg-white transition-all duration-300',
+        'fixed inset-y-0 left-0 rtl:left-auto rtl:right-0 z-40 md:relative',
         'transform md:transform-none',
-        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full max-md:rtl:translate-x-full md:translate-x-0',
         isCollapsed ? 'w-64 md:w-16' : 'w-64'
       ]"
       role="navigation"
