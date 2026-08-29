@@ -32,6 +32,12 @@ type AccountRequest struct {
 	IsDefaultOutgoing      bool   `json:"is_default_outgoing"`
 	AutoReadReceipt        bool   `json:"auto_read_receipt"`
 	BusinessCallingEnabled bool   `json:"business_calling_enabled"`
+	// TRT custom patch #35: per-space Meta offline-conversion settings.
+	MetaCapiEnabled   bool    `json:"meta_capi_enabled"`
+	MetaDatasetID     string  `json:"meta_dataset_id"`
+	MetaTestEventCode string  `json:"meta_test_event_code"`
+	MetaCurrency      string  `json:"meta_currency"`
+	MetaDefaultValue  float64 `json:"meta_default_value"`
 }
 
 // AccountResponse represents the response for an account (without sensitive data)
@@ -50,6 +56,11 @@ type AccountResponse struct {
 	Status                 string     `json:"status"`
 	HasAccessToken         bool       `json:"has_access_token"`
 	HasAppSecret           bool       `json:"has_app_secret"`
+	MetaCapiEnabled        bool       `json:"meta_capi_enabled"`
+	MetaDatasetID          string     `json:"meta_dataset_id"`
+	MetaTestEventCode      string     `json:"meta_test_event_code"`
+	MetaCurrency           string     `json:"meta_currency"`
+	MetaDefaultValue       float64    `json:"meta_default_value"`
 	PhoneNumber            string     `json:"phone_number,omitempty"`
 	DisplayName            string     `json:"display_name,omitempty"`
 	CreatedByID            *uuid.UUID `json:"created_by_id,omitempty"`
@@ -127,6 +138,11 @@ func (a *App) CreateAccount(r *fastglue.Request) error {
 		IsDefaultOutgoing:      req.IsDefaultOutgoing,
 		AutoReadReceipt:        req.AutoReadReceipt,
 		BusinessCallingEnabled: req.BusinessCallingEnabled,
+		MetaCapiEnabled:        req.MetaCapiEnabled,
+		MetaDatasetID:          req.MetaDatasetID,
+		MetaTestEventCode:      req.MetaTestEventCode,
+		MetaCurrency:           req.MetaCurrency,
+		MetaDefaultValue:       req.MetaDefaultValue,
 		Status:                 "active",
 		CreatedByID:            &userID,
 		UpdatedByID:            &userID,
@@ -247,6 +263,12 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 	}
 	account.AutoReadReceipt = req.AutoReadReceipt
 	account.BusinessCallingEnabled = req.BusinessCallingEnabled
+	// TRT custom patch #35: per-space Meta offline-conversion settings.
+	account.MetaCapiEnabled = req.MetaCapiEnabled
+	account.MetaDatasetID = req.MetaDatasetID
+	account.MetaTestEventCode = req.MetaTestEventCode
+	account.MetaCurrency = req.MetaCurrency
+	account.MetaDefaultValue = req.MetaDefaultValue
 
 	// Handle default flags
 	if req.IsDefaultIncoming && !account.IsDefaultIncoming {
@@ -468,6 +490,11 @@ func accountToResponse(acc models.WhatsAppAccount) AccountResponse {
 		Status:                 acc.Status,
 		HasAccessToken:         acc.AccessToken != "",
 		HasAppSecret:           acc.AppSecret != "",
+		MetaCapiEnabled:        acc.MetaCapiEnabled,
+		MetaDatasetID:          acc.MetaDatasetID,
+		MetaTestEventCode:      acc.MetaTestEventCode,
+		MetaCurrency:           acc.MetaCurrency,
+		MetaDefaultValue:       acc.MetaDefaultValue,
 		CreatedByID:            acc.CreatedByID,
 		UpdatedByID:            acc.UpdatedByID,
 		CreatedAt:              acc.CreatedAt.Format("2006-01-02T15:04:05Z"),

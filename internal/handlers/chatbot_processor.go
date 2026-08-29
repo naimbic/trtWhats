@@ -230,7 +230,7 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		// Meta CAPI is configured, so it never blocks or breaks message handling.
 		if a.tagContactConverted(contact) {
 			value := orderValueFromFlow(flowResponseData)
-			go a.sendMetaConversion(contact, value)
+			go a.sendMetaConversion(account, contact, value)
 		}
 	}
 

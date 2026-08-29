@@ -61,6 +61,12 @@ interface WhatsAppAccount {
   status: string
   has_access_token: boolean
   has_app_secret: boolean
+  business_calling_enabled?: boolean
+  meta_capi_enabled?: boolean
+  meta_dataset_id?: string
+  meta_test_event_code?: string
+  meta_currency?: string
+  meta_default_value?: number
   phone_number?: string
   display_name?: string
   created_by_id?: string
@@ -120,6 +126,12 @@ const form = ref({
   is_default_outgoing: false,
   auto_read_receipt: false,
   business_calling_enabled: false,
+  // TRT custom patch #35: per-space Meta offline-conversion settings.
+  meta_capi_enabled: false,
+  meta_dataset_id: '',
+  meta_test_event_code: '',
+  meta_currency: '',
+  meta_default_value: 0,
 })
 
 const breadcrumbs = computed(() => [
@@ -165,6 +177,11 @@ function syncForm() {
     is_default_outgoing: account.value.is_default_outgoing,
     auto_read_receipt: account.value.auto_read_receipt,
     business_calling_enabled: account.value.business_calling_enabled ?? false,
+    meta_capi_enabled: account.value.meta_capi_enabled ?? false,
+    meta_dataset_id: account.value.meta_dataset_id || '',
+    meta_test_event_code: account.value.meta_test_event_code || '',
+    meta_currency: account.value.meta_currency || '',
+    meta_default_value: account.value.meta_default_value ?? 0,
   }
 }
 
@@ -183,6 +200,8 @@ async function save() {
     const payload: any = { ...form.value }
     if (!isNew.value && !payload.access_token) delete payload.access_token
     if (!isNew.value && !payload.app_secret) delete payload.app_secret
+    // meta_default_value comes from a text input — coerce to a number.
+    payload.meta_default_value = Number(payload.meta_default_value) || 0
 
     if (isNew.value) {
       const response = await api.post('/accounts', payload)
@@ -451,6 +470,42 @@ onMounted(async () => {
             </div>
             <Switch :checked="form.business_calling_enabled" @update:checked="form.business_calling_enabled = $event" :disabled="!canWrite" />
           </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- Meta Conversions Card (TRT patch #35) -->
+    <Card>
+      <CardHeader class="pb-3">
+        <CardTitle class="text-sm font-medium">{{ $t('accounts.metaConversions', 'Meta Conversions (Facebook Ads)') }}</CardTitle>
+        <p class="text-[11px] text-muted-foreground mt-1">
+          {{ $t('accounts.metaConversionsDesc', 'When a client places an order (tagged Converted), send it to Meta so ads can attribute the sale to the Click-to-WhatsApp ad. Free. The partner access token is set once by the server admin; the dataset below is specific to this number/space.') }}
+        </p>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <div class="flex items-center justify-between">
+          <Label class="text-xs">{{ $t('accounts.metaCapiEnabled', 'Send order conversions to Meta') }}</Label>
+          <Switch :checked="form.meta_capi_enabled" @update:checked="form.meta_capi_enabled = $event" :disabled="!canWrite" />
+        </div>
+        <div>
+          <Label class="text-xs text-muted-foreground">{{ $t('accounts.metaDatasetId', 'Dataset ID') }}</Label>
+          <Input v-model="form.meta_dataset_id" placeholder="123456789012345" :disabled="!canWrite" />
+          <p class="text-[11px] text-muted-foreground mt-1">{{ $t('accounts.metaDatasetIdHint', 'Events Manager → your Dataset → Settings.') }}</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <Label class="text-xs text-muted-foreground">{{ $t('accounts.metaCurrency', 'Currency') }}</Label>
+            <Input v-model="form.meta_currency" placeholder="MAD" :disabled="!canWrite" />
+          </div>
+          <div>
+            <Label class="text-xs text-muted-foreground">{{ $t('accounts.metaDefaultValue', 'Default order value') }}</Label>
+            <Input v-model="form.meta_default_value" type="number" min="0" placeholder="0" :disabled="!canWrite" />
+          </div>
+        </div>
+        <div>
+          <Label class="text-xs text-muted-foreground">{{ $t('accounts.metaTestEventCode', 'Test event code (optional)') }}</Label>
+          <Input v-model="form.meta_test_event_code" placeholder="TEST12345" :disabled="!canWrite" />
+          <p class="text-[11px] text-muted-foreground mt-1">{{ $t('accounts.metaTestEventCodeHint', 'Set while testing to see events under Events Manager → Test Events. Clear it to go live.') }}</p>
         </div>
       </CardContent>
     </Card>

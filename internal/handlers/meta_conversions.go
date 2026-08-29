@@ -100,13 +100,18 @@ func parseFloatLoose(v any) float64 {
 	return 0
 }
 
-// sendMetaConversion posts one offline conversion to Meta's Conversions API.
-// No-op unless Meta CAPI is fully configured. Safe to call in a goroutine.
-func (a *App) sendMetaConversion(contact *models.Contact, value float64) {
-	m := a.Config.Meta
-	if !m.CAPIEnabled || m.DatasetID == "" || m.AccessToken == "" {
-		return // integration not configured -> no-op
+// sendMetaConversion posts one offline conversion to Meta's Conversions API for
+// the given space (WhatsApp account). The partner access token is global (env);
+// the dataset id, enable switch and other settings belong to the space, so each
+// client/number reports to its own ad account. No-op unless the space has it
+// enabled with a dataset AND a global token is configured. Safe in a goroutine.
+func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *models.Contact, value float64) {
+	token := a.Config.Meta.AccessToken // partner API key (env)
+	if account == nil || !account.MetaCapiEnabled || account.MetaDatasetID == "" || token == "" {
+		return // not configured for this space -> no-op
 	}
+	datasetID := account.MetaDatasetID
+	testEventCode := account.MetaTestEventCode
 
 	// Match keys: hashed phone (always) + ctwa_clid (best, when the customer
 	// came from a Click-to-WhatsApp ad).
@@ -124,11 +129,14 @@ func (a *App) sendMetaConversion(contact *models.Contact, value float64) {
 	}
 
 	if value <= 0 {
-		value = m.DefaultValue
+		value = account.MetaDefaultValue
 	}
-	currency := firstNonEmpty(m.Currency, "MAD")
-	eventName := firstNonEmpty(m.EventName, "Purchase")
-	apiVersion := firstNonEmpty(m.APIVersion, a.Config.WhatsApp.APIVersion, "v21.0")
+	if value <= 0 {
+		value = a.Config.Meta.DefaultValue
+	}
+	currency := firstNonEmpty(account.MetaCurrency, a.Config.Meta.Currency, "MAD")
+	eventName := firstNonEmpty(a.Config.Meta.EventName, "Purchase")
+	apiVersion := firstNonEmpty(account.APIVersion, a.Config.WhatsApp.APIVersion, "v21.0")
 	base := firstNonEmpty(a.Config.WhatsApp.BaseURL, "https://graph.facebook.com")
 
 	customData := map[string]any{"currency": currency}
@@ -148,18 +156,18 @@ func (a *App) sendMetaConversion(contact *models.Contact, value float64) {
 
 	body := map[string]any{
 		"data":         []any{event},
-		"access_token": m.AccessToken,
+		"access_token": token,
 	}
-	if m.TestEventCode != "" {
-		body["test_event_code"] = m.TestEventCode
+	if testEventCode != "" {
+		body["test_event_code"] = testEventCode
 	}
 	// Log the event we're about to send (never the access token) so the payload
 	// can be verified in Events Manager / logs. Info in test mode, else Debug.
 	if evJSON, e := json.Marshal(event); e == nil {
-		if m.TestEventCode != "" {
-			a.Log.Info("Meta conversion payload", "dataset", m.DatasetID, "test_event_code", m.TestEventCode, "event", string(evJSON))
+		if testEventCode != "" {
+			a.Log.Info("Meta conversion payload", "space", account.Name, "dataset", datasetID, "test_event_code", testEventCode, "event", string(evJSON))
 		} else {
-			a.Log.Debug("Meta conversion payload", "dataset", m.DatasetID, "event", string(evJSON))
+			a.Log.Debug("Meta conversion payload", "space", account.Name, "dataset", datasetID, "event", string(evJSON))
 		}
 	}
 	payload, err := json.Marshal(body)
@@ -168,7 +176,7 @@ func (a *App) sendMetaConversion(contact *models.Contact, value float64) {
 		return
 	}
 
-	url := fmt.Sprintf("%s/%s/%s/events", strings.TrimRight(base, "/"), apiVersion, m.DatasetID)
+	url := fmt.Sprintf("%s/%s/%s/events", strings.TrimRight(base, "/"), apiVersion, datasetID)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		a.Log.Error("sendMetaConversion: request build failed", "error", err)
@@ -188,8 +196,8 @@ func (a *App) sendMetaConversion(contact *models.Contact, value float64) {
 		return
 	}
 	a.Log.Info("Sent Meta offline conversion",
-		"contact", contact.ID, "event", eventName, "value", value, "currency", currency,
-		"has_ctwa", ctwaClid != "", "test_mode", m.TestEventCode != "")
+		"space", account.Name, "contact", contact.ID, "event", eventName, "value", value,
+		"currency", currency, "has_ctwa", ctwaClid != "", "test_mode", testEventCode != "")
 }
 
 func digitsOnly(s string) string {

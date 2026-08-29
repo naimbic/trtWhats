@@ -312,6 +312,14 @@ type WhatsAppAccount struct {
 	IsSMB                  bool       `gorm:"default:false" json:"is_smb"`
 	Status                 string     `gorm:"size:20;default:'active'" json:"status"`
 	Pin                    string     `gorm:"size:255" json:"-"` // 6-digit 2FA PIN (encrypted)
+	// TRT custom patch #35: per-space Meta offline-conversion settings. The
+	// partner access token is global (env); these belong to this space so each
+	// client/number reports orders to its own ad-account dataset.
+	MetaCapiEnabled   bool    `gorm:"default:false" json:"meta_capi_enabled"`
+	MetaDatasetID     string  `gorm:"size:100" json:"meta_dataset_id"`     // Events Manager dataset id for this space
+	MetaTestEventCode string  `gorm:"size:100" json:"meta_test_event_code"` // optional: verify in Events Manager first
+	MetaCurrency      string  `gorm:"size:10" json:"meta_currency"`         // optional override (default MAD)
+	MetaDefaultValue  float64 `gorm:"default:0" json:"meta_default_value"`  // value when the order form has no price
 	CreatedByID            *uuid.UUID `gorm:"type:uuid" json:"created_by_id,omitempty"`
 	UpdatedByID            *uuid.UUID `gorm:"type:uuid" json:"updated_by_id,omitempty"`
 
