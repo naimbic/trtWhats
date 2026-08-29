@@ -64,6 +64,7 @@ interface WhatsAppAccount {
   business_calling_enabled?: boolean
   meta_capi_enabled?: boolean
   meta_dataset_id?: string
+  has_meta_access_token?: boolean
   meta_test_event_code?: string
   meta_currency?: string
   meta_default_value?: number
@@ -129,6 +130,7 @@ const form = ref({
   // TRT custom patch #35: per-space Meta offline-conversion settings.
   meta_capi_enabled: false,
   meta_dataset_id: '',
+  meta_access_token: '',
   meta_test_event_code: '',
   meta_currency: '',
   meta_default_value: 0,
@@ -179,6 +181,7 @@ function syncForm() {
     business_calling_enabled: account.value.business_calling_enabled ?? false,
     meta_capi_enabled: account.value.meta_capi_enabled ?? false,
     meta_dataset_id: account.value.meta_dataset_id || '',
+    meta_access_token: '',
     meta_test_event_code: account.value.meta_test_event_code || '',
     meta_currency: account.value.meta_currency || '',
     meta_default_value: account.value.meta_default_value ?? 0,
@@ -200,6 +203,8 @@ async function save() {
     const payload: any = { ...form.value }
     if (!isNew.value && !payload.access_token) delete payload.access_token
     if (!isNew.value && !payload.app_secret) delete payload.app_secret
+    // Empty Meta token on update keeps the existing one.
+    if (!payload.meta_access_token) delete payload.meta_access_token
     // meta_default_value comes from a text input — coerce to a number.
     payload.meta_default_value = Number(payload.meta_default_value) || 0
 
@@ -479,7 +484,7 @@ onMounted(async () => {
       <CardHeader class="pb-3">
         <CardTitle class="text-sm font-medium">{{ $t('accounts.metaConversions', 'Meta Conversions (Facebook Ads)') }}</CardTitle>
         <p class="text-[11px] text-muted-foreground mt-1">
-          {{ $t('accounts.metaConversionsDesc', 'When a client places an order (tagged Converted), send it to Meta so ads can attribute the sale to the Click-to-WhatsApp ad. Free. The partner access token is set once by the server admin; the dataset below is specific to this number/space.') }}
+          {{ $t('accounts.metaConversionsDesc', 'When a client places an order (tagged Converted), send it to Meta so ads can attribute the sale to the Click-to-WhatsApp ad. Free. The dataset and access token below are specific to this number/space (each client can use its own ad account).') }}
         </p>
       </CardHeader>
       <CardContent class="space-y-4">
@@ -491,6 +496,14 @@ onMounted(async () => {
           <Label class="text-xs text-muted-foreground">{{ $t('accounts.metaDatasetId', 'Dataset ID') }}</Label>
           <Input v-model="form.meta_dataset_id" placeholder="123456789012345" :disabled="!canWrite" />
           <p class="text-[11px] text-muted-foreground mt-1">{{ $t('accounts.metaDatasetIdHint', 'Events Manager → your Dataset → Settings.') }}</p>
+        </div>
+        <div>
+          <div class="flex items-center justify-between">
+            <Label class="text-xs text-muted-foreground">{{ $t('accounts.metaAccessToken', 'Conversions API token') }}</Label>
+            <Badge v-if="account?.has_meta_access_token" variant="outline" class="border-green-600 text-green-600">{{ $t('accounts.tokenSet', 'Set') }}</Badge>
+          </div>
+          <Input v-model="form.meta_access_token" type="password" :placeholder="account?.has_meta_access_token ? '••••••••' : ''" :disabled="!canWrite" />
+          <p class="text-[11px] text-muted-foreground mt-1">{{ $t('accounts.metaAccessTokenHint', 'System User token for this space. Leave empty to keep the existing one, or to fall back to the global partner token.') }}</p>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>

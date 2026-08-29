@@ -62,12 +62,12 @@ config_id = ""  # WhatsApp Config ID for frontend login
 # When a client places an order (tagged "Converted"), trtWhats sends a FREE
 # server event to Meta's Conversions API so ads can attribute the sale to the
 # Click-to-WhatsApp ad (via ctwa_clid) + hashed phone.
-# ONLY the partner API credential is global here — one System User token can
-# reach every dataset it's been granted. The per-space bits (enable, dataset id,
-# test code, value, currency) are set on each WhatsApp account in the app, so
-# different numbers/clients report to their own ad account.
+# Everything is configured PER SPACE on each WhatsApp account (enable, dataset
+# id, access token, test code, value, currency), so different numbers/clients
+# report to their own ad account. The access_token here is only an OPTIONAL
+# GLOBAL FALLBACK used when a space has no token of its own.
 [meta]
-access_token = ""      # partner System User CAPI token (SECRET — set via WHATOMATE_META__ACCESS_TOKEN)
+access_token = ""      # OPTIONAL global fallback token (SECRET — set via WHATOMATE_META__ACCESS_TOKEN)
 event_name = "Purchase" # global default event
 currency = "MAD"        # global default currency (a space can override)
 default_value = 0       # global default value when a space/order has none (0 = omit value)

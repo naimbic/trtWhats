@@ -35,6 +35,7 @@ type AccountRequest struct {
 	// TRT custom patch #35: per-space Meta offline-conversion settings.
 	MetaCapiEnabled   bool    `json:"meta_capi_enabled"`
 	MetaDatasetID     string  `json:"meta_dataset_id"`
+	MetaAccessToken   string  `json:"meta_access_token"` // secret; empty on update keeps the existing one
 	MetaTestEventCode string  `json:"meta_test_event_code"`
 	MetaCurrency      string  `json:"meta_currency"`
 	MetaDefaultValue  float64 `json:"meta_default_value"`
@@ -58,6 +59,7 @@ type AccountResponse struct {
 	HasAppSecret           bool       `json:"has_app_secret"`
 	MetaCapiEnabled        bool       `json:"meta_capi_enabled"`
 	MetaDatasetID          string     `json:"meta_dataset_id"`
+	HasMetaAccessToken     bool       `json:"has_meta_access_token"`
 	MetaTestEventCode      string     `json:"meta_test_event_code"`
 	MetaCurrency           string     `json:"meta_currency"`
 	MetaDefaultValue       float64    `json:"meta_default_value"`
@@ -140,6 +142,7 @@ func (a *App) CreateAccount(r *fastglue.Request) error {
 		BusinessCallingEnabled: req.BusinessCallingEnabled,
 		MetaCapiEnabled:        req.MetaCapiEnabled,
 		MetaDatasetID:          req.MetaDatasetID,
+		MetaAccessToken:        req.MetaAccessToken,
 		MetaTestEventCode:      req.MetaTestEventCode,
 		MetaCurrency:           req.MetaCurrency,
 		MetaDefaultValue:       req.MetaDefaultValue,
@@ -254,6 +257,16 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 		}
 		account.AppSecret = enc
 		secretChanged = true
+	}
+	// TRT custom patch #35: per-space Meta CAPI token — encrypt only when a new
+	// value is provided; an empty value keeps the existing token.
+	if req.MetaAccessToken != "" {
+		enc, err := crypto.Encrypt(req.MetaAccessToken, a.Config.App.EncryptionKey)
+		if err != nil {
+			a.Log.Error("Failed to encrypt Meta access token", "error", err)
+			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account", nil, "")
+		}
+		account.MetaAccessToken = enc
 	}
 	if req.WebhookVerifyToken != "" {
 		account.WebhookVerifyToken = req.WebhookVerifyToken
@@ -492,6 +505,7 @@ func accountToResponse(acc models.WhatsAppAccount) AccountResponse {
 		HasAppSecret:           acc.AppSecret != "",
 		MetaCapiEnabled:        acc.MetaCapiEnabled,
 		MetaDatasetID:          acc.MetaDatasetID,
+		HasMetaAccessToken:     acc.MetaAccessToken != "",
 		MetaTestEventCode:      acc.MetaTestEventCode,
 		MetaCurrency:           acc.MetaCurrency,
 		MetaDefaultValue:       acc.MetaDefaultValue,
@@ -992,5 +1006,5 @@ func (a *App) defaultAPIVersion() string {
 
 func (a *App) encryptAccountSecrets(account *models.WhatsAppAccount) error {
 	return crypto.EncryptFields(a.Config.App.EncryptionKey,
-		&account.AccessToken, &account.AppSecret, &account.Pin)
+		&account.AccessToken, &account.AppSecret, &account.Pin, &account.MetaAccessToken)
 }

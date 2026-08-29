@@ -106,8 +106,12 @@ func parseFloatLoose(v any) float64 {
 // client/number reports to its own ad account. No-op unless the space has it
 // enabled with a dataset AND a global token is configured. Safe in a goroutine.
 func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *models.Contact, value float64) {
-	token := a.Config.Meta.AccessToken // partner API key (env)
-	if account == nil || !account.MetaCapiEnabled || account.MetaDatasetID == "" || token == "" {
+	if account == nil {
+		return
+	}
+	// Prefer this space's own token; fall back to the global partner token (env).
+	token := firstNonEmpty(account.MetaAccessToken, a.Config.Meta.AccessToken)
+	if !account.MetaCapiEnabled || account.MetaDatasetID == "" || token == "" {
 		return // not configured for this space -> no-op
 	}
 	datasetID := account.MetaDatasetID

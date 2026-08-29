@@ -317,6 +317,7 @@ type WhatsAppAccount struct {
 	// client/number reports orders to its own ad-account dataset.
 	MetaCapiEnabled   bool    `gorm:"default:false" json:"meta_capi_enabled"`
 	MetaDatasetID     string  `gorm:"size:100" json:"meta_dataset_id"`     // Events Manager dataset id for this space
+	MetaAccessToken   string  `gorm:"type:text" json:"-"`                   // Conversions API token for this space (encrypted); falls back to global env token
 	MetaTestEventCode string  `gorm:"size:100" json:"meta_test_event_code"` // optional: verify in Events Manager first
 	MetaCurrency      string  `gorm:"size:10" json:"meta_currency"`         // optional override (default MAD)
 	MetaDefaultValue  float64 `gorm:"default:0" json:"meta_default_value"`  // value when the order form has no price
@@ -344,9 +345,10 @@ func (a *WhatsAppAccount) ToWAAccount() *whatsapp.Account {
 	}
 }
 
-// DecryptSecrets decrypts the encrypted access token, app secret, and pin fields.
+// DecryptSecrets decrypts the encrypted access token, app secret, pin, and
+// per-space Meta CAPI token fields.
 func (a *WhatsAppAccount) DecryptSecrets(encryptionKey string) {
-	crypto.DecryptFields(encryptionKey, &a.AccessToken, &a.AppSecret, &a.Pin)
+	crypto.DecryptFields(encryptionKey, &a.AccessToken, &a.AppSecret, &a.Pin, &a.MetaAccessToken)
 }
 
 // Contact represents a WhatsApp contact/profile
