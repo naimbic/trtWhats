@@ -135,6 +135,17 @@ type IncomingTextMessage struct {
 			Type  string `json:"type,omitempty"`
 		} `json:"phones,omitempty"`
 	} `json:"contacts,omitempty"`
+	// TRT custom patch #35: Click-to-WhatsApp ad referral. Present on a message
+	// that follows a click on a CTWA ad. `CtwaClid` is the click id used to
+	// attribute an offline conversion back to the ad via Meta's Conversions API.
+	Referral *struct {
+		SourceURL  string `json:"source_url,omitempty"`
+		SourceID   string `json:"source_id,omitempty"`   // ad id
+		SourceType string `json:"source_type,omitempty"` // "ad" | "post"
+		Headline   string `json:"headline,omitempty"`
+		Body       string `json:"body,omitempty"`
+		CtwaClid   string `json:"ctwa_clid,omitempty"`
+	} `json:"referral,omitempty"`
 }
 
 // processIncomingMessageFull processes incoming WhatsApp messages with chatbot logic
@@ -190,6 +201,11 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	mediaInfo := extracted.Media
 	flowResponseData := extracted.FlowResponseData
 
+	// TRT custom patch #35: persist the Click-to-WhatsApp ad click id (ctwa_clid)
+	// so we can attribute an offline conversion back to the ad when this contact
+	// later orders. No-op when the message carries no ad referral.
+	a.captureCTWAReferral(contact, msg)
+
 	// TRT custom patch #24: for an order-form submission, download any attached
 	// PhotoPicker media, save it, and inject a public URL (modele_image_url) so the
 	// webhook can forward a viewable link to the Sheet. No-op when there's no media.
@@ -208,7 +224,14 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	// completed the order form → auto-tag them Converted (shows on the dashboard and
 	// keeps them out of the 5-day Lost auto-tagging). Idempotent.
 	if messageType == "nfm_reply" || len(flowResponseData) > 0 {
-		a.tagContactConverted(contact)
+		// TRT custom patch #35: on the FIRST conversion, send a free offline
+		// conversion to Meta's Conversions API (attributes the order to the
+		// Click-to-WhatsApp ad via the stored ctwa_clid). Async + no-op unless
+		// Meta CAPI is configured, so it never blocks or breaks message handling.
+		if a.tagContactConverted(contact) {
+			value := orderValueFromFlow(flowResponseData)
+			go a.sendMetaConversion(contact, value)
+		}
 	}
 
 	// Clear chatbot tracking since client has replied
@@ -954,11 +977,14 @@ func (a *App) sendOutOfHoursOnce(account *models.WhatsAppAccount, contact *model
 	}
 }
 
-func (a *App) tagContactConverted(contact *models.Contact) {
+// tagContactConverted marks a contact as Converted. Returns true only when the
+// tag was newly applied (idempotent), so the caller can fire a one-time action
+// such as the Meta offline conversion (TRT custom patch #35).
+func (a *App) tagContactConverted(contact *models.Contact) bool {
 	const convertedTag = "تم البيع - Converti"
 	for _, t := range contact.Tags {
 		if s, ok := t.(string); ok && s == convertedTag {
-			return // already Converted
+			return false // already Converted
 		}
 	}
 	newTags := append(models.JSONBArray{}, contact.Tags...)
@@ -966,10 +992,11 @@ func (a *App) tagContactConverted(contact *models.Contact) {
 	if err := a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).
 		Update("tags", newTags).Error; err != nil {
 		a.Log.Error("tagContactConverted failed", "error", err, "contact", contact.ID)
-		return
+		return false
 	}
 	contact.Tags = newTags
 	a.Log.Info("Auto-tagged contact Converted (order form submitted)", "contact", contact.ID)
+	return true
 }
 
 // formatMediaID normalizes a WhatsApp media id (json.Number / float64 / string) to

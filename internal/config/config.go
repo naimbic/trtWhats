@@ -32,6 +32,24 @@ type Config struct {
 	Cookie       CookieConfig       `koanf:"cookie"`
 	Calling      CallingConfig      `koanf:"calling"`
 	TTS          TTSConfig          `koanf:"tts"`
+	Meta         MetaConfig         `koanf:"meta"`
+}
+
+// MetaConfig holds Meta (Facebook) Conversions API settings for sending offline
+// conversions ("order placed") back to the ad platform. TRT custom patch #35.
+// This is FREE: events POST directly to graph.facebook.com — only a Dataset id
+// and an access token are needed (no third-party gateway, no per-event cost).
+// Everything is off unless CAPIEnabled + DatasetID + AccessToken are set, so the
+// integration is a safe no-op until configured (via WHATOMATE_META__* env vars).
+type MetaConfig struct {
+	CAPIEnabled   bool    `koanf:"capi_enabled"`    // master switch
+	DatasetID     string  `koanf:"dataset_id"`      // Events Manager dataset (pixel) id
+	AccessToken   string  `koanf:"access_token"`    // System User CAPI token (secret)
+	APIVersion    string  `koanf:"api_version"`     // e.g. v21.0; falls back to WhatsApp.APIVersion
+	TestEventCode string  `koanf:"test_event_code"` // optional: verify in Events Manager before going live
+	EventName     string  `koanf:"event_name"`      // default "Purchase"
+	Currency      string  `koanf:"currency"`        // default "MAD"
+	DefaultValue  float64 `koanf:"default_value"`   // value sent when the order carries no price
 }
 
 type TTSConfig struct {

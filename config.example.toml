@@ -58,6 +58,21 @@ app_id = ""      # Meta App ID for Embedded Signup
 app_secret = ""  # Meta App Secret
 config_id = ""  # WhatsApp Config ID for frontend login
 
+# Meta (Facebook) offline conversions — TRT custom patch #35.
+# When a client places an order (tagged "Converted"), trtWhats sends a FREE
+# server event to Meta's Conversions API so ads can attribute the sale to the
+# Click-to-WhatsApp ad (via ctwa_clid) + hashed phone. Off unless capi_enabled
+# is true AND dataset_id + access_token are set (then it's a safe no-op).
+[meta]
+capi_enabled = false   # master switch
+dataset_id = ""        # Events Manager dataset (pixel) id linked to your WhatsApp/ad account
+access_token = ""      # System User Conversions API token (SECRET — set via WHATOMATE_META__ACCESS_TOKEN)
+api_version = ""       # optional; falls back to [whatsapp] api_version, then v21.0
+test_event_code = ""   # optional; set to your Events Manager test code to verify before going live
+event_name = "Purchase"
+currency = "MAD"
+default_value = 0      # value sent when the order form has no price (0 = omit value)
+
 # Auth cookie settings (tokens are stored in httpOnly cookies)
 [cookie]
 domain = ""    # Cookie domain (e.g., ".example.com"). Empty = current host only.
