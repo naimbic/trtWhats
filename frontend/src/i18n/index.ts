@@ -8,16 +8,18 @@ export type MessageSchema = typeof en
 // Using import: 'default' to get JSON content directly (required for Vite 5+)
 const localeModules = import.meta.glob('./locales/*.json', { eager: true, import: 'default' }) as Record<string, MessageSchema>
 
-// Supported locales for trtWhats: English, French, Arabic only.
+// Supported locales for trtWhats: English, French, Arabic, Darija (Moroccan).
 const localeNames: Record<string, { name: string; nativeName: string }> = {
   en: { name: 'English', nativeName: 'English' },
   fr: { name: 'French', nativeName: 'Français' },
   ar: { name: 'Arabic', nativeName: 'العربية' },
+  ary: { name: 'Darija', nativeName: 'الدارجة' },
 }
 
 // Right-to-left locales. When one is active the whole UI is mirrored
 // (sidebar/menu moves to the right, chat list + messages align right).
-const RTL_LOCALES = new Set(['ar', 'he', 'fa', 'ur'])
+// 'ary' = Moroccan Darija, written in Arabic script -> RTL.
+const RTL_LOCALES = new Set(['ar', 'ary', 'he', 'fa', 'ur'])
 
 export function isRTL(locale: string): boolean {
   return RTL_LOCALES.has(locale)

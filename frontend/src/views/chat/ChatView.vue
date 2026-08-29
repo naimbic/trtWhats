@@ -1928,7 +1928,7 @@ async function sendAudioBlob(blob: Blob) {
                     class="h-6 px-2 text-xs"
                     @click="clearTagFilter"
                   >
-                    Clear
+                    {{ $t('common.clear') }}
                   </Button>
                 </div>
                 <Separator />
@@ -1978,7 +1978,7 @@ async function sendAudioBlob(blob: Blob) {
                     class="h-6 px-2 text-xs"
                     @click="clearDateFilter"
                   >
-                    Clear
+                    {{ $t('common.clear') }}
                   </Button>
                 </div>
                 <Separator />
