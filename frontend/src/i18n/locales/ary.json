@@ -453,7 +453,13 @@
     "urlButtonParamPlaceholder": "دخّل قيمة الرابط المتغيرة",
     "preview": "معاينة",
     "serviceWindowExpired": "نافذة الرسائل ديال 24 ساعة سالات. ما تقدرش تصيفط غير رسائل القوالب حتى يرد الكليان.",
-    "sendTemplateAction": "صيفط قالب"
+    "sendTemplateAction": "صيفط قالب",
+    "conversion": "التحويل",
+    "sentToMeta": "تصيفط لميتا",
+    "quantity": "الكمية",
+    "convValue": "قيمة التحويل",
+    "saveSendMeta": "سجّل وصيفط لميتا",
+    "convLocked": "تصيفط من قبل — القيمة مقفولة باش ما يتكررش التحويل."
   },
   "contacts": {
     "title": "جهات الاتصال",
@@ -1410,7 +1416,19 @@
     "account": "الحساب",
     "appId": "App ID",
     "defaults": "الافتراضيات",
-    "status": "الحالة"
+    "status": "الحالة",
+    "metaConversions": "تحويلات ميتا (إعلانات فيسبوك)",
+    "metaConversionsDesc": "ملّي شي كليان يدير طلب (متوسوم بـ«تم البيع»)، كيتصيفط لميتا باش الإعلانات تنسب البيعة للإعلان ديال Click-to-WhatsApp. بلاش. الـ Dataset والتوكن اللي تحت خاصين بهاد الرقم/المساحة (كل كليان يقدر يستعمل الحساب الإعلاني ديالو).",
+    "metaCapiEnabled": "صيفط تحويلات الطلبات لميتا",
+    "metaDatasetId": "معرّف الـ Dataset",
+    "metaDatasetIdHint": "Events Manager ← الـ Dataset ديالك ← الإعدادات.",
+    "metaCurrency": "العملة",
+    "metaDefaultValue": "القيمة الافتراضية ديال الطلب",
+    "metaTestEventCode": "كود التجربة (اختياري)",
+    "metaTestEventCodeHint": "حطّو ملّي كتجرّب باش تشوف الأحداث فـ Events Manager ← Test Events. مسحو باش تخدم بجدّ.",
+    "metaAccessToken": "التوكن ديال Conversions API",
+    "metaAccessTokenHint": "توكن System User لهاد المساحة. خلّيه خاوي باش يبقى اللي كاين، ولا باش يرجع للتوكن العام ديال الشريك.",
+    "tokenSet": "مضبوط"
   },
   "dashboard": {
     "title": "لوحة التحكم",

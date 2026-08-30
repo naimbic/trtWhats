@@ -453,7 +453,13 @@
     "urlButtonParamPlaceholder": "Enter dynamic URL value",
     "preview": "Preview",
     "serviceWindowExpired": "The 24-hour messaging window has expired. Only template messages can be sent until the customer replies.",
-    "sendTemplateAction": "Send Template"
+    "sendTemplateAction": "Send Template",
+    "conversion": "Conversion",
+    "sentToMeta": "Sent to Meta",
+    "quantity": "Quantity",
+    "convValue": "Conversion value",
+    "saveSendMeta": "Save & send to Meta",
+    "convLocked": "Already sent — value is locked to avoid duplicate conversions."
   },
   "contacts": {
     "title": "Contacts",
@@ -1410,7 +1416,19 @@
     "account": "Account",
     "appId": "App ID",
     "defaults": "Defaults",
-    "status": "Status"
+    "status": "Status",
+    "metaConversions": "Meta Conversions (Facebook Ads)",
+    "metaConversionsDesc": "When a client places an order (tagged Converted), send it to Meta so ads can attribute the sale to the Click-to-WhatsApp ad. Free. The dataset and access token below are specific to this number/space (each client can use its own ad account).",
+    "metaCapiEnabled": "Send order conversions to Meta",
+    "metaDatasetId": "Dataset ID",
+    "metaDatasetIdHint": "Events Manager → your Dataset → Settings.",
+    "metaCurrency": "Currency",
+    "metaDefaultValue": "Default order value",
+    "metaTestEventCode": "Test event code (optional)",
+    "metaTestEventCodeHint": "Set while testing to see events under Events Manager → Test Events. Clear it to go live.",
+    "metaAccessToken": "Conversions API token",
+    "metaAccessTokenHint": "System User token for this space. Leave empty to keep the existing one, or to fall back to the global partner token.",
+    "tokenSet": "Set"
   },
   "dashboard": {
     "title": "Dashboard",

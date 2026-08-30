@@ -453,7 +453,13 @@
     "urlButtonParamPlaceholder": "Saisissez la valeur d'URL dynamique",
     "preview": "Aperçu",
     "serviceWindowExpired": "La fenêtre de messagerie de 24 heures a expiré. Seuls les messages modèles peuvent être envoyés jusqu'à ce que le client réponde.",
-    "sendTemplateAction": "Envoyer un modèle"
+    "sendTemplateAction": "Envoyer un modèle",
+    "conversion": "Conversion",
+    "sentToMeta": "Envoyé à Meta",
+    "quantity": "Quantité",
+    "convValue": "Valeur de conversion",
+    "saveSendMeta": "Enregistrer et envoyer à Meta",
+    "convLocked": "Déjà envoyé — la valeur est verrouillée pour éviter les conversions en double."
   },
   "contacts": {
     "title": "Contacts",
@@ -1410,7 +1416,19 @@
     "account": "Compte",
     "appId": "App ID",
     "defaults": "Valeurs par défaut",
-    "status": "Statut"
+    "status": "Statut",
+    "metaConversions": "Conversions Meta (Facebook Ads)",
+    "metaConversionsDesc": "Quand un client passe une commande (étiquetée Converti), l'envoyer à Meta pour que les publicités attribuent la vente à l'annonce Click-to-WhatsApp. Gratuit. Le jeu de données et le jeton ci-dessous sont spécifiques à ce numéro/espace (chaque client peut utiliser son propre compte publicitaire).",
+    "metaCapiEnabled": "Envoyer les conversions de commande à Meta",
+    "metaDatasetId": "ID du jeu de données",
+    "metaDatasetIdHint": "Gestionnaire d'événements → votre jeu de données → Paramètres.",
+    "metaCurrency": "Devise",
+    "metaDefaultValue": "Valeur de commande par défaut",
+    "metaTestEventCode": "Code d'événement test (facultatif)",
+    "metaTestEventCodeHint": "À définir pendant les tests pour voir les événements dans Gestionnaire d'événements → Événements test. Videz-le pour passer en production.",
+    "metaAccessToken": "Jeton de l'API Conversions",
+    "metaAccessTokenHint": "Jeton d'utilisateur système pour cet espace. Laissez vide pour conserver l'existant, ou pour utiliser le jeton partenaire global.",
+    "tokenSet": "Défini"
   },
   "dashboard": {
     "title": "Tableau de bord",
