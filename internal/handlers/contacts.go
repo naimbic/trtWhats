@@ -1549,7 +1549,7 @@ func (a *App) SetContactConversion(r *fastglue.Request) error {
 					metaSent = true
 					updates["meta_conversion_sent_at"] = time.Now()
 				} else if detail != "" {
-					metaReason = "Meta rejected it: " + detail
+					metaReason = detail
 				} else {
 					metaReason = "Meta did not accept the event — check the Dataset ID and token"
 				}

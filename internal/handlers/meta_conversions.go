@@ -140,9 +140,13 @@ func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *model
 	if account.MetaPageID != "" {
 		userData["page_id"] = account.MetaPageID
 	}
-	if len(userData) == 0 {
-		a.Log.Warn("sendMetaConversion: no match key (phone/ctwa_clid), skipping", "contact", contact.ID)
-		return false, "no phone/ctwa_clid to match the customer"
+	// Meta requires a ctwa_clid for business_messaging/whatsapp conversions — it
+	// only exists for customers who arrived by clicking a Click-to-WhatsApp ad
+	// (and only for messages received after we started capturing it). Without it
+	// there is no ad to attribute the order to, so Meta would reject the event;
+	// stop here with a clear message instead.
+	if ctwaClid == "" {
+		return false, "this customer didn't come from a Click-to-WhatsApp ad (no ad click id), so Meta can't attribute this order"
 	}
 
 	if value <= 0 {
