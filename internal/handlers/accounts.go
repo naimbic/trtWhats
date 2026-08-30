@@ -35,6 +35,7 @@ type AccountRequest struct {
 	// TRT custom patch #35: per-space Meta offline-conversion settings.
 	MetaCapiEnabled   bool    `json:"meta_capi_enabled"`
 	MetaDatasetID     string  `json:"meta_dataset_id"`
+	MetaPageID        string  `json:"meta_page_id"`
 	MetaAccessToken   string  `json:"meta_access_token"` // secret; empty on update keeps the existing one
 	MetaTestEventCode string  `json:"meta_test_event_code"`
 	MetaCurrency      string  `json:"meta_currency"`
@@ -59,6 +60,7 @@ type AccountResponse struct {
 	HasAppSecret           bool       `json:"has_app_secret"`
 	MetaCapiEnabled        bool       `json:"meta_capi_enabled"`
 	MetaDatasetID          string     `json:"meta_dataset_id"`
+	MetaPageID             string     `json:"meta_page_id"`
 	HasMetaAccessToken     bool       `json:"has_meta_access_token"`
 	MetaTestEventCode      string     `json:"meta_test_event_code"`
 	MetaCurrency           string     `json:"meta_currency"`
@@ -142,6 +144,7 @@ func (a *App) CreateAccount(r *fastglue.Request) error {
 		BusinessCallingEnabled: req.BusinessCallingEnabled,
 		MetaCapiEnabled:        req.MetaCapiEnabled,
 		MetaDatasetID:          req.MetaDatasetID,
+		MetaPageID:             req.MetaPageID,
 		MetaAccessToken:        req.MetaAccessToken,
 		MetaTestEventCode:      req.MetaTestEventCode,
 		MetaCurrency:           req.MetaCurrency,
@@ -279,6 +282,7 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 	// TRT custom patch #35: per-space Meta offline-conversion settings.
 	account.MetaCapiEnabled = req.MetaCapiEnabled
 	account.MetaDatasetID = req.MetaDatasetID
+	account.MetaPageID = req.MetaPageID
 	account.MetaTestEventCode = req.MetaTestEventCode
 	account.MetaCurrency = req.MetaCurrency
 	account.MetaDefaultValue = req.MetaDefaultValue
@@ -517,6 +521,7 @@ func accountToResponse(acc models.WhatsAppAccount) AccountResponse {
 		HasAppSecret:           acc.AppSecret != "",
 		MetaCapiEnabled:        acc.MetaCapiEnabled,
 		MetaDatasetID:          acc.MetaDatasetID,
+		MetaPageID:             acc.MetaPageID,
 		HasMetaAccessToken:     acc.MetaAccessToken != "",
 		MetaTestEventCode:      acc.MetaTestEventCode,
 		MetaCurrency:           acc.MetaCurrency,

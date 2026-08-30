@@ -1428,7 +1428,9 @@
     "metaTestEventCodeHint": "Set while testing to see events under Events Manager → Test Events. Clear it to go live.",
     "metaAccessToken": "Conversions API token",
     "metaAccessTokenHint": "System User token for this space. Leave empty to keep the existing one, or to fall back to the global partner token.",
-    "tokenSet": "Set"
+    "tokenSet": "Set",
+    "metaPageId": "Facebook Page ID",
+    "metaPageIdHint": "The Facebook Page that runs your Click-to-WhatsApp ads. Required by Meta for these conversions."
   },
   "dashboard": {
     "title": "Dashboard",

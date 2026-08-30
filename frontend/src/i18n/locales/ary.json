@@ -1428,7 +1428,9 @@
     "metaTestEventCodeHint": "حطّو ملّي كتجرّب باش تشوف الأحداث فـ Events Manager ← Test Events. مسحو باش تخدم بجدّ.",
     "metaAccessToken": "التوكن ديال Conversions API",
     "metaAccessTokenHint": "توكن System User لهاد المساحة. خلّيه خاوي باش يبقى اللي كاين، ولا باش يرجع للتوكن العام ديال الشريك.",
-    "tokenSet": "مضبوط"
+    "tokenSet": "مضبوط",
+    "metaPageId": "معرّف صفحة فيسبوك",
+    "metaPageIdHint": "صفحة فيسبوك اللي كتدير الإعلانات ديال Click-to-WhatsApp. ميتا كتطلبها لهاد التحويلات."
   },
   "dashboard": {
     "title": "لوحة التحكم",

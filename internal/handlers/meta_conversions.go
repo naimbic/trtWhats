@@ -135,6 +135,11 @@ func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *model
 			userData["whatsapp_business_account_id"] = account.BusinessID
 		}
 	}
+	// Meta requires page_id in user_data for business_messaging / whatsapp events
+	// (the Facebook Page behind the Click-to-WhatsApp ads).
+	if account.MetaPageID != "" {
+		userData["page_id"] = account.MetaPageID
+	}
 	if len(userData) == 0 {
 		a.Log.Warn("sendMetaConversion: no match key (phone/ctwa_clid), skipping", "contact", contact.ID)
 		return false, "no phone/ctwa_clid to match the customer"

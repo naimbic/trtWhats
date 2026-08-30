@@ -64,6 +64,7 @@ interface WhatsAppAccount {
   business_calling_enabled?: boolean
   meta_capi_enabled?: boolean
   meta_dataset_id?: string
+  meta_page_id?: string
   has_meta_access_token?: boolean
   meta_test_event_code?: string
   meta_currency?: string
@@ -130,6 +131,7 @@ const form = ref({
   // TRT custom patch #35: per-space Meta offline-conversion settings.
   meta_capi_enabled: false,
   meta_dataset_id: '',
+  meta_page_id: '',
   meta_access_token: '',
   meta_test_event_code: '',
   meta_currency: '',
@@ -181,6 +183,7 @@ function syncForm() {
     business_calling_enabled: account.value.business_calling_enabled ?? false,
     meta_capi_enabled: account.value.meta_capi_enabled ?? false,
     meta_dataset_id: account.value.meta_dataset_id || '',
+    meta_page_id: account.value.meta_page_id || '',
     meta_access_token: '',
     meta_test_event_code: account.value.meta_test_event_code || '',
     meta_currency: account.value.meta_currency || '',
@@ -496,6 +499,11 @@ onMounted(async () => {
           <Label class="text-xs text-muted-foreground">{{ $t('accounts.metaDatasetId', 'Dataset ID') }}</Label>
           <Input v-model="form.meta_dataset_id" placeholder="123456789012345" :disabled="!canWrite" />
           <p class="text-[11px] text-muted-foreground mt-1">{{ $t('accounts.metaDatasetIdHint', 'Events Manager → your Dataset → Settings.') }}</p>
+        </div>
+        <div>
+          <Label class="text-xs text-muted-foreground">{{ $t('accounts.metaPageId', 'Facebook Page ID') }}</Label>
+          <Input v-model="form.meta_page_id" placeholder="1234567890" :disabled="!canWrite" />
+          <p class="text-[11px] text-muted-foreground mt-1">{{ $t('accounts.metaPageIdHint', 'The Facebook Page that runs your Click-to-WhatsApp ads. Required by Meta for these conversions.') }}</p>
         </div>
         <div>
           <div class="flex items-center justify-between">

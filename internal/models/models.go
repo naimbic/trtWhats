@@ -317,6 +317,7 @@ type WhatsAppAccount struct {
 	// client/number reports orders to its own ad-account dataset.
 	MetaCapiEnabled   bool    `gorm:"default:false" json:"meta_capi_enabled"`
 	MetaDatasetID     string  `gorm:"size:100" json:"meta_dataset_id"`     // Events Manager dataset id for this space
+	MetaPageID        string  `gorm:"size:100" json:"meta_page_id"`         // Facebook Page id behind the CTWA ads (required by Meta for business_messaging events)
 	MetaAccessToken   string  `gorm:"type:text" json:"-"`                   // Conversions API token for this space (encrypted); falls back to global env token
 	MetaTestEventCode string  `gorm:"size:100" json:"meta_test_event_code"` // optional: verify in Events Manager first
 	MetaCurrency      string  `gorm:"size:10" json:"meta_currency"`         // optional override (default MAD)

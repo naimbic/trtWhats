@@ -1428,7 +1428,9 @@
     "metaTestEventCodeHint": "À définir pendant les tests pour voir les événements dans Gestionnaire d'événements → Événements test. Videz-le pour passer en production.",
     "metaAccessToken": "Jeton de l'API Conversions",
     "metaAccessTokenHint": "Jeton d'utilisateur système pour cet espace. Laissez vide pour conserver l'existant, ou pour utiliser le jeton partenaire global.",
-    "tokenSet": "Défini"
+    "tokenSet": "Défini",
+    "metaPageId": "ID de la Page Facebook",
+    "metaPageIdHint": "La Page Facebook qui diffuse vos publicités Click-to-WhatsApp. Requise par Meta pour ces conversions."
   },
   "dashboard": {
     "title": "Tableau de bord",
