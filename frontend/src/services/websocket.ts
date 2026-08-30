@@ -732,6 +732,14 @@ class WebSocketService {
     const contactsStore = useContactsStore()
     contactsStore.fetchContacts()
 
+    // TRT patch #38: also refresh the OPEN conversation's messages. Without this,
+    // any message received while the socket was down (e.g. during a deploy) never
+    // appears in the currently-open chat until a full page refresh, even though
+    // the contact list updated. Re-fetching here makes the open chat catch up.
+    if (contactsStore.currentContact) {
+      contactsStore.fetchMessages(contactsStore.currentContact.id)
+    }
+
     // Refresh transfers
     const transfersStore = useTransfersStore()
     transfersStore.fetchTransfers()
