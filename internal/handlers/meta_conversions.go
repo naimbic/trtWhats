@@ -105,16 +105,17 @@ func parseFloatLoose(v any) float64 {
 // the dataset id, enable switch and other settings belong to the space, so each
 // client/number reports to its own ad account. No-op unless the space has it
 // enabled with a dataset AND a global token is configured. Safe in a goroutine.
-// Returns true only when an event was actually posted to Meta (so callers can
-// mark the conversion sent and not re-send).
-func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *models.Contact, value float64, quantity int) bool {
+// Returns (sent, detail): sent is true only when an event was actually posted
+// to Meta; detail carries Meta's error message when it wasn't (so the agent can
+// see exactly why it was rejected).
+func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *models.Contact, value float64, quantity int) (bool, string) {
 	if account == nil {
-		return false
+		return false, ""
 	}
 	// Prefer this space's own token; fall back to the global partner token (env).
 	token := firstNonEmpty(account.MetaAccessToken, a.Config.Meta.AccessToken)
 	if !account.MetaCapiEnabled || account.MetaDatasetID == "" || token == "" {
-		return false // not configured for this space -> no-op
+		return false, "" // not configured for this space -> no-op
 	}
 	datasetID := account.MetaDatasetID
 	testEventCode := account.MetaTestEventCode
@@ -131,7 +132,7 @@ func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *model
 	}
 	if len(userData) == 0 {
 		a.Log.Warn("sendMetaConversion: no match key (phone/ctwa_clid), skipping", "contact", contact.ID)
-		return false
+		return false, "no phone/ctwa_clid to match the customer"
 	}
 
 	if value <= 0 {
@@ -182,32 +183,60 @@ func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *model
 	payload, err := json.Marshal(body)
 	if err != nil {
 		a.Log.Error("sendMetaConversion: marshal failed", "error", err)
-		return false
+		return false, "internal error building the request"
 	}
 
 	url := fmt.Sprintf("%s/%s/%s/events", strings.TrimRight(base, "/"), apiVersion, datasetID)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		a.Log.Error("sendMetaConversion: request build failed", "error", err)
-		return false
+		return false, "internal error building the request"
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := a.HTTPClient.Do(req)
 	if err != nil {
 		a.Log.Error("sendMetaConversion: request failed", "error", err, "contact", contact.ID)
-		return false
+		return false, "could not reach Meta (network error)"
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		metaErr := parseMetaError(respBody)
 		a.Log.Error("sendMetaConversion: Meta rejected event",
-			"status", resp.StatusCode, "body", string(respBody), "contact", contact.ID)
-		return false
+			"status", resp.StatusCode, "meta_error", metaErr, "body", string(respBody), "contact", contact.ID)
+		return false, metaErr
 	}
 	a.Log.Info("Sent Meta offline conversion",
 		"space", account.Name, "contact", contact.ID, "event", eventName, "value", value,
 		"quantity", quantity, "currency", currency, "has_ctwa", ctwaClid != "", "test_mode", testEventCode != "")
-	return true
+	return true, ""
+}
+
+// parseMetaError pulls Meta's human-readable error message (and code) out of a
+// Graph API error response body, so the agent sees the real reason.
+func parseMetaError(body []byte) string {
+	var e struct {
+		Error struct {
+			Message      string `json:"message"`
+			Type         string `json:"type"`
+			Code         int    `json:"code"`
+			ErrorSubcode int    `json:"error_subcode"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &e); err == nil && e.Error.Message != "" {
+		if e.Error.Code != 0 {
+			return fmt.Sprintf("%s (code %d)", e.Error.Message, e.Error.Code)
+		}
+		return e.Error.Message
+	}
+	s := strings.TrimSpace(string(body))
+	if len(s) > 200 {
+		s = s[:200]
+	}
+	if s == "" {
+		return "unknown error from Meta"
+	}
+	return s
 }
 
 func digitsOnly(s string) string {

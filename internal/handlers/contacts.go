@@ -1544,9 +1544,12 @@ func (a *App) SetContactConversion(r *fastglue.Request) error {
 			case token == "":
 				metaReason = "no Conversions API token set for this space (Account settings → Meta Conversions)"
 			default:
-				if a.sendMetaConversion(&account, contact, req.Value, req.Quantity) {
+				sent, detail := a.sendMetaConversion(&account, contact, req.Value, req.Quantity)
+				if sent {
 					metaSent = true
 					updates["meta_conversion_sent_at"] = time.Now()
+				} else if detail != "" {
+					metaReason = "Meta rejected it: " + detail
 				} else {
 					metaReason = "Meta did not accept the event — check the Dataset ID and token"
 				}
