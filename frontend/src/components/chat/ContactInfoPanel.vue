@@ -23,7 +23,7 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
-import { X, ChevronDown, Phone, User, Plus, Check, Tags, Loader2 } from 'lucide-vue-next'
+import { X, ChevronDown, Phone, User, Plus, Check, Tags, Loader2, AlertCircle } from 'lucide-vue-next'
 import { TagBadge } from '@/components/ui/tag-badge'
 import MetadataSection from '@/components/chat/MetadataSection.vue'
 import { getInitials, getAvatarGradient, formatLabel } from '@/lib/utils'
@@ -96,6 +96,12 @@ const CONVERTED_TAG = 'تم البيع - Converti'
 const isConverted = computed(() => {
   const tags = props.contact.tags
   return Array.isArray(tags) && tags.includes(CONVERTED_TAG)
+})
+// Whether this contact arrived via a Click-to-WhatsApp ad (has a stored click
+// id). Meta can only attribute the conversion when this is true.
+const hasAdClickId = computed(() => {
+  const md = props.contact.metadata as Record<string, any> | undefined
+  return !!(md && typeof md.ctwa_clid === 'string' && md.ctwa_clid)
 })
 const convQuantity = ref<number | string>(props.contact.conversion_quantity ?? 0)
 const convValue = ref<number | string>(props.contact.conversion_value ?? 0)
@@ -400,6 +406,17 @@ async function updateContactTags(tags: string[]) {
                 <Check class="h-3 w-3" /> {{ $t('chat.sentToMeta', 'Sent to Meta') }}
               </span>
             </div>
+            <!-- Ad-source indicator: shows up-front whether Meta can attribute this order -->
+            <div class="flex items-start gap-1.5 text-[11px]">
+              <template v-if="hasAdClickId">
+                <Check class="h-3 w-3 mt-0.5 shrink-0 text-emerald-500" />
+                <span class="text-emerald-600 dark:text-emerald-400">{{ $t('chat.fromCtwaAd', 'From a Click-to-WhatsApp ad — can be sent to Meta') }}</span>
+              </template>
+              <template v-else>
+                <AlertCircle class="h-3 w-3 mt-0.5 shrink-0 text-amber-500" />
+                <span class="text-muted-foreground">{{ $t('chat.notFromCtwaAd', "Not from a Click-to-WhatsApp ad — Meta can't attribute this, so it won't be sent") }}</span>
+              </template>
+            </div>
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <label class="text-[11px] text-muted-foreground">{{ $t('chat.quantity', 'Quantity') }}</label>
@@ -412,7 +429,7 @@ async function updateContactTags(tags: string[]) {
             </div>
             <Button v-if="!convSentAt" size="sm" class="w-full h-8" :disabled="isSavingConversion" @click="saveConversion">
               <Loader2 v-if="isSavingConversion" class="h-3.5 w-3.5 mr-1 animate-spin" />
-              {{ $t('chat.saveSendMeta', 'Save & send to Meta') }}
+              {{ hasAdClickId ? $t('chat.saveSendMeta', 'Save & send to Meta') : $t('common.save', 'Save') }}
             </Button>
             <p v-else class="text-[11px] text-muted-foreground">
               {{ $t('chat.convLocked', 'Already sent — value is locked to avoid duplicate conversions.') }}

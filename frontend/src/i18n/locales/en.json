@@ -459,7 +459,9 @@
     "quantity": "Quantity",
     "convValue": "Conversion value",
     "saveSendMeta": "Save & send to Meta",
-    "convLocked": "Already sent — value is locked to avoid duplicate conversions."
+    "convLocked": "Already sent — value is locked to avoid duplicate conversions.",
+    "fromCtwaAd": "From a Click-to-WhatsApp ad — can be sent to Meta",
+    "notFromCtwaAd": "Not from a Click-to-WhatsApp ad — Meta can't attribute this, so it won't be sent"
   },
   "contacts": {
     "title": "Contacts",

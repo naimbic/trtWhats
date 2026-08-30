@@ -459,7 +459,9 @@
     "quantity": "Quantité",
     "convValue": "Valeur de conversion",
     "saveSendMeta": "Enregistrer et envoyer à Meta",
-    "convLocked": "Déjà envoyé — la valeur est verrouillée pour éviter les conversions en double."
+    "convLocked": "Déjà envoyé — la valeur est verrouillée pour éviter les conversions en double.",
+    "fromCtwaAd": "Vient d'une publicité Click-to-WhatsApp — peut être envoyé à Meta",
+    "notFromCtwaAd": "Ne vient pas d'une publicité Click-to-WhatsApp — Meta ne peut pas l'attribuer, donc non envoyé"
   },
   "contacts": {
     "title": "Contacts",
