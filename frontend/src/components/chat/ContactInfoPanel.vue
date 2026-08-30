@@ -117,11 +117,17 @@ async function saveConversion() {
       quantity: Number(convQuantity.value) || 0,
       value: Number(convValue.value) || 0,
     })
-    const updated = (res.data?.data || res.data) as Contact
+    const d = (res.data?.data || res.data) as any
+    const updated = (d?.contact || d) as Contact
     convQuantity.value = updated.conversion_quantity ?? 0
     convValue.value = updated.conversion_value ?? 0
     convSentAt.value = updated.meta_conversion_sent_at || null
-    toast.success(convSentAt.value ? 'Saved and sent to Meta' : 'Saved')
+    if (d?.meta_sent) {
+      toast.success('Saved and sent to Meta ✓')
+    } else {
+      // Saved to the record, but the Meta conversion did NOT go out — tell the agent why.
+      toast.warning('Saved, but NOT sent to Meta' + (d?.meta_reason ? ' — ' + d.meta_reason : ''), { duration: 9000 })
+    }
   } catch (e: any) {
     toast.error(e.response?.data?.message || 'Failed to save conversion')
   } finally {

@@ -1520,17 +1520,37 @@ func (a *App) SetContactConversion(r *fastglue.Request) error {
 	}
 
 	// Send the Meta offline conversion once, when a value is set and it hasn't
-	// been sent yet, using the space's own dataset/token.
-	if req.Value > 0 && contact.MetaConversionSentAt == nil {
+	// been sent yet, using the space's own dataset/token. `metaSent` / `metaReason`
+	// are returned so the agent sees exactly why it did or didn't reach Meta.
+	metaSent := false
+	metaReason := ""
+	if req.Value <= 0 {
+		metaReason = "enter a conversion value to send it to Meta"
+	} else if contact.MetaConversionSentAt != nil {
+		metaSent = true // already sent earlier
+	} else {
 		var account models.WhatsAppAccount
-		if err := a.DB.Where("organization_id = ? AND name = ?", orgID, contact.WhatsAppAccount).First(&account).Error; err == nil {
-			a.decryptAccountSecrets(&account)
-			if a.sendMetaConversion(&account, contact, req.Value, req.Quantity) {
-				now := time.Now()
-				updates["meta_conversion_sent_at"] = now
-			}
-		} else {
+		if err := a.DB.Where("organization_id = ? AND name = ?", orgID, contact.WhatsAppAccount).First(&account).Error; err != nil {
 			a.Log.Warn("SetContactConversion: could not resolve space for contact", "contact", contact.ID, "account", contact.WhatsAppAccount)
+			metaReason = "could not find this contact's WhatsApp space"
+		} else {
+			a.decryptAccountSecrets(&account)
+			token := firstNonEmpty(account.MetaAccessToken, a.Config.Meta.AccessToken)
+			switch {
+			case !account.MetaCapiEnabled:
+				metaReason = "Meta Conversions is turned off for this space (Account settings → Meta Conversions)"
+			case account.MetaDatasetID == "":
+				metaReason = "no Dataset ID set for this space (Account settings → Meta Conversions)"
+			case token == "":
+				metaReason = "no Conversions API token set for this space (Account settings → Meta Conversions)"
+			default:
+				if a.sendMetaConversion(&account, contact, req.Value, req.Quantity) {
+					metaSent = true
+					updates["meta_conversion_sent_at"] = time.Now()
+				} else {
+					metaReason = "Meta did not accept the event — check the Dataset ID and token"
+				}
+			}
 		}
 	}
 
@@ -1541,7 +1561,11 @@ func (a *App) SetContactConversion(r *fastglue.Request) error {
 	if err := a.DB.First(contact, contactID).Error; err != nil {
 		a.Log.Error("Failed to reload contact", "error", err)
 	}
-	return r.SendEnvelope(contact)
+	return r.SendEnvelope(map[string]any{
+		"contact":     a.buildContactResponse(contact, orgID),
+		"meta_sent":   metaSent,
+		"meta_reason": metaReason,
+	})
 }
 
 // CreateContactRequest represents the request body for creating a contact
