@@ -29,6 +29,16 @@ import (
 // contact.Metadata so it survives until the contact converts later (which can
 // be many messages/days after the click).
 func (a *App) captureCTWAReferral(contact *models.Contact, msg IncomingTextMessage) {
+	// Diagnostic (#38): log every inbound ad referral so we can confirm what Meta
+	// actually sends (and whether it includes the ctwa_clid we need).
+	if msg.Referral != nil {
+		a.Log.Info("Inbound ad referral",
+			"contact", contact.ID,
+			"source_type", msg.Referral.SourceType,
+			"source_id", msg.Referral.SourceID,
+			"source_url", msg.Referral.SourceURL,
+			"has_ctwa_clid", msg.Referral.CtwaClid != "")
+	}
 	if msg.Referral == nil || msg.Referral.CtwaClid == "" {
 		return
 	}
