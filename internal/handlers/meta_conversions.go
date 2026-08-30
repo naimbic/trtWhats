@@ -129,6 +129,11 @@ func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *model
 	ctwaClid, _ := contact.Metadata["ctwa_clid"].(string)
 	if ctwaClid != "" {
 		userData["ctwa_clid"] = ctwaClid
+		// Meta's Click-to-WhatsApp Conversions API expects the WhatsApp Business
+		// Account id alongside ctwa_clid.
+		if account.BusinessID != "" {
+			userData["whatsapp_business_account_id"] = account.BusinessID
+		}
 	}
 	if len(userData) == 0 {
 		a.Log.Warn("sendMetaConversion: no match key (phone/ctwa_clid), skipping", "contact", contact.ID)
