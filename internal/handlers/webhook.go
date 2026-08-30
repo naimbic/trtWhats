@@ -170,6 +170,17 @@ func (a *App) WebhookHandler(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid payload", nil, "")
 	}
 
+	// TRT diagnostic (#38): log the RAW body for any inbound message that carries
+	// an ad "referral", so we can see exactly what Meta sends (incl. whether
+	// ctwa_clid is present and how it's nested). Temporary — remove once resolved.
+	if bytes.Contains(body, []byte("referral")) || bytes.Contains(body, []byte("ctwa")) {
+		raw := body
+		if len(raw) > 3000 {
+			raw = raw[:3000]
+		}
+		a.Log.Info("RAW ad-referral webhook", "body", string(raw))
+	}
+
 	// Verify webhook signature before processing any fields.
 	// Find a phoneNumberID from any change to look up the account's AppSecret.
 	if len(signature) > 0 {
