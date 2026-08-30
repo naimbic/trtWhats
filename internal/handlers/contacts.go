@@ -41,6 +41,10 @@ type ContactResponse struct {
 	LastInboundAt      *time.Time `json:"last_inbound_at,omitempty"`
 	ServiceWindowOpen  bool       `json:"service_window_open"`
 	MarketingOptOut    bool       `json:"marketing_opt_out"`
+	// TRT custom patch #36: agent-entered order details for the Meta conversion.
+	ConversionQuantity   int        `json:"conversion_quantity"`
+	ConversionValue      float64    `json:"conversion_value"`
+	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
@@ -222,6 +226,9 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 			LastInboundAt:      c.LastInboundAt,
 			ServiceWindowOpen:  serviceWindowOpen,
 			MarketingOptOut:    c.MarketingOptOut,
+			ConversionQuantity:   c.ConversionQuantity,
+			ConversionValue:      c.ConversionValue,
+			MetaConversionSentAt: c.MetaConversionSentAt,
 			CreatedAt:          c.CreatedAt,
 			UpdatedAt:          c.UpdatedAt,
 		}
@@ -1810,6 +1817,9 @@ func (a *App) buildContactResponse(contact *models.Contact, orgID uuid.UUID) Con
 		LastInboundAt:      contact.LastInboundAt,
 		ServiceWindowOpen:  serviceWindowOpen,
 		MarketingOptOut:    contact.MarketingOptOut,
+		ConversionQuantity:   contact.ConversionQuantity,
+		ConversionValue:      contact.ConversionValue,
+		MetaConversionSentAt: contact.MetaConversionSentAt,
 		CreatedAt:          contact.CreatedAt,
 		UpdatedAt:          contact.UpdatedAt,
 	}
