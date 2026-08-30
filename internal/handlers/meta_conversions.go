@@ -105,14 +105,16 @@ func parseFloatLoose(v any) float64 {
 // the dataset id, enable switch and other settings belong to the space, so each
 // client/number reports to its own ad account. No-op unless the space has it
 // enabled with a dataset AND a global token is configured. Safe in a goroutine.
-func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *models.Contact, value float64) {
+// Returns true only when an event was actually posted to Meta (so callers can
+// mark the conversion sent and not re-send).
+func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *models.Contact, value float64, quantity int) bool {
 	if account == nil {
-		return
+		return false
 	}
 	// Prefer this space's own token; fall back to the global partner token (env).
 	token := firstNonEmpty(account.MetaAccessToken, a.Config.Meta.AccessToken)
 	if !account.MetaCapiEnabled || account.MetaDatasetID == "" || token == "" {
-		return // not configured for this space -> no-op
+		return false // not configured for this space -> no-op
 	}
 	datasetID := account.MetaDatasetID
 	testEventCode := account.MetaTestEventCode
@@ -129,7 +131,7 @@ func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *model
 	}
 	if len(userData) == 0 {
 		a.Log.Warn("sendMetaConversion: no match key (phone/ctwa_clid), skipping", "contact", contact.ID)
-		return
+		return false
 	}
 
 	if value <= 0 {
@@ -146,6 +148,9 @@ func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *model
 	customData := map[string]any{"currency": currency}
 	if value > 0 {
 		customData["value"] = value
+	}
+	if quantity > 0 {
+		customData["num_items"] = quantity
 	}
 
 	event := map[string]any{
@@ -177,31 +182,32 @@ func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *model
 	payload, err := json.Marshal(body)
 	if err != nil {
 		a.Log.Error("sendMetaConversion: marshal failed", "error", err)
-		return
+		return false
 	}
 
 	url := fmt.Sprintf("%s/%s/%s/events", strings.TrimRight(base, "/"), apiVersion, datasetID)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		a.Log.Error("sendMetaConversion: request build failed", "error", err)
-		return
+		return false
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := a.HTTPClient.Do(req)
 	if err != nil {
 		a.Log.Error("sendMetaConversion: request failed", "error", err, "contact", contact.ID)
-		return
+		return false
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		a.Log.Error("sendMetaConversion: Meta rejected event",
 			"status", resp.StatusCode, "body", string(respBody), "contact", contact.ID)
-		return
+		return false
 	}
 	a.Log.Info("Sent Meta offline conversion",
 		"space", account.Name, "contact", contact.ID, "event", eventName, "value", value,
-		"currency", currency, "has_ctwa", ctwaClid != "", "test_mode", testEventCode != "")
+		"quantity", quantity, "currency", currency, "has_ctwa", ctwaClid != "", "test_mode", testEventCode != "")
+	return true
 }
 
 func digitsOnly(s string) string {

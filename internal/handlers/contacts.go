@@ -1470,6 +1470,73 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 	})
 }
 
+// SetContactConversionRequest is the body for setting order details on a contact.
+type SetContactConversionRequest struct {
+	Quantity int     `json:"quantity"`
+	Value    float64 `json:"value"`
+}
+
+// SetContactConversion sets the agent-entered order quantity + conversion value
+// on a contact and, on the first save with a value, sends the Meta offline
+// conversion for the correct amount (the order was already tagged Converted at
+// form submission). TRT custom patch #36. Gated by tags:write, like tagging.
+func (a *App) SetContactConversion(r *fastglue.Request) error {
+	orgID, userID, err := a.getOrgAndUserID(r)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+	}
+	if !a.HasPermission(userID, models.ResourceTags, models.ActionWrite, orgID) {
+		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You do not have permission to set the conversion value", nil, "")
+	}
+	contactID, err := parsePathUUID(r, "id", "contact")
+	if err != nil {
+		return nil
+	}
+	var req SetContactConversionRequest
+	if err := a.decodeRequest(r, &req); err != nil {
+		return nil
+	}
+	if req.Quantity < 0 {
+		req.Quantity = 0
+	}
+	if req.Value < 0 {
+		req.Value = 0
+	}
+	contact, err := findByIDAndOrg[models.Contact](a.DB, r, contactID, orgID, "Contact")
+	if err != nil {
+		return nil
+	}
+
+	updates := map[string]any{
+		"conversion_quantity": req.Quantity,
+		"conversion_value":    req.Value,
+	}
+
+	// Send the Meta offline conversion once, when a value is set and it hasn't
+	// been sent yet, using the space's own dataset/token.
+	if req.Value > 0 && contact.MetaConversionSentAt == nil {
+		var account models.WhatsAppAccount
+		if err := a.DB.Where("organization_id = ? AND name = ?", orgID, contact.WhatsAppAccount).First(&account).Error; err == nil {
+			a.decryptAccountSecrets(&account)
+			if a.sendMetaConversion(&account, contact, req.Value, req.Quantity) {
+				now := time.Now()
+				updates["meta_conversion_sent_at"] = now
+			}
+		} else {
+			a.Log.Warn("SetContactConversion: could not resolve space for contact", "contact", contact.ID, "account", contact.WhatsAppAccount)
+		}
+	}
+
+	if err := a.DB.Model(&models.Contact{}).Where("id = ?", contactID).Updates(updates).Error; err != nil {
+		a.Log.Error("Failed to save contact conversion", "error", err)
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save conversion", nil, "")
+	}
+	if err := a.DB.First(contact, contactID).Error; err != nil {
+		a.Log.Error("Failed to reload contact", "error", err)
+	}
+	return r.SendEnvelope(contact)
+}
+
 // CreateContactRequest represents the request body for creating a contact
 type CreateContactRequest struct {
 	PhoneNumber     string         `json:"phone_number"`

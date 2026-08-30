@@ -3,6 +3,7 @@ import { ref, watch, computed, onMounted } from 'vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Collapsible,
@@ -89,6 +90,44 @@ const isResizing = ref(false)
 // TRT custom patch #29: tagging is gated by tags:write (not contacts:write) so agents
 // can be granted the Tags permission to apply Converted/Lost/Waiting.
 const canEditTags = computed(() => authStore.hasPermission('tags', 'write'))
+
+// TRT custom patch #36: order quantity + conversion value (sent to Meta).
+const CONVERTED_TAG = 'تم البيع - Converti'
+const isConverted = computed(() => {
+  const tags = props.contact.tags
+  return Array.isArray(tags) && tags.includes(CONVERTED_TAG)
+})
+const convQuantity = ref<number | string>(props.contact.conversion_quantity ?? 0)
+const convValue = ref<number | string>(props.contact.conversion_value ?? 0)
+const convSentAt = ref<string | null>(props.contact.meta_conversion_sent_at || null)
+const isSavingConversion = ref(false)
+
+// Re-sync when switching to a different contact.
+watch(() => props.contact.id, () => {
+  convQuantity.value = props.contact.conversion_quantity ?? 0
+  convValue.value = props.contact.conversion_value ?? 0
+  convSentAt.value = props.contact.meta_conversion_sent_at || null
+})
+
+async function saveConversion() {
+  if (isSavingConversion.value) return
+  isSavingConversion.value = true
+  try {
+    const res = await contactsService.setConversion(props.contact.id, {
+      quantity: Number(convQuantity.value) || 0,
+      value: Number(convValue.value) || 0,
+    })
+    const updated = (res.data?.data || res.data) as Contact
+    convQuantity.value = updated.conversion_quantity ?? 0
+    convValue.value = updated.conversion_value ?? 0
+    convSentAt.value = updated.meta_conversion_sent_at || null
+    toast.success(convSentAt.value ? 'Saved and sent to Meta' : 'Saved')
+  } catch (e: any) {
+    toast.error(e.response?.data?.message || 'Failed to save conversion')
+  } finally {
+    isSavingConversion.value = false
+  }
+}
 
 // Fetch tags on mount
 onMounted(async () => {
@@ -345,6 +384,33 @@ async function updateContactTags(tags: string[]) {
             </template>
             <span v-else class="text-sm text-muted-foreground">No tags</span>
             <Loader2 v-if="isUpdatingTags" class="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+
+          <!-- Conversion (order value → Meta) — TRT patch #36 -->
+          <div v-if="canEditTags && isConverted" class="mt-3 rounded-lg border border-border/60 p-2.5 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium">{{ $t('chat.conversion', 'Conversion') }}</span>
+              <span v-if="convSentAt" class="text-[11px] text-emerald-500 flex items-center gap-1">
+                <Check class="h-3 w-3" /> {{ $t('chat.sentToMeta', 'Sent to Meta') }}
+              </span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[11px] text-muted-foreground">{{ $t('chat.quantity', 'Quantity') }}</label>
+                <Input v-model="convQuantity" type="number" min="0" class="h-8" :disabled="!!convSentAt" />
+              </div>
+              <div>
+                <label class="text-[11px] text-muted-foreground">{{ $t('chat.convValue', 'Conversion value') }}</label>
+                <Input v-model="convValue" type="number" min="0" step="0.01" class="h-8" :disabled="!!convSentAt" />
+              </div>
+            </div>
+            <Button v-if="!convSentAt" size="sm" class="w-full h-8" :disabled="isSavingConversion" @click="saveConversion">
+              <Loader2 v-if="isSavingConversion" class="h-3.5 w-3.5 mr-1 animate-spin" />
+              {{ $t('chat.saveSendMeta', 'Save & send to Meta') }}
+            </Button>
+            <p v-else class="text-[11px] text-muted-foreground">
+              {{ $t('chat.convLocked', 'Already sent — value is locked to avoid duplicate conversions.') }}
+            </p>
           </div>
         </div>
 

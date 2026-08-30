@@ -376,6 +376,13 @@ type Contact struct {
 	ChatbotLastMessageAt *time.Time `json:"chatbot_last_message_at,omitempty"` // When chatbot last sent a message
 	ChatbotReminderSent  bool       `gorm:"default:false" json:"chatbot_reminder_sent"`
 
+	// TRT custom patch #36: agent-entered order details for the Meta offline
+	// conversion. Set beside the Converted tag; saving the value sends the
+	// conversion to Meta once (MetaConversionSentAt dedups the send).
+	ConversionQuantity int        `gorm:"default:0" json:"conversion_quantity"`
+	ConversionValue    float64    `gorm:"default:0" json:"conversion_value"`
+	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
+
 	// Relations
 	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 	AssignedUser *User         `gorm:"foreignKey:AssignedUserID" json:"assigned_user,omitempty"`

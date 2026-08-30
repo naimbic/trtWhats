@@ -224,13 +224,16 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	// completed the order form → auto-tag them Converted (shows on the dashboard and
 	// keeps them out of the 5-day Lost auto-tagging). Idempotent.
 	if messageType == "nfm_reply" || len(flowResponseData) > 0 {
-		// TRT custom patch #35: on the FIRST conversion, send a free offline
-		// conversion to Meta's Conversions API (attributes the order to the
-		// Click-to-WhatsApp ad via the stored ctwa_clid). Async + no-op unless
-		// Meta CAPI is configured, so it never blocks or breaks message handling.
-		if a.tagContactConverted(contact) {
-			value := orderValueFromFlow(flowResponseData)
-			go a.sendMetaConversion(account, contact, value)
+		// TRT custom patch #22/#35: auto-tag Converted on order-form submission.
+		// The Meta offline conversion is NOT sent here — it is sent when an agent
+		// confirms the order value beside the Converted tag (patch #36), so Meta
+		// receives the correct order value. The ctwa_clid captured above is stored
+		// on the contact and used at that point.
+		a.tagContactConverted(contact)
+		// Seed a suggested value from the order form (if it carried one) so the
+		// agent sees a pre-filled number to confirm/adjust.
+		if v := orderValueFromFlow(flowResponseData); v > 0 && contact.ConversionValue == 0 {
+			a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).Update("conversion_value", v)
 		}
 	}
 
