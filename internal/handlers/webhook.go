@@ -170,15 +170,21 @@ func (a *App) WebhookHandler(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid payload", nil, "")
 	}
 
-	// TRT diagnostic (#38): log the RAW body for any inbound message that carries
-	// an ad "referral", so we can see exactly what Meta sends (incl. whether
-	// ctwa_clid is present and how it's nested). Temporary — remove once resolved.
-	if bytes.Contains(body, []byte("referral")) || bytes.Contains(body, []byte("ctwa")) {
-		raw := body
-		if len(raw) > 3000 {
-			raw = raw[:3000]
+	// TRT diagnostic (#38): log the RAW body for an inbound MESSAGE that carries an
+	// ad referral object (`"referral":{`) — this is where ctwa_clid lives. This
+	// deliberately skips status webhooks (which only mention "referral_conversion").
+	// Also log message webhooks that arrive WITHOUT a referral so we can tell
+	// whether Meta is sending the referral on messages at all. Temporary.
+	if bytes.Contains(body, []byte(`"messages":[`)) {
+		if bytes.Contains(body, []byte(`"referral":{`)) {
+			raw := body
+			if len(raw) > 4000 {
+				raw = raw[:4000]
+			}
+			a.Log.Info("RAW inbound message WITH referral", "body", string(raw))
+		} else {
+			a.Log.Info("RAW inbound message WITHOUT referral")
 		}
-		a.Log.Info("RAW ad-referral webhook", "body", string(raw))
 	}
 
 	// Verify webhook signature before processing any fields.
