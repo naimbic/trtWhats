@@ -176,14 +176,27 @@ func (a *App) WebhookHandler(r *fastglue.Request) error {
 	// Also log message webhooks that arrive WITHOUT a referral so we can tell
 	// whether Meta is sending the referral on messages at all. Temporary.
 	if bytes.Contains(body, []byte(`"messages":[`)) {
-		if bytes.Contains(body, []byte(`"referral":{`)) {
+		var from, msgType string
+		hasReferral := false
+		for _, entry := range payload.Entry {
+			for _, change := range entry.Changes {
+				for _, m := range change.Value.Messages {
+					from = m.From
+					msgType = m.Type
+					if m.Referral != nil {
+						hasReferral = true
+					}
+				}
+			}
+		}
+		if hasReferral {
 			raw := body
 			if len(raw) > 4000 {
 				raw = raw[:4000]
 			}
-			a.Log.Info("RAW inbound message WITH referral", "body", string(raw))
+			a.Log.Info("RAW inbound message WITH referral", "from", from, "body", string(raw))
 		} else {
-			a.Log.Info("RAW inbound message WITHOUT referral")
+			a.Log.Info("RAW inbound message WITHOUT referral", "from", from, "type", msgType)
 		}
 	}
 
