@@ -298,6 +298,18 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 	account.IsDefaultOutgoing = req.IsDefaultOutgoing
 	account.UpdatedByID = &userID
 
+	// TRT custom patch #37: resolveWhatsAppAccountByID returns the account with
+	// its secrets DECRYPTED. Any secret we didn't just re-encrypt inline (e.g. the
+	// access token when the field was left blank) is therefore plaintext — saving
+	// as-is would corrupt it (store the token in the clear, breaking message
+	// sending with a 190 auth error on next read/rotate). Re-encrypt before Save;
+	// EncryptFields skips values already carrying the "enc:" prefix, so the ones
+	// updated above are not double-encrypted.
+	if err := a.encryptAccountSecrets(account); err != nil {
+		a.Log.Error("Failed to encrypt account secrets before save", "error", err)
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account", nil, "")
+	}
+
 	if err := a.DB.Save(account).Error; err != nil {
 		a.Log.Error("Failed to update account", "error", err)
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account", nil, "")
