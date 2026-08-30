@@ -217,21 +217,35 @@ func (a *App) sendMetaConversion(account *models.WhatsAppAccount, contact *model
 func parseMetaError(body []byte) string {
 	var e struct {
 		Error struct {
-			Message      string `json:"message"`
-			Type         string `json:"type"`
-			Code         int    `json:"code"`
-			ErrorSubcode int    `json:"error_subcode"`
+			Message        string `json:"message"`
+			Type           string `json:"type"`
+			Code           int    `json:"code"`
+			ErrorSubcode   int    `json:"error_subcode"`
+			ErrorUserTitle string `json:"error_user_title"`
+			ErrorUserMsg   string `json:"error_user_msg"`
 		} `json:"error"`
 	}
 	if err := json.Unmarshal(body, &e); err == nil && e.Error.Message != "" {
-		if e.Error.Code != 0 {
-			return fmt.Sprintf("%s (code %d)", e.Error.Message, e.Error.Code)
+		// error_user_msg / error_user_title usually name the exact bad field.
+		msg := e.Error.Message
+		if e.Error.ErrorUserMsg != "" {
+			msg = msg + " — " + e.Error.ErrorUserMsg
+		} else if e.Error.ErrorUserTitle != "" {
+			msg = msg + " — " + e.Error.ErrorUserTitle
 		}
-		return e.Error.Message
+		codes := ""
+		if e.Error.Code != 0 {
+			codes = fmt.Sprintf(" (code %d", e.Error.Code)
+			if e.Error.ErrorSubcode != 0 {
+				codes += fmt.Sprintf("/subcode %d", e.Error.ErrorSubcode)
+			}
+			codes += ")"
+		}
+		return msg + codes
 	}
 	s := strings.TrimSpace(string(body))
-	if len(s) > 200 {
-		s = s[:200]
+	if len(s) > 300 {
+		s = s[:300]
 	}
 	if s == "" {
 		return "unknown error from Meta"
