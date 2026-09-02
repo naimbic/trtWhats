@@ -558,6 +558,21 @@ func (a *App) broadcastReactionUpdate(orgID uuid.UUID, messageID, contactID uuid
 	})
 }
 
+// broadcastMessageDeleted tells all connected tabs to remove a soft-deleted
+// message from the conversation view in real time (TRT custom patch #39).
+func (a *App) broadcastMessageDeleted(orgID uuid.UUID, messageID, contactID uuid.UUID) {
+	if a.WSHub == nil {
+		return
+	}
+	a.WSHub.BroadcastToOrg(orgID, websocket.WSMessage{
+		Type: "message_deleted",
+		Payload: map[string]any{
+			"message_id": messageID.String(),
+			"contact_id": contactID.String(),
+		},
+	})
+}
+
 // dispatchMessageSentWebhook dispatches webhook for message.sent event
 func (a *App) dispatchMessageSentWebhook(account *models.WhatsAppAccount, contact *models.Contact, msg *models.Message) {
 	var sentByUserID string

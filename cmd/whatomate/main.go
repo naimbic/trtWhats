@@ -653,6 +653,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.POST("/api/contacts/{id}/messages", app.SendMessage)
 	g.POST("/api/contacts/{id}/mark-read", app.MarkContactRead)
 	g.POST("/api/contacts/{id}/messages/{message_id}/reaction", app.SendReaction)
+	g.DELETE("/api/contacts/{id}/messages/{message_id}", app.DeleteMessage) // TRT custom patch #39
 	g.POST("/api/messages", app.SendMessage) // Legacy route
 	g.POST("/api/messages/template", app.SendTemplateMessage)
 	g.POST("/api/messages/media", app.SendMediaMessage)

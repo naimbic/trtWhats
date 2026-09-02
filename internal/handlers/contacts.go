@@ -1204,6 +1204,60 @@ func (a *App) SendReaction(r *fastglue.Request) error {
 	})
 }
 
+// DeleteMessage soft-deletes a message from the trtWhats conversation view.
+//
+// TRT custom patch #39: agents sometimes send a message by mistake and want it
+// gone from the team's view. WhatsApp's Cloud API has NO endpoint to recall or
+// un-send a message from the customer's phone, so this is a LOCAL delete only —
+// the customer still sees whatever was already delivered. Because BaseModel
+// carries gorm.DeletedAt, GORM soft-deletes the row (sets deleted_at); the data
+// is never physically removed and normal queries simply stop returning it.
+func (a *App) DeleteMessage(r *fastglue.Request) error {
+	orgID, userID, err := a.getOrgAndUserID(r)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+	}
+	// Gate on contacts:write — the same permission needed to send/reply in a
+	// conversation, so anyone who can post a message can undo their own mistake.
+	if !a.HasPermission(userID, models.ResourceContacts, models.ActionWrite, orgID) {
+		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You don't have permission to delete messages", nil, "")
+	}
+	contactID, err := parsePathUUID(r, "id", "contact")
+	if err != nil {
+		return nil
+	}
+	messageIDStr, _ := r.RequestCtx.UserValue("message_id").(string)
+	messageID, err := uuid.Parse(messageIDStr)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid message ID", nil, "")
+	}
+
+	// Users without full read permission can only delete within their assigned contacts.
+	var contact models.Contact
+	query := a.DB.Where("id = ? AND organization_id = ?", contactID, orgID)
+	query = a.scopeAssignedContact(query, userID, orgID)
+	if err := query.First(&contact).Error; err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+	}
+
+	var message models.Message
+	if err := a.DB.Where("id = ? AND contact_id = ? AND organization_id = ?", messageID, contactID, orgID).First(&message).Error; err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Message not found", nil, "")
+	}
+
+	// Soft delete (gorm.DeletedAt) — keeps the row for auditing, hides it from the UI.
+	if err := a.DB.Delete(&message).Error; err != nil {
+		a.Log.Error("Failed to delete message", "error", err, "message", messageID)
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete message", nil, "")
+	}
+	a.Log.Info("Message deleted from view", "message", messageID, "contact", contactID, "by_user", userID)
+
+	// Tell every open tab to drop it from the conversation in real time.
+	a.broadcastMessageDeleted(orgID, message.ID, contact.ID)
+
+	return r.SendEnvelope(map[string]any{"message_id": message.ID.String(), "deleted": true})
+}
+
 // sendWhatsAppReaction sends a reaction to WhatsApp
 func (a *App) sendWhatsAppReaction(account *models.WhatsAppAccount, contact *models.Contact, message *models.Message, emoji string) {
 	if message.WhatsAppMessageID == "" {

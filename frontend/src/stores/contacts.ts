@@ -376,6 +376,11 @@ export const useContactsStore = defineStore('contacts', () => {
     }
   }
 
+  // TRT custom patch #39: drop a soft-deleted message from the open conversation.
+  function removeMessage(messageId: string) {
+    messages.value = messages.value.filter(m => m.id !== messageId)
+  }
+
   function updateContactTags(contactId: string, tags: string[]) {
     // Update in contacts list
     const contact = contacts.value.find(c => c.id === contactId)
@@ -385,6 +390,27 @@ export const useContactsStore = defineStore('contacts', () => {
     // Update current contact if it matches
     if (currentContact.value?.id === contactId) {
       currentContact.value = { ...currentContact.value, tags }
+    }
+  }
+
+  // TRT custom patch #36 fix: keep the cached contact objects in sync with a
+  // saved conversion. selectContact() reuses the list object (no refetch), so
+  // without this the saved quantity/value would revert to 0 on reopen.
+  function applyConversionUpdate(
+    contactId: string,
+    fields: { conversion_quantity?: number; conversion_value?: number; meta_conversion_sent_at?: string | null }
+  ) {
+    const patch = {
+      conversion_quantity: fields.conversion_quantity,
+      conversion_value: fields.conversion_value,
+      meta_conversion_sent_at: fields.meta_conversion_sent_at ?? undefined,
+    }
+    const contact = contacts.value.find(c => c.id === contactId)
+    if (contact) {
+      Object.assign(contact, patch)
+    }
+    if (currentContact.value?.id === contactId) {
+      currentContact.value = { ...currentContact.value, ...patch }
     }
   }
 
@@ -463,6 +489,8 @@ export const useContactsStore = defineStore('contacts', () => {
     setReplyingTo,
     clearReplyingTo,
     updateMessageReactions,
+    removeMessage,
+    applyConversionUpdate,
     updateContactTags,
     applyRealtimeContactUpdate,
     markContactReadLocal

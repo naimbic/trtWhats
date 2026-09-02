@@ -30,6 +30,7 @@ import { getInitials, getAvatarGradient, formatLabel } from '@/lib/utils'
 import { getTagColorClass } from '@/lib/constants'
 import { useTagsStore } from '@/stores/tags'
 import { useAuthStore } from '@/stores/auth'
+import { useContactsStore } from '@/stores/contacts'
 import { contactsService, type Tag } from '@/services/api'
 import { toast } from 'vue-sonner'
 import type { Contact } from '@/stores/contacts'
@@ -76,6 +77,7 @@ const emit = defineEmits<{
 
 const tagsStore = useTagsStore()
 const authStore = useAuthStore()
+const contactsStore = useContactsStore()
 const collapsedSections = ref<Record<string, boolean>>({})
 const tagSelectorOpen = ref(false)
 const isUpdatingTags = ref(false)
@@ -128,6 +130,13 @@ async function saveConversion() {
     convQuantity.value = updated.conversion_quantity ?? 0
     convValue.value = updated.conversion_value ?? 0
     convSentAt.value = updated.meta_conversion_sent_at || null
+    // Sync the store so the saved values survive closing/reopening the contact
+    // (selectContact reuses the cached list object and does not refetch).
+    contactsStore.applyConversionUpdate(props.contact.id, {
+      conversion_quantity: updated.conversion_quantity ?? 0,
+      conversion_value: updated.conversion_value ?? 0,
+      meta_conversion_sent_at: updated.meta_conversion_sent_at ?? null,
+    })
     if (d?.meta_sent) {
       toast.success('Saved and sent to Meta ✓')
     } else {

@@ -54,6 +54,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { toast } from 'vue-sonner'
 import {
   Search,
@@ -91,7 +100,8 @@ import {
   Filter,
   CalendarDays,
   MailOpen,
-  StickyNote
+  StickyNote,
+  Trash2
 } from 'lucide-vue-next'
 import { getInitials, getAvatarGradient } from '@/lib/utils'
 import { useColorMode } from '@/composables/useColorMode'
@@ -1278,6 +1288,32 @@ function replyToMessage(message: Message) {
   nextTick(() => {
     messageInputRef.value?.focus()
   })
+}
+
+// TRT custom patch #39: delete a message from the trtWhats view (local only —
+// WhatsApp has no un-send API, so the customer still sees a delivered message).
+const messageToDelete = ref<Message | null>(null)
+const isDeletingMessage = ref(false)
+
+function askDeleteMessage(message: Message) {
+  messageToDelete.value = message
+}
+
+async function confirmDeleteMessage() {
+  const message = messageToDelete.value
+  const contactId = contactsStore.currentContact?.id
+  if (!message || !contactId) return
+  isDeletingMessage.value = true
+  try {
+    await messagesService.deleteMessage(contactId, message.id)
+    contactsStore.removeMessage(message.id)
+    toast.success(t('chat.messageDeleted'))
+    messageToDelete.value = null
+  } catch {
+    toast.error(t('chat.deleteMessageFailed'))
+  } finally {
+    isDeletingMessage.value = false
+  }
 }
 
 // Watch for slash commands in message input
@@ -2681,6 +2717,16 @@ async function sendAudioBlob(blob: Blob) {
                 >
                   <Reply class="h-3 w-3" />
                 </Button>
+                <Button
+                  v-if="canWriteContacts"
+                  variant="ghost"
+                  size="icon"
+                  class="h-6 w-6 text-destructive hover:text-destructive"
+                  :title="$t('chat.deleteMessage')"
+                  @click="askDeleteMessage(message)"
+                >
+                  <Trash2 class="h-3 w-3" />
+                </Button>
               </div>
               <!-- Reply button for outgoing messages (shown on hover) -->
               <div v-if="message.direction === 'outgoing'" class="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1">
@@ -2722,6 +2768,16 @@ async function sendAudioBlob(blob: Blob) {
                 >
                   <Loader2 v-if="retryingMessageId === message.id" class="h-3 w-3 animate-spin" />
                   <RotateCw v-else class="h-3 w-3" />
+                </Button>
+                <Button
+                  v-if="canWriteContacts"
+                  variant="ghost"
+                  size="icon"
+                  class="h-6 w-6 text-destructive hover:text-destructive"
+                  :title="$t('chat.deleteMessage')"
+                  @click="askDeleteMessage(message)"
+                >
+                  <Trash2 class="h-3 w-3" />
                 </Button>
               </div>
             </div>
@@ -3154,6 +3210,29 @@ async function sendAudioBlob(blob: Blob) {
       v-model:index="mediaViewerIndex"
       :items="viewableMedia"
     />
+
+    <!-- TRT custom patch #39: confirm deleting a message from the view -->
+    <AlertDialog :open="messageToDelete !== null" @update:open="(open: boolean) => { if (!open) messageToDelete = null }">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{{ $t('chat.deleteMessageConfirm') }}</AlertDialogTitle>
+          <AlertDialogDescription>{{ $t('chat.deleteMessageWarning') }}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="isDeletingMessage">{{ $t('common.cancel') }}</AlertDialogCancel>
+          <!-- Plain Button (not AlertDialogAction) so the dialog stays open during
+               the async delete and only closes once it succeeds. -->
+          <Button
+            variant="destructive"
+            :disabled="isDeletingMessage"
+            @click="confirmDeleteMessage"
+          >
+            <Loader2 v-if="isDeletingMessage" class="h-4 w-4 mr-2 animate-spin" />
+            {{ $t('chat.deleteMessage') }}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
 

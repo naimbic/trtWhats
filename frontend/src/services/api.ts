@@ -316,7 +316,11 @@ export const messagesService = {
     return api.post('/messages/template', { contact_id: contactId, ...data })
   },
   sendReaction: (contactId: string, messageId: string, emoji: string) =>
-    api.post(`/contacts/${contactId}/messages/${messageId}/reaction`, { emoji })
+    api.post(`/contacts/${contactId}/messages/${messageId}/reaction`, { emoji }),
+  // TRT custom patch #39: local-only delete (removes from trtWhats view; WhatsApp
+  // has no un-send API, so the customer still sees a delivered message).
+  deleteMessage: (contactId: string, messageId: string) =>
+    api.delete(`/contacts/${contactId}/messages/${messageId}`)
 }
 
 export const templatesService = {
