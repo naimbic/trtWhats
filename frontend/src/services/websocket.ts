@@ -76,9 +76,6 @@ const WS_TYPE_PONG = 'pong'
 // Reaction types
 const WS_TYPE_REACTION_UPDATE = 'reaction_update'
 
-// Message deletion (TRT custom patch #39)
-const WS_TYPE_MESSAGE_DELETED = 'message_deleted'
-
 // Agent transfer types
 const WS_TYPE_AGENT_TRANSFER = 'agent_transfer'
 const WS_TYPE_AGENT_TRANSFER_RESUME = 'agent_transfer_resume'
@@ -268,9 +265,6 @@ class WebSocketService {
         case WS_TYPE_REACTION_UPDATE:
           this.handleReactionUpdate(store, message.payload)
           break
-        case WS_TYPE_MESSAGE_DELETED:
-          this.handleMessageDeleted(store, message.payload)
-          break
         case WS_TYPE_PONG:
           // Pong received, connection is alive
           break
@@ -431,14 +425,6 @@ class WebSocketService {
     const currentContact = store.currentContact
     if (currentContact && payload.contact_id === currentContact.id) {
       store.updateMessageReactions(payload.message_id, payload.reactions)
-    }
-  }
-
-  // TRT custom patch #39: remove a message another agent deleted, in real time.
-  private handleMessageDeleted(store: ReturnType<typeof useContactsStore>, payload: any) {
-    const currentContact = store.currentContact
-    if (currentContact && payload.contact_id === currentContact.id) {
-      store.removeMessage(payload.message_id)
     }
   }
 

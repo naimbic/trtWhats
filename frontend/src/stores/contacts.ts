@@ -376,11 +376,6 @@ export const useContactsStore = defineStore('contacts', () => {
     }
   }
 
-  // TRT custom patch #39: drop a soft-deleted message from the open conversation.
-  function removeMessage(messageId: string) {
-    messages.value = messages.value.filter(m => m.id !== messageId)
-  }
-
   function updateContactTags(contactId: string, tags: string[]) {
     // Update in contacts list
     const contact = contacts.value.find(c => c.id === contactId)
@@ -489,7 +484,6 @@ export const useContactsStore = defineStore('contacts', () => {
     setReplyingTo,
     clearReplyingTo,
     updateMessageReactions,
-    removeMessage,
     applyConversionUpdate,
     updateContactTags,
     applyRealtimeContactUpdate,
