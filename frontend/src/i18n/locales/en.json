@@ -410,6 +410,7 @@
     "resumeFailed": "Failed to resume chatbot",
     "sendMessageFailed": "Failed to send message",
     "messageSent": "Message sent successfully",
+    "allNumbers": "All",
     "reactionFailed": "Failed to send reaction",
     "retrying": "Retrying",
     "failedTapRetry": "Failed - Tap to retry",

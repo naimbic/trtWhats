@@ -405,8 +405,13 @@ class WebSocketService {
 
     if (isViewingThisContact && currentContact && payload.direction === 'incoming' && !alreadyRead && userActive) {
       contactsService.markRead(currentContact.id)
-        .then(() => store.markContactReadLocal(currentContact.id))
+        // TRT custom patch #41: the just-read message leaves this number's unread
+        // tally — refresh the chip counts once the server has marked it read.
+        .then(() => { store.markContactReadLocal(currentContact.id); store.fetchAccountUnreads() })
         .catch(() => { /* non-critical, will resync on next chat-open */ })
+    } else if (payload.direction === 'incoming') {
+      // A new unread on some number — refresh the per-number chip counts.
+      store.fetchAccountUnreads()
     }
 
     if (!inList) {

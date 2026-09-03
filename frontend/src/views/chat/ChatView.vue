@@ -555,6 +555,11 @@ onMounted(async () => {
     orgAccounts.value = []
   }
 
+  // TRT custom patch #41: initial per-number unread counts for the chips.
+  if (orgAccounts.value.length > 1) {
+    contactsStore.fetchAccountUnreads()
+  }
+
   // Fetch available tags for filtering (if not already loaded)
   if (tagsStore.tags.length === 0) {
     tagsStore.fetchTags().catch(() => {})
@@ -578,6 +583,7 @@ function onUserActive() {
   if (!firstUnreadId.value) return
   if (contactsStore.currentContact) {
     contactsService.markRead(contactsStore.currentContact.id)
+      .then(() => contactsStore.fetchAccountUnreads())
       .catch(() => { /* non-critical */ })
   }
   nextTick(() => {
@@ -670,6 +676,8 @@ async function selectContact(id: string) {
 
     contactsStore.setCurrentContact(contact)
     await contactsStore.fetchMessages(id)
+    // Opening a chat marks it read server-side — refresh the per-number counts.
+    contactsStore.fetchAccountUnreads()
 
     // Discover distinct accounts from the unfiltered message set
     const accounts = new Set<string>()
@@ -2089,6 +2097,46 @@ async function sendAudioBlob(blob: Blob) {
             <X class="h-3 w-3 ml-1" />
           </TagBadge>
         </div>
+      </div>
+
+      <!-- TRT custom patch #41: WhatsApp number chips (this space's lines) with
+           unread-message counts. Click a number to filter the inbox to it. -->
+      <div
+        v-if="orgAccounts.length > 1"
+        class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-white/[0.08] light:border-gray-200 overflow-x-auto"
+      >
+        <button
+          :class="[
+            'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors',
+            contactsStore.inboxAccountFilter === null
+              ? 'bg-emerald-600 text-white'
+              : 'bg-white/[0.06] text-white/70 hover:text-white hover:bg-white/[0.1] light:bg-gray-100 light:text-gray-600 light:hover:bg-gray-200'
+          ]"
+          @click="contactsStore.applyInboxAccountFilter(null)"
+        >
+          {{ $t('chat.allNumbers', 'All') }}
+          <span
+            v-if="contactsStore.accountUnreadTotal > 0"
+            class="rounded-full bg-emerald-500 text-white text-[10px] leading-none px-1.5 py-0.5 min-w-[18px] text-center"
+          >{{ contactsStore.accountUnreadTotal }}</span>
+        </button>
+        <button
+          v-for="acct in orgAccounts"
+          :key="acct.name"
+          :class="[
+            'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors',
+            contactsStore.inboxAccountFilter === acct.name
+              ? 'bg-emerald-600 text-white'
+              : 'bg-white/[0.06] text-white/70 hover:text-white hover:bg-white/[0.1] light:bg-gray-100 light:text-gray-600 light:hover:bg-gray-200'
+          ]"
+          @click="contactsStore.applyInboxAccountFilter(acct.name)"
+        >
+          {{ acct.name }}
+          <span
+            v-if="(contactsStore.accountUnreads[acct.name] || 0) > 0"
+            class="rounded-full bg-emerald-500 text-white text-[10px] leading-none px-1.5 py-0.5 min-w-[18px] text-center"
+          >{{ contactsStore.accountUnreads[acct.name] }}</span>
+        </button>
       </div>
 
       <!-- Contacts -->

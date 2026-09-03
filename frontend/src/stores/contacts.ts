@@ -102,6 +102,13 @@ export const useContactsStore = defineStore('contacts', () => {
   const readFilter = ref<'read' | 'unread' | null>(null)
   const replyingTo = ref<Message | null>(null)
   const accountFilter = ref<string | null>(null)
+  // TRT custom patch #41: filter the inbox by WhatsApp number (space's account)
+  // and track unread-message counts per number for the chips above the list.
+  // Separate from accountFilter (which is the in-session account context that
+  // clearMessages() resets on every contact switch).
+  const inboxAccountFilter = ref<string | null>(null)
+  const accountUnreads = ref<Record<string, number>>({})
+  const accountUnreadTotal = ref(0)
 
   // Contacts pagination
   const contactsPage = ref(1)
@@ -140,6 +147,7 @@ export const useContactsStore = defineStore('contacts', () => {
         from: dateFrom.value || undefined,
         to: dateTo.value || undefined,
         read: readFilter.value === null ? undefined : readFilter.value === 'read',
+        account: inboxAccountFilter.value || undefined,
         ...params
       })
       if (seq !== fetchContactsSeq) return // superseded by a newer fetch
@@ -170,6 +178,7 @@ export const useContactsStore = defineStore('contacts', () => {
         from: dateFrom.value || undefined,
         to: dateTo.value || undefined,
         read: readFilter.value === null ? undefined : readFilter.value === 'read',
+        account: inboxAccountFilter.value || undefined,
         search
       })
       const data = response.data.data || response.data
@@ -363,6 +372,24 @@ export const useContactsStore = defineStore('contacts', () => {
     accountFilter.value = account
   }
 
+  // TRT custom patch #41: per-number unread counts for the chips above the list.
+  async function fetchAccountUnreads() {
+    try {
+      const res = await contactsService.accountUnreads()
+      const data = res.data?.data || res.data
+      accountUnreads.value = data.accounts || {}
+      accountUnreadTotal.value = data.total || 0
+    } catch {
+      // keep the previous counts; the chips just don't refresh this cycle
+    }
+  }
+
+  // Select a number chip (null = All) and reload the filtered inbox.
+  async function applyInboxAccountFilter(account: string | null) {
+    inboxAccountFilter.value = account
+    await fetchContacts()
+  }
+
   function clearMessages() {
     messages.value = []
     hasMoreMessages.value = false
@@ -481,6 +508,11 @@ export const useContactsStore = defineStore('contacts', () => {
     setCurrentContact,
     clearMessages,
     setAccountFilter,
+    inboxAccountFilter,
+    accountUnreads,
+    accountUnreadTotal,
+    fetchAccountUnreads,
+    applyInboxAccountFilter,
     setReplyingTo,
     clearReplyingTo,
     updateMessageReactions,

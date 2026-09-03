@@ -169,6 +169,13 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 		}
 	}
 
+	// TRT custom patch #41: filter the inbox by WhatsApp number (space). The
+	// number chips above the list pass the account name here so each line's
+	// conversations can be viewed on their own.
+	if accountParam := string(r.RequestCtx.QueryArgs().Peek("account")); accountParam != "" {
+		query = query.Where("whatsapp_account = ?", accountParam)
+	}
+
 	// Order by last message time (most recent first)
 	query = query.Order("last_message_at DESC NULLS LAST, created_at DESC")
 
@@ -235,6 +242,66 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 	}
 
 	return r.SendEnvelope(listEnvelope("contacts", response, total, pg))
+}
+
+// AccountUnreadCounts returns the number of unread (new incoming) messages per
+// WhatsApp number for the current space, feeding the number chips above the
+// conversation list (TRT custom patch #41). Everything is scoped to the active
+// org, so a space only ever sees its own numbers' counts. Uses the same "unread"
+// rule as the per-conversation badge (incoming, not yet read) and the same
+// assigned-contact scoping as ListContacts.
+func (a *App) AccountUnreadCounts(r *fastglue.Request) error {
+	orgID, userID, err := a.getOrgAndUserID(r)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+	}
+
+	type accountUnread struct {
+		Account string `json:"account"`
+		Count   int64  `json:"count"`
+	}
+	var rows []accountUnread
+
+	// Group unread incoming messages by the contact's number so a chip's count
+	// matches exactly the conversations that clicking it shows.
+	q := a.DB.Model(&models.Message{}).
+		Joins("JOIN contacts c ON c.id = messages.contact_id AND c.deleted_at IS NULL").
+		Where("messages.organization_id = ? AND messages.direction = ? AND messages.status <> ?",
+			orgID, models.DirectionIncoming, models.MessageStatusRead)
+
+	// Agents without contacts:read only count their own assigned / transferred chats.
+	if !a.HasPermission(userID, models.ResourceContacts, models.ActionRead, orgID) {
+		q = q.Where("c.assigned_user_id = ? OR c.id IN (?)",
+			userID,
+			a.DB.Model(&models.AgentTransfer{}).
+				Select("contact_id").
+				Where("agent_id = ? AND organization_id = ? AND status = ?", userID, orgID, models.TransferStatusActive),
+		)
+	}
+
+	if err := q.Select("c.whatsapp_account AS account, COUNT(messages.id) AS count").
+		Group("c.whatsapp_account").
+		Scan(&rows).Error; err != nil {
+		a.Log.Error("AccountUnreadCounts: query failed", "error", err)
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to load counts", nil, "")
+	}
+
+	var total int64
+	counts := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		if row.Account == "" {
+			continue // messages on no-longer-named / blank accounts still count toward total
+		}
+		counts[row.Account] = row.Count
+	}
+	for _, row := range rows {
+		total += row.Count
+	}
+
+	return r.SendEnvelope(map[string]any{
+		"accounts": counts,
+		"total":    total,
+	})
 }
 
 // scopeAssignedContact narrows a contact query for users who lack the

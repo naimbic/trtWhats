@@ -189,8 +189,10 @@ export const accountsService = {
 }
 
 export const contactsService = {
-  list: (params?: { search?: string; page?: number; limit?: number; tags?: string; from?: string; to?: string; read?: boolean }) =>
+  list: (params?: { search?: string; page?: number; limit?: number; tags?: string; from?: string; to?: string; read?: boolean; account?: string }) =>
     api.get('/contacts', { params }),
+  // TRT custom patch #41: unread-message counts per WhatsApp number (space).
+  accountUnreads: () => api.get<{ accounts: Record<string, number>; total: number }>('/contacts/account-unreads'),
   get: (id: string) => api.get(`/contacts/${id}`),
   create: (data: any) => api.post('/contacts', data),
   update: (id: string, data: any) => api.put(`/contacts/${id}`, data),

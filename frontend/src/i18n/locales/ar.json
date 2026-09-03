@@ -410,6 +410,7 @@
     "resumeFailed": "فشل استئناف الروبوت",
     "sendMessageFailed": "فشل إرسال الرسالة",
     "messageSent": "تم إرسال الرسالة بنجاح",
+    "allNumbers": "الكل",
     "reactionFailed": "فشل إرسال التفاعل",
     "retrying": "جاري إعادة المحاولة",
     "failedTapRetry": "فشل - اضغط لإعادة المحاولة",

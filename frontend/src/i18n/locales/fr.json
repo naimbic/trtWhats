@@ -410,6 +410,7 @@
     "resumeFailed": "Échec de la reprise du chatbot",
     "sendMessageFailed": "Échec de l'envoi du message",
     "messageSent": "Message envoyé avec succès",
+    "allNumbers": "Tous",
     "reactionFailed": "Échec de l'envoi de la réaction",
     "retrying": "Nouvelle tentative",
     "failedTapRetry": "Échec - Appuyez pour réessayer",
