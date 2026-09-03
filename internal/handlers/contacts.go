@@ -175,8 +175,9 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 	// space's numbers — hence the in-session account tabs). So a conversation
 	// belongs to a number when it has a message on it.
 	if accountParam := string(r.RequestCtx.QueryArgs().Peek("account")); accountParam != "" {
-		a.Log.Info("ListContacts #41 account filter applied", "account", accountParam) // DIAGNOSTIC #41
-		query = query.Where("EXISTS (SELECT 1 FROM messages m WHERE m.contact_id = contacts.id AND m.whatsapp_account = ? AND m.deleted_at IS NULL)", accountParam)
+		// NB: the DB column is whats_app_account (GORM's name for WhatsAppAccount),
+		// not whatsapp_account. Uses idx_messages_account.
+		query = query.Where("EXISTS (SELECT 1 FROM messages m WHERE m.contact_id = contacts.id AND m.whats_app_account = ? AND m.deleted_at IS NULL)", accountParam)
 	}
 
 	// Order by last message time (most recent first)
@@ -284,8 +285,8 @@ func (a *App) AccountUnreadCounts(r *fastglue.Request) error {
 		)
 	}
 
-	if err := q.Select("messages.whatsapp_account AS account, COUNT(messages.id) AS count").
-		Group("messages.whatsapp_account").
+	if err := q.Select("messages.whats_app_account AS account, COUNT(messages.id) AS count").
+		Group("messages.whats_app_account").
 		Scan(&rows).Error; err != nil {
 		a.Log.Error("AccountUnreadCounts: query failed", "error", err)
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to load counts", nil, "")
@@ -300,10 +301,6 @@ func (a *App) AccountUnreadCounts(r *fastglue.Request) error {
 		counts[row.Account] = row.Count
 		total += row.Count // All = sum of the number chips
 	}
-
-	// DIAGNOSTIC #41: shows the actual message account values + counts so we can
-	// compare them to the chip names (accountsService .name).
-	a.Log.Info("AccountUnreadCounts #41", "raw_rows", rows, "counts", counts, "total", total)
 
 	return r.SendEnvelope(map[string]any{
 		"accounts": counts,
