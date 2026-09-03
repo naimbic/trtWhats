@@ -175,6 +175,7 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 	// space's numbers — hence the in-session account tabs). So a conversation
 	// belongs to a number when it has a message on it.
 	if accountParam := string(r.RequestCtx.QueryArgs().Peek("account")); accountParam != "" {
+		a.Log.Info("ListContacts #41 account filter applied", "account", accountParam) // DIAGNOSTIC #41
 		query = query.Where("EXISTS (SELECT 1 FROM messages m WHERE m.contact_id = contacts.id AND m.whatsapp_account = ? AND m.deleted_at IS NULL)", accountParam)
 	}
 
@@ -299,6 +300,10 @@ func (a *App) AccountUnreadCounts(r *fastglue.Request) error {
 		counts[row.Account] = row.Count
 		total += row.Count // All = sum of the number chips
 	}
+
+	// DIAGNOSTIC #41: shows the actual message account values + counts so we can
+	// compare them to the chip names (accountsService .name).
+	a.Log.Info("AccountUnreadCounts #41", "raw_rows", rows, "counts", counts, "total", total)
 
 	return r.SendEnvelope(map[string]any{
 		"accounts": counts,
