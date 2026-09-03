@@ -185,7 +185,11 @@ export const apiKeysService = {
 }
 
 export const accountsService = {
-  list: () => api.get('/accounts')
+  list: () => api.get('/accounts'),
+  // TRT custom patch #42: reconcile old number-names left on messages after a rename.
+  orphanedNames: () => api.get<{ orphans: { name: string; count: number }[] }>('/accounts/orphaned-names'),
+  adoptName: (id: string, fromName: string) =>
+    api.post<{ updated: number; new_name: string }>(`/accounts/${id}/adopt-name`, { from_name: fromName })
 }
 
 export const contactsService = {

@@ -362,6 +362,79 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 	return r.SendEnvelope(accountToResponse(*account))
 }
 
+// OrphanedNumberNames lists WhatsApp-number names that appear on the org's
+// messages but no longer match any current account name — i.e. the OLD names
+// left behind after an account was renamed. Each carries a conversation count so
+// the UI can offer a one-click "assign these to <account>" reconcile. TRT #42.
+func (a *App) OrphanedNumberNames(r *fastglue.Request) error {
+	orgID, _, err := a.getOrgAndUserID(r)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+	}
+
+	var current []string
+	a.DB.Model(&models.WhatsAppAccount{}).Where("organization_id = ?", orgID).Pluck("name", &current)
+
+	type orphan struct {
+		Name  string `json:"name"`
+		Count int64  `json:"count"`
+	}
+	var rows []orphan
+	q := a.DB.Model(&models.Message{}).
+		Where("organization_id = ? AND whats_app_account <> ''", orgID)
+	if len(current) > 0 {
+		q = q.Where("whats_app_account NOT IN ?", current)
+	}
+	if err := q.Select("whats_app_account AS name, COUNT(*) AS count").
+		Group("whats_app_account").Order("count DESC").Scan(&rows).Error; err != nil {
+		a.Log.Error("OrphanedNumberNames: query failed", "error", err)
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to load orphaned names", nil, "")
+	}
+	return r.SendEnvelope(map[string]any{"orphans": rows})
+}
+
+// AdoptNumberName relabels every message/contact carrying an old number name to
+// the current name of the given account — the one-click reconcile for accounts
+// renamed before #42's rename-propagation existed. Org-scoped, pure relabel. #42.
+func (a *App) AdoptNumberName(r *fastglue.Request) error {
+	orgID, userID, err := a.requireAuth(r, models.ResourceAccounts, models.ActionWrite)
+	if err != nil {
+		return nil
+	}
+	id, err := parsePathUUID(r, "id", "account")
+	if err != nil {
+		return nil
+	}
+	var body struct {
+		FromName string `json:"from_name"`
+	}
+	if err := a.decodeRequest(r, &body); err != nil {
+		return nil
+	}
+	if body.FromName == "" {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "from_name is required", nil, "")
+	}
+	var account models.WhatsAppAccount
+	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).First(&account).Error; err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Account not found", nil, "")
+	}
+	if body.FromName == account.Name {
+		return r.SendEnvelope(map[string]any{"updated": 0, "new_name": account.Name})
+	}
+	res := a.DB.Model(&models.Message{}).
+		Where("organization_id = ? AND whats_app_account = ?", orgID, body.FromName).
+		Update("whats_app_account", account.Name)
+	if res.Error != nil {
+		a.Log.Error("AdoptNumberName: relabel messages failed", "error", res.Error)
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to reassign conversations", nil, "")
+	}
+	a.DB.Model(&models.Contact{}).
+		Where("organization_id = ? AND whats_app_account = ?", orgID, body.FromName).
+		Update("whats_app_account", account.Name)
+	a.Log.Info("Adopted old number name", "from", body.FromName, "to", account.Name, "org", orgID, "messages", res.RowsAffected, "by", userID)
+	return r.SendEnvelope(map[string]any{"updated": res.RowsAffected, "new_name": account.Name})
+}
+
 // DeleteAccount deletes a WhatsApp account
 func (a *App) DeleteAccount(r *fastglue.Request) error {
 	orgID, userID, err := a.requireAuth(r, models.ResourceAccounts, models.ActionDelete)

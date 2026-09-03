@@ -1433,7 +1433,13 @@
     "metaAccessTokenHint": "Jeton d'utilisateur système pour cet espace. Laissez vide pour conserver l'existant, ou pour utiliser le jeton partenaire global.",
     "tokenSet": "Défini",
     "metaPageId": "ID de la Page Facebook",
-    "metaPageIdHint": "La Page Facebook qui diffuse vos publicités Click-to-WhatsApp. Requise par Meta pour ces conversions."
+    "metaPageIdHint": "La Page Facebook qui diffuse vos publicités Click-to-WhatsApp. Requise par Meta pour ces conversions.",
+    "oldNumberNames": "Conversations sur d'anciens noms de numéro",
+    "oldNumberNamesHelp": "Ces noms étaient utilisés avant le renommage de ce compte, donc leurs conversations ne correspondent plus aux numéros actuels. Assignez celles qui appartiennent à ce compte pour qu'elles apparaissent sous le numéro actuel.",
+    "messages": "messages",
+    "assignToThis": "Assigner à ce compte",
+    "reassigned": "{count} messages réassignés à {name}",
+    "reassignFailed": "Échec de la réassignation des conversations"
   },
   "dashboard": {
     "title": "Tableau de bord",

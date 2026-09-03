@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { api } from '@/services/api'
+import { api, accountsService } from '@/services/api'
 import { toast } from 'vue-sonner'
 import { getErrorMessage } from '@/lib/api-utils'
 import { getQualityBadgeClass, getQualityRatingLabel, getVerificationBadgeClass, getVerificationStatusLabel, formatLimitTier } from '@/lib/utils'
@@ -287,12 +287,43 @@ async function copyToClipboard(text: string) {
   }
 }
 
+// TRT custom patch #42: detect old number-names left on messages after a rename
+// and let the user assign them to this account with one click.
+const orphans = ref<{ name: string; count: number }[]>([])
+const adoptingName = ref<string | null>(null)
+
+async function loadOrphans() {
+  if (isNew.value || !canWrite.value) return
+  try {
+    const res = await accountsService.orphanedNames()
+    orphans.value = (res.data.data || res.data)?.orphans || []
+  } catch {
+    orphans.value = []
+  }
+}
+
+async function adoptOrphan(name: string) {
+  if (!account.value || adoptingName.value) return
+  adoptingName.value = name
+  try {
+    const res = await accountsService.adoptName(account.value.id, name)
+    const updated = (res.data.data || res.data)?.updated ?? 0
+    toast.success(t('accounts.reassigned', { count: updated, name: account.value.name }))
+    await loadOrphans()
+  } catch (e: any) {
+    toast.error(getErrorMessage(e, t('accounts.reassignFailed', 'Failed to reassign conversations')))
+  } finally {
+    adoptingName.value = null
+  }
+}
+
 onMounted(async () => {
   if (isNew.value) {
     isLoading.value = false
     hasChanges.value = false
   } else {
     await loadAccount()
+    loadOrphans()
   }
 })
 </script>
@@ -478,6 +509,35 @@ onMounted(async () => {
             </div>
             <Switch :checked="form.business_calling_enabled" @update:checked="form.business_calling_enabled = $event" :disabled="!canWrite" />
           </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- Reconcile old number names (TRT patch #42) -->
+    <Card v-if="!isNew && canWrite && orphans.length > 0" class="border-amber-500/40">
+      <CardHeader class="pb-3">
+        <CardTitle class="text-sm font-medium flex items-center gap-2">
+          <AlertCircle class="h-4 w-4 text-amber-500" />
+          {{ $t('accounts.oldNumberNames', 'Conversations on old number names') }}
+        </CardTitle>
+      </CardHeader>
+      <CardContent class="space-y-3">
+        <p class="text-xs text-muted-foreground">
+          {{ $t('accounts.oldNumberNamesHelp', 'These names were used before this account was renamed, so their conversations no longer match the current numbers. Assign the ones that belong to this account so they show under the current number.') }}
+        </p>
+        <div
+          v-for="o in orphans"
+          :key="o.name"
+          class="flex items-center justify-between gap-3 rounded-md border border-white/[0.08] light:border-gray-200 px-3 py-2"
+        >
+          <div class="min-w-0">
+            <div class="text-sm font-medium truncate">{{ o.name }}</div>
+            <div class="text-xs text-muted-foreground">{{ o.count }} {{ $t('accounts.messages', 'messages') }}</div>
+          </div>
+          <Button size="sm" variant="outline" :disabled="adoptingName !== null" @click="adoptOrphan(o.name)">
+            <Loader2 v-if="adoptingName === o.name" class="h-3.5 w-3.5 mr-1 animate-spin" />
+            {{ $t('accounts.assignToThis', 'Assign to this account') }}
+          </Button>
         </div>
       </CardContent>
     </Card>

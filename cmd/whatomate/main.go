@@ -613,6 +613,8 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 
 	// Accounts
 	g.GET("/api/accounts", app.ListAccounts)
+	g.GET("/api/accounts/orphaned-names", app.OrphanedNumberNames) // TRT custom patch #42
+	g.POST("/api/accounts/{id}/adopt-name", app.AdoptNumberName)   // TRT custom patch #42
 	g.POST("/api/accounts", app.CreateAccount)
 	g.POST("/api/accounts/exchange-token", app.ExchangeToken) // Embedded signup
 	g.GET("/api/accounts/{id}", app.GetAccount)
