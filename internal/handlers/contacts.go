@@ -170,10 +170,12 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 	}
 
 	// TRT custom patch #41: filter the inbox by WhatsApp number (space). The
-	// number chips above the list pass the account name here so each line's
-	// conversations can be viewed on their own.
+	// number lives on each MESSAGE (contacts.whatsapp_account is never set for
+	// inbound-created contacts, and one contact can message several of the
+	// space's numbers — hence the in-session account tabs). So a conversation
+	// belongs to a number when it has a message on it.
 	if accountParam := string(r.RequestCtx.QueryArgs().Peek("account")); accountParam != "" {
-		query = query.Where("whatsapp_account = ?", accountParam)
+		query = query.Where("EXISTS (SELECT 1 FROM messages m WHERE m.contact_id = contacts.id AND m.whatsapp_account = ? AND m.deleted_at IS NULL)", accountParam)
 	}
 
 	// Order by last message time (most recent first)
@@ -262,8 +264,10 @@ func (a *App) AccountUnreadCounts(r *fastglue.Request) error {
 	}
 	var rows []accountUnread
 
-	// Group unread incoming messages by the contact's number so a chip's count
-	// matches exactly the conversations that clicking it shows.
+	// Group unread incoming messages by the NUMBER THEY ARRIVED ON
+	// (messages.whatsapp_account) — that's the real "messages on this number".
+	// contacts.whatsapp_account is empty for inbound-created contacts, so it
+	// can't be used here (or in the list filter above).
 	q := a.DB.Model(&models.Message{}).
 		Joins("JOIN contacts c ON c.id = messages.contact_id AND c.deleted_at IS NULL").
 		Where("messages.organization_id = ? AND messages.direction = ? AND messages.status <> ?",
@@ -279,8 +283,8 @@ func (a *App) AccountUnreadCounts(r *fastglue.Request) error {
 		)
 	}
 
-	if err := q.Select("c.whatsapp_account AS account, COUNT(messages.id) AS count").
-		Group("c.whatsapp_account").
+	if err := q.Select("messages.whatsapp_account AS account, COUNT(messages.id) AS count").
+		Group("messages.whatsapp_account").
 		Scan(&rows).Error; err != nil {
 		a.Log.Error("AccountUnreadCounts: query failed", "error", err)
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to load counts", nil, "")
@@ -290,12 +294,10 @@ func (a *App) AccountUnreadCounts(r *fastglue.Request) error {
 	counts := make(map[string]int64, len(rows))
 	for _, row := range rows {
 		if row.Account == "" {
-			continue // messages on no-longer-named / blank accounts still count toward total
+			continue // blank/legacy account — no chip, and kept out of the All total
 		}
 		counts[row.Account] = row.Count
-	}
-	for _, row := range rows {
-		total += row.Count
+		total += row.Count // All = sum of the number chips
 	}
 
 	return r.SendEnvelope(map[string]any{
