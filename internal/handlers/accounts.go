@@ -319,6 +319,27 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account", nil, "")
 	}
 
+	// TRT custom patch #42: an account is referenced everywhere by its NAME
+	// (messages.whats_app_account, contacts.whats_app_account, and — via #21 —
+	// flows/keywords/templates too). Renaming it used to orphan every historical
+	// conversation, which is why the inbox number chips (patch #41, filter by the
+	// current name) stopped matching after a rename. Propagate the rename to the
+	// conversation rows so the name-based model stays consistent. Scoped by org +
+	// old name; a pure relabel (no data loss), and uses idx_messages_account.
+	if oldAccount.Name != "" && oldAccount.Name != account.Name {
+		if err := a.DB.Model(&models.Message{}).
+			Where("organization_id = ? AND whats_app_account = ?", orgID, oldAccount.Name).
+			Update("whats_app_account", account.Name).Error; err != nil {
+			a.Log.Error("Failed to propagate account rename to messages", "error", err, "old", oldAccount.Name, "new", account.Name)
+		}
+		if err := a.DB.Model(&models.Contact{}).
+			Where("organization_id = ? AND whats_app_account = ?", orgID, oldAccount.Name).
+			Update("whats_app_account", account.Name).Error; err != nil {
+			a.Log.Error("Failed to propagate account rename to contacts", "error", err, "old", oldAccount.Name, "new", account.Name)
+		}
+		a.Log.Info("Propagated account rename to conversations", "old", oldAccount.Name, "new", account.Name, "org", orgID)
+	}
+
 	// Invalidate cache
 	a.InvalidateWhatsAppAccountCache(account.PhoneID)
 
