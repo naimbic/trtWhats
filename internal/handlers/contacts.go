@@ -1518,6 +1518,25 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 		return nil
 	}
 
+	// TRT custom patch #44: adding the Converted tag ("order placed") also lights
+	// the orange order bubble — whether the tag arrives from the order form or an
+	// agent applies it by hand. Detect the transition (absent -> present).
+	const convertedTag = "تم البيع - Converti"
+	hadConverted := false
+	for _, t := range contact.Tags {
+		if s, ok := t.(string); ok && s == convertedTag {
+			hadConverted = true
+			break
+		}
+	}
+	nowConverted := false
+	for _, t := range req.Tags {
+		if t == convertedTag {
+			nowConverted = true
+			break
+		}
+	}
+
 	// Convert tags to JSONBArray
 	tagsArray := make(models.JSONBArray, len(req.Tags))
 	for i, tag := range req.Tags {
@@ -1528,6 +1547,12 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 	if err := a.DB.Model(contact).Update("tags", tagsArray).Error; err != nil {
 		a.Log.Error("Failed to update contact tags", "error", err)
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update contact tags", nil, "")
+	}
+
+	// TRT custom patch #44: newly Converted -> raise the orange order bubble.
+	if nowConverted && !hadConverted {
+		a.DB.Model(&models.Contact{}).Where("id = ?", contactID).Update("order_pending", true)
+		a.broadcastContactOrder(orgID, contactID)
 	}
 
 	// Reload contact to get updated tags

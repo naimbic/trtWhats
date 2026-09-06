@@ -116,7 +116,10 @@ func ChatbotSendOptions() MessageSendOptions {
 		DispatchWebhook:    false,
 		TrackSLA:           true,
 		Async:              false,
-		MarkIncomingRead:   true,
+		// TRT custom patch #43/#44: a keyword/auto reply must NOT clear the unread
+		// bubble — it stays until a REAL agent answers. Only agent sends mark read
+		// (SendOutgoingMessage, gated on SentByUserID). Was true (upstream #280).
+		MarkIncomingRead: false,
 	}
 }
 
