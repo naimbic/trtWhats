@@ -45,6 +45,7 @@ type ContactResponse struct {
 	ConversionQuantity   int        `json:"conversion_quantity"`
 	ConversionValue      float64    `json:"conversion_value"`
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
+	OrderPending         bool       `json:"order_pending"` // TRT #44: orange "order to process" bubble
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
@@ -240,6 +241,7 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 			ConversionQuantity:   c.ConversionQuantity,
 			ConversionValue:      c.ConversionValue,
 			MetaConversionSentAt: c.MetaConversionSentAt,
+			OrderPending:         c.OrderPending,
 			CreatedAt:          c.CreatedAt,
 			UpdatedAt:          c.UpdatedAt,
 		}
@@ -1919,6 +1921,7 @@ func (a *App) buildContactResponse(contact *models.Contact, orgID uuid.UUID) Con
 		ConversionQuantity:   contact.ConversionQuantity,
 		ConversionValue:      contact.ConversionValue,
 		MetaConversionSentAt: contact.MetaConversionSentAt,
+		OrderPending:         contact.OrderPending,
 		CreatedAt:          contact.CreatedAt,
 		UpdatedAt:          contact.UpdatedAt,
 	}

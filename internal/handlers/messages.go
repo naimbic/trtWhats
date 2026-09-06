@@ -267,6 +267,14 @@ func (a *App) SendOutgoingMessage(ctx context.Context, req OutgoingMessageReques
 	// sends WhatsApp read receipts (if the account has them on).
 	if opts.SentByUserID != nil {
 		a.markMessagesAsRead(req.Account.OrganizationID, req.Contact.ID, req.Contact)
+		// TRT custom patch #44: a human agent handling the chat also clears the
+		// orange "order to process" bubble. Unconditional (the in-memory flag can be
+		// stale) but only touches rows where it's still set. The contact_read WS
+		// event clears both the green unread and orange order badges on every tab.
+		a.DB.Model(&models.Contact{}).
+			Where("id = ? AND order_pending = ?", req.Contact.ID, true).
+			Update("order_pending", false)
+		req.Contact.OrderPending = false
 		a.broadcastContactRead(req.Account.OrganizationID, req.Contact.ID)
 	}
 
@@ -577,6 +585,20 @@ func (a *App) broadcastContactRead(orgID uuid.UUID, contactID uuid.UUID) {
 	}
 	a.WSHub.BroadcastToOrg(orgID, websocket.WSMessage{
 		Type: "contact_read",
+		Payload: map[string]any{
+			"contact_id": contactID.String(),
+		},
+	})
+}
+
+// broadcastContactOrder tells all tabs to light the orange "order to process"
+// bubble for a contact (the customer just submitted the order form). TRT #44.
+func (a *App) broadcastContactOrder(orgID uuid.UUID, contactID uuid.UUID) {
+	if a.WSHub == nil {
+		return
+	}
+	a.WSHub.BroadcastToOrg(orgID, websocket.WSMessage{
+		Type: "contact_order",
 		Payload: map[string]any{
 			"contact_id": contactID.String(),
 		},

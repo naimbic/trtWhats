@@ -235,6 +235,11 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		if v := orderValueFromFlow(flowResponseData); v > 0 && contact.ConversionValue == 0 {
 			a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).Update("conversion_value", v)
 		}
+		// TRT custom patch #44: light the orange "order to process" bubble. Cleared
+		// when a human agent replies (SendOutgoingMessage, patch #43/#44).
+		a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).Update("order_pending", true)
+		contact.OrderPending = true
+		a.broadcastContactOrder(account.OrganizationID, contact.ID)
 	}
 
 	// Clear chatbot tracking since client has replied

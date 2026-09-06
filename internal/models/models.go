@@ -383,6 +383,9 @@ type Contact struct {
 	ConversionQuantity int        `gorm:"default:0" json:"conversion_quantity"`
 	ConversionValue    float64    `gorm:"default:0" json:"conversion_value"`
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
+	// TRT custom patch #44: an unhandled order (orange bubble). Set true when the
+	// customer submits the order form; cleared when a human agent replies.
+	OrderPending bool `gorm:"default:false;index" json:"order_pending"`
 
 	// Relations
 	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`

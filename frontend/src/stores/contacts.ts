@@ -33,6 +33,7 @@ export interface Contact {
   conversion_quantity?: number
   conversion_value?: number
   meta_conversion_sent_at?: string
+  order_pending?: boolean
   created_at: string
   updated_at: string
 }
@@ -463,7 +464,18 @@ export const useContactsStore = defineStore('contacts', () => {
   // succeeds, so we don't refetch the whole list just to reset a counter).
   function markContactReadLocal(contactId: string) {
     const contact = contacts.value.find(c => c.id === contactId)
-    if (contact) contact.unread_count = 0
+    if (contact) {
+      contact.unread_count = 0
+      // TRT custom patch #44: a human agent replying also clears the orange
+      // "order to process" bubble (backend clears order_pending on the same send).
+      contact.order_pending = false
+    }
+  }
+
+  // TRT custom patch #44: light/clear the orange order bubble for one contact.
+  function markOrderPendingLocal(contactId: string, pending: boolean) {
+    const contact = contacts.value.find(c => c.id === contactId)
+    if (contact) contact.order_pending = pending
   }
 
   // Debounce server-side search so each keystroke doesn't fire a request.
@@ -520,6 +532,7 @@ export const useContactsStore = defineStore('contacts', () => {
     applyConversionUpdate,
     updateContactTags,
     applyRealtimeContactUpdate,
-    markContactReadLocal
+    markContactReadLocal,
+    markOrderPendingLocal
   }
 })

@@ -462,7 +462,8 @@
     "saveSendMeta": "سجّل وصيفط لميتا",
     "convLocked": "تصيفط من قبل — القيمة مقفولة باش ما يتكررش التحويل.",
     "fromCtwaAd": "جا من إعلان Click-to-WhatsApp — يقدر يتصيفط لميتا",
-    "notFromCtwaAd": "ماجاش من إعلان Click-to-WhatsApp — ميتا ماتقدرش تنسبو، على هاد الشي ماغاديش يتصيفط"
+    "notFromCtwaAd": "ماجاش من إعلان Click-to-WhatsApp — ميتا ماتقدرش تنسبو، على هاد الشي ماغاديش يتصيفط",
+    "orderPending": "كوموند جديد باش تعالجو"
   },
   "contacts": {
     "title": "جهات الاتصال",

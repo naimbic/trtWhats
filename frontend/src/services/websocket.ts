@@ -78,6 +78,9 @@ const WS_TYPE_REACTION_UPDATE = 'reaction_update'
 // Contact read (TRT custom patch #43): a real agent replied → clear the badge.
 const WS_TYPE_CONTACT_READ = 'contact_read'
 
+// Contact order (TRT custom patch #44): client submitted the order form → orange bubble.
+const WS_TYPE_CONTACT_ORDER = 'contact_order'
+
 // Agent transfer types
 const WS_TYPE_AGENT_TRANSFER = 'agent_transfer'
 const WS_TYPE_AGENT_TRANSFER_RESUME = 'agent_transfer_resume'
@@ -270,6 +273,9 @@ class WebSocketService {
         case WS_TYPE_CONTACT_READ:
           this.handleContactRead(store, message.payload)
           break
+        case WS_TYPE_CONTACT_ORDER:
+          this.handleContactOrder(store, message.payload)
+          break
         case WS_TYPE_PONG:
           // Pong received, connection is alive
           break
@@ -421,6 +427,14 @@ class WebSocketService {
     if (payload?.contact_id) {
       store.markContactReadLocal(payload.contact_id)
       store.fetchAccountUnreads()
+    }
+  }
+
+  // TRT custom patch #44: client submitted the order form — light the orange
+  // "order to process" bubble on that conversation across every tab.
+  private handleContactOrder(store: ReturnType<typeof useContactsStore>, payload: any) {
+    if (payload?.contact_id) {
+      store.markOrderPendingLocal(payload.contact_id, true)
     }
   }
 

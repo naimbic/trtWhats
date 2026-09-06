@@ -91,7 +91,8 @@ import {
   Filter,
   CalendarDays,
   MailOpen,
-  StickyNote
+  StickyNote,
+  ShoppingBag
 } from 'lucide-vue-next'
 import { getInitials, getAvatarGradient } from '@/lib/utils'
 import { useColorMode } from '@/composables/useColorMode'
@@ -2170,11 +2171,18 @@ async function sendAudioBlob(blob: Blob) {
                 <p class="flex-1 min-w-0 text-xs text-white/50 light:text-gray-500 truncate">
                   {{ contact.phone_number }}
                 </p>
-                <!-- TRT custom patch (whatsapp-unread-badge): WhatsApp-style solid-green
-                     unread bubble; hidden (v-if) once the chat is opened (unread_count -> 0). -->
-                <Badge v-if="contact.unread_count > 0" class="flex-shrink-0 h-5 min-w-[20px] px-1.5 rounded-full text-[11px] font-semibold text-white border-0 flex items-center justify-center shadow-sm" style="background-color:#25D366">
-                  {{ contact.unread_count > 99 ? '99+' : contact.unread_count }}
-                </Badge>
+                <div class="flex-shrink-0 flex items-center gap-1">
+                  <!-- TRT custom patch #44: orange "order to process" bubble — the
+                       client submitted the order form; clears when an agent replies. -->
+                  <Badge v-if="contact.order_pending" class="h-5 px-1.5 rounded-full text-[11px] font-semibold text-white border-0 flex items-center gap-0.5 shadow-sm" style="background-color:#f97316" :title="$t('chat.orderPending', 'New order to process')">
+                    <ShoppingBag class="h-3 w-3" />
+                  </Badge>
+                  <!-- TRT custom patch (whatsapp-unread-badge): WhatsApp-style solid-green
+                       unread bubble; hidden (v-if) once a real agent replies (patch #43). -->
+                  <Badge v-if="contact.unread_count > 0" class="h-5 min-w-[20px] px-1.5 rounded-full text-[11px] font-semibold text-white border-0 flex items-center justify-center shadow-sm" style="background-color:#25D366">
+                    {{ contact.unread_count > 99 ? '99+' : contact.unread_count }}
+                  </Badge>
+                </div>
               </div>
             </div>
           </div>
