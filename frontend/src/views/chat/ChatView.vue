@@ -143,7 +143,10 @@ function statusBubble(contact: any): { bg: string; label: string; cart: boolean 
       const name = contact.tags[i]
       const tag = tagsStore.getTagByName(name)
       if (tag) {
-        return { bg: TAG_SOLID[tag.color || 'gray'] || TAG_SOLID.gray, label: name, cart: name === CONVERTED_TAG }
+        // The Converted "order" tag is always the orange cart (there is no orange
+        // in the tag palette); every other tag uses its own configured colour.
+        if (name === CONVERTED_TAG) return { bg: '#f97316', label: name, cart: true }
+        return { bg: TAG_SOLID[tag.color || 'gray'] || TAG_SOLID.gray, label: name, cart: false }
       }
     }
   }
