@@ -1569,7 +1569,13 @@
     "val_sent": "تصيفط",
     "val_failed": "فشل",
     "val_pending": "كيتسنى",
-    "openLink": "حل الرابط"
+    "openLink": "حل الرابط",
+    "source_conversions": "المبيعات",
+    "addSalesWidgets": "زيد ودجات البيع",
+    "presetSoldToday": "تباع اليوم",
+    "presetSoldPerDay": "البيع فاليوم",
+    "presetStatusBreakdown": "توزيع الحالات",
+    "salesWidgetsAdded": "تزادو ودجات البيع"
   },
   "flows": {
     "title": "تدفقات WhatsApp",

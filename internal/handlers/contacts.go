@@ -1535,6 +1535,19 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 			break
 		}
 	}
+	// TRT custom patch #47: stamp converted_at once when the Converted tag is
+	// newly applied by hand (for exact "sold per day" on the dashboard).
+	const convertedTag = "تم البيع - Converti"
+	convertedNewlyAdded := !oldSet[convertedTag]
+	if convertedNewlyAdded {
+		convertedNewlyAdded = false
+		for _, t := range req.Tags {
+			if t == convertedTag {
+				convertedNewlyAdded = true
+				break
+			}
+		}
+	}
 
 	// Convert tags to JSONBArray
 	tagsArray := make(models.JSONBArray, len(req.Tags))
@@ -1552,6 +1565,11 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 	if addedTag {
 		a.DB.Model(&models.Contact{}).Where("id = ?", contactID).Update("order_pending", true)
 		a.broadcastContactOrder(orgID, contactID)
+	}
+	// Stamp converted_at once (never overwrite) when Converted is newly applied.
+	if convertedNewlyAdded && contact.ConvertedAt == nil {
+		a.DB.Model(&models.Contact{}).Where("id = ? AND converted_at IS NULL", contactID).
+			Update("converted_at", time.Now())
 	}
 
 	// Reload contact to get updated tags
@@ -1604,6 +1622,13 @@ func (a *App) BackfillOrderFlags(r *fastglue.Request) error {
 		a.Log.Error("BackfillOrderFlags failed", "error", res.Error)
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Backfill failed", nil, "")
 	}
+	// TRT custom patch #47: seed converted_at (approximated to last activity) for
+	// existing Converted contacts in range that have none yet, so the "sold per
+	// day" chart shows history. Going forward converted_at is stamped exactly.
+	a.DB.Model(&models.Contact{}).
+		Where("organization_id = ? AND converted_at IS NULL AND last_message_at >= ? AND tags @> ?::jsonb",
+			orgID, cutoff, `["`+convertedTag+`"]`).
+		Update("converted_at", gorm.Expr("last_message_at"))
 	a.Log.Info("Backfilled order flags", "org", orgID, "days", days, "updated", res.RowsAffected)
 	return r.SendEnvelope(map[string]any{"updated": res.RowsAffected, "days": days})
 }

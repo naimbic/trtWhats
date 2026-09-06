@@ -1569,7 +1569,13 @@
     "val_sent": "Envoyé",
     "val_failed": "Échoué",
     "val_pending": "En attente",
-    "openLink": "Ouvrir le lien"
+    "openLink": "Ouvrir le lien",
+    "source_conversions": "Ventes (Conversions)",
+    "addSalesWidgets": "Ajouter des widgets de ventes",
+    "presetSoldToday": "Vendu aujourd'hui",
+    "presetSoldPerDay": "Ventes par jour",
+    "presetStatusBreakdown": "Répartition par statut",
+    "salesWidgetsAdded": "Widgets de ventes ajoutés"
   },
   "flows": {
     "title": "WhatsApp Flows",

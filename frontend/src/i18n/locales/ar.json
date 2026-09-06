@@ -1384,7 +1384,13 @@
     "val_sent": "تم الإرسال",
     "val_failed": "فشل",
     "val_pending": "قيد الانتظار",
-    "openLink": "فتح الرابط"
+    "openLink": "فتح الرابط",
+    "source_conversions": "المبيعات",
+    "addSalesWidgets": "إضافة ودجات المبيعات",
+    "presetSoldToday": "المبيعات اليوم",
+    "presetSoldPerDay": "المبيعات في اليوم",
+    "presetStatusBreakdown": "توزيع الحالات",
+    "salesWidgetsAdded": "تمت إضافة ودجات المبيعات"
   },
   "campaigns": {
     "title": "الحملات",

@@ -66,7 +66,8 @@ import {
   Shield,
   LineChart,
   Tags,
-  ExternalLink
+  ExternalLink,
+  ShoppingBag
 } from 'lucide-vue-next'
 // Centralized Chart.js setup (registered once)
 import { Line, Bar, Pie } from '@/lib/charts'
@@ -395,6 +396,8 @@ const getWidgetIcon = (dataSource: string) => {
   switch (dataSource) {
     case 'messages':
       return MessageSquare
+    case 'conversions':
+      return ShoppingBag
     case 'contacts':
       return Users
     case 'sessions':
@@ -594,6 +597,30 @@ const applyCustomRange = () => {
   fetchWidgetData()
 }
 
+// TRT custom patch #47: one-click preset sales widgets (Sold today, Sold per
+// day, Status breakdown) — created via the normal widget API.
+const isCreatingSalesWidgets = ref(false)
+async function createSalesWidgets() {
+  if (isCreatingSalesWidgets.value) return
+  isCreatingSalesWidgets.value = true
+  const base = { description: '', field: '', filters: [] as any[], config: {}, is_shared: true }
+  const presets = [
+    { ...base, name: t('dashboard.presetSoldToday'), data_source: 'conversions', metric: 'count', display_type: 'number', chart_type: '', group_by_field: '', show_change: true, color: 'orange', size: 'small' },
+    { ...base, name: t('dashboard.presetSoldPerDay'), data_source: 'conversions', metric: 'count', display_type: 'chart', chart_type: 'line', group_by_field: '', show_change: false, color: 'orange', size: 'medium' },
+    { ...base, name: t('dashboard.presetStatusBreakdown'), data_source: 'contacts', metric: 'count', display_type: 'chart', chart_type: 'pie', group_by_field: 'tags', show_change: false, color: 'purple', size: 'medium' },
+  ]
+  try {
+    for (const p of presets) await widgetsService.create(p)
+    success(t('dashboard.salesWidgetsAdded'))
+    await fetchWidgets()
+    await fetchWidgetData()
+  } catch (error: any) {
+    showError(t('common.error'), error.response?.data?.message || t('common.failedSave', { resource: t('resources.widget') }))
+  } finally {
+    isCreatingSalesWidgets.value = false
+  }
+}
+
 // Widget CRUD
 const openAddWidgetDialog = () => {
   isEditMode.value = false
@@ -776,6 +803,11 @@ onMounted(() => {
 
         <!-- Time Range Filter -->
         <div class="flex items-center gap-2">
+          <Button v-if="canCreateWidget" variant="outline" size="sm" :disabled="isCreatingSalesWidgets" @click="createSalesWidgets" class="bg-white/[0.04] border-white/[0.1] text-white/70 hover:bg-white/[0.08] hover:text-white light:bg-white light:border-gray-200 light:text-gray-700">
+            <ShoppingBag class="h-4 w-4 mr-2" />
+            {{ $t('dashboard.addSalesWidgets', 'Add sales widgets') }}
+          </Button>
+
           <Button v-if="canCreateWidget" variant="outline" size="sm" @click="openAddWidgetDialog" class="bg-white/[0.04] border-white/[0.1] text-white/70 hover:bg-white/[0.08] hover:text-white light:bg-white light:border-gray-200 light:text-gray-700">
             <Plus class="h-4 w-4 mr-2" />
             {{ $t('dashboard.addWidget') }}

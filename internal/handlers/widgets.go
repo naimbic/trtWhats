@@ -124,6 +124,9 @@ var widgetDataSources = map[string][]string{
 	"campaigns": {"status", "message_status"},
 	"transfers": {"status", "source"},
 	"sessions":  {"status"},
+	// TRT custom patch #47: conversions = contacts keyed on converted_at, so
+	// "sold per day / count" charts by the exact date the order was marked sold.
+	"conversions": {"whatsapp_account", "tags"},
 }
 
 // Available metrics
@@ -809,6 +812,10 @@ func (a *App) executeWidgetQuery(orgID uuid.UUID, widget models.Widget, fromStr,
 		currentValue = a.queryContacts(orgID, widget.Metric, filters, periodStart, periodEnd)
 		previousValue = a.queryContacts(orgID, widget.Metric, filters, previousPeriodStart, previousPeriodEnd)
 
+	case "conversions":
+		currentValue = a.queryConversions(orgID, filters, periodStart, periodEnd)
+		previousValue = a.queryConversions(orgID, filters, previousPeriodStart, previousPeriodEnd)
+
 	case "campaigns":
 		currentValue = a.queryCampaigns(orgID, widget.Metric, filters, periodStart, periodEnd)
 		previousValue = a.queryCampaigns(orgID, widget.Metric, filters, previousPeriodStart, previousPeriodEnd)
@@ -893,6 +900,19 @@ func (a *App) queryContacts(orgID uuid.UUID, _ string, filters []FilterInput, st
 		query = applyFilter("contacts", query, f)
 	}
 
+	var count int64
+	query.Count(&count)
+	return float64(count)
+}
+
+// queryConversions counts contacts marked sold (converted_at) within the range.
+// A NULL converted_at is excluded by the range comparison, so only real sales
+// count. TRT custom patch #47.
+func (a *App) queryConversions(orgID uuid.UUID, filters []FilterInput, start, end time.Time) float64 {
+	query := a.DB.Model(&models.Contact{}).Where("organization_id = ? AND converted_at >= ? AND converted_at <= ?", orgID, start, end)
+	for _, f := range filters {
+		query = applyFilter("conversions", query, f)
+	}
 	var count int64
 	query.Count(&count)
 	return float64(count)
@@ -1012,6 +1032,10 @@ var allowedFilterFields = map[string]map[string]bool{
 		"whatsapp_account": true,
 		"tags":             true, // TRT custom patch #17: JSONB tags column (special-cased in buildFilterSQL/getGroupedData)
 	},
+	"conversions": { // TRT custom patch #47: contacts columns, keyed on converted_at
+		"whatsapp_account": true,
+		"tags":             true,
+	},
 	"campaigns": {
 		"status":           true,
 		"template_name":    true,
@@ -1047,6 +1071,11 @@ func resolveDataSourceTable(dataSource string) (tableName, dateField string, ok 
 		return "messages", "created_at", true
 	case "contacts":
 		return "contacts", "last_message_at", true
+	case "conversions":
+		// TRT custom patch #47: contacts table, keyed on converted_at — the date
+		// range/time-series then reflect exact sale dates, and rows with a NULL
+		// converted_at (never sold) fall outside every range automatically.
+		return "contacts", "converted_at", true
 	case "campaigns":
 		return "bulk_message_campaigns", "created_at", true
 	case "transfers":

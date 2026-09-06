@@ -386,6 +386,9 @@ type Contact struct {
 	// TRT custom patch #44: an unhandled order (orange bubble). Set true when the
 	// customer submits the order form; cleared when a human agent replies.
 	OrderPending bool `gorm:"default:false;index" json:"order_pending"`
+	// TRT custom patch #47: when the contact was first marked Converted (sold), so
+	// the dashboard can chart exact "sold per day". Set once, never overwritten.
+	ConvertedAt *time.Time `gorm:"index" json:"converted_at,omitempty"`
 
 	// Relations
 	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`

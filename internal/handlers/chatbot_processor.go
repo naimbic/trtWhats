@@ -997,8 +997,15 @@ func (a *App) tagContactConverted(contact *models.Contact) bool {
 	}
 	newTags := append(models.JSONBArray{}, contact.Tags...)
 	newTags = append(newTags, convertedTag)
+	updates := map[string]any{"tags": newTags}
+	// TRT custom patch #47: stamp converted_at once for exact "sold per day".
+	if contact.ConvertedAt == nil {
+		now := time.Now()
+		updates["converted_at"] = now
+		contact.ConvertedAt = &now
+	}
 	if err := a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).
-		Update("tags", newTags).Error; err != nil {
+		Updates(updates).Error; err != nil {
 		a.Log.Error("tagContactConverted failed", "error", err, "contact", contact.ID)
 		return false
 	}
