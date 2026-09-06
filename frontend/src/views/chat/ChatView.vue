@@ -132,7 +132,7 @@ const canWriteContacts = authStore.hasPermission('contacts', 'write')
 const CONVERTED_TAG = 'تم البيع - Converti'
 const TAG_SOLID: Record<string, string> = {
   blue: '#3b82f6', red: '#ef4444', green: '#22c55e',
-  yellow: '#eab308', purple: '#a855f7', gray: '#6b7280'
+  yellow: '#eab308', orange: '#f97316', purple: '#a855f7', gray: '#6b7280'
 }
 function statusBubble(contact: any): { bg: string; label: string; cart: boolean } | null {
   if (!contact?.order_pending) return null
