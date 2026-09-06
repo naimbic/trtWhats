@@ -239,7 +239,7 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		// when a human agent replies (SendOutgoingMessage, patch #43/#44).
 		a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).Update("order_pending", true)
 		contact.OrderPending = true
-		a.broadcastContactOrder(account.OrganizationID, contact.ID)
+		a.broadcastContactOrder(account.OrganizationID, contact.ID, jsonbArrayToStrings(contact.Tags), true)
 	}
 
 	// Clear chatbot tracking since client has replied

@@ -135,24 +135,23 @@ const TAG_SOLID: Record<string, string> = {
   yellow: '#eab308', orange: '#f97316', purple: '#a855f7', gray: '#6b7280'
 }
 function statusBubble(contact: any): { bg: string; label: string; cart: boolean } | null {
-  if (!contact?.order_pending) return null
+  // The bubble strictly follows the contact's CURRENT tags — no tag, no bubble.
+  // (order_pending only gates whether an already-tagged, still-unhandled chat
+  // shows it; it never invents a bubble on its own.)
+  if (!contact?.order_pending || !Array.isArray(contact.tags) || contact.tags.length === 0) return null
   // Last-added tag that resolves to a known tag wins ("whenever a tag is added,
   // the bubble takes that tag's colour").
-  if (Array.isArray(contact.tags)) {
-    for (let i = contact.tags.length - 1; i >= 0; i--) {
-      const name = contact.tags[i]
-      const tag = tagsStore.getTagByName(name)
-      if (tag) {
-        // The Converted "order" tag is always the orange cart (there is no orange
-        // in the tag palette); every other tag uses its own configured colour.
-        if (name === CONVERTED_TAG) return { bg: '#f97316', label: name, cart: true }
-        return { bg: TAG_SOLID[tag.color || 'gray'] || TAG_SOLID.gray, label: name, cart: false }
-      }
+  for (let i = contact.tags.length - 1; i >= 0; i--) {
+    const name = contact.tags[i]
+    const tag = tagsStore.getTagByName(name)
+    if (tag) {
+      // The Converted "order" tag is always the orange cart (there is no orange
+      // in the tag palette); every other tag uses its own configured colour.
+      if (name === CONVERTED_TAG) return { bg: '#f97316', label: name, cart: true }
+      return { bg: TAG_SOLID[tag.color || 'gray'] || TAG_SOLID.gray, label: name, cart: false }
     }
   }
-  // Pending but no resolvable tag yet (e.g. a just-submitted order form before
-  // its Converted tag has synced) — fall back to the orange order cart.
-  return { bg: '#f97316', label: 'Order', cart: true }
+  return null
 }
 const statusBubbles = computed(() => {
   const m: Record<string, { bg: string; label: string; cart: boolean }> = {}

@@ -594,9 +594,10 @@ func (a *App) broadcastContactRead(orgID uuid.UUID, contactID uuid.UUID) {
 	})
 }
 
-// broadcastContactOrder tells all tabs to light the orange "order to process"
-// bubble for a contact (the customer just submitted the order form). TRT #44.
-func (a *App) broadcastContactOrder(orgID uuid.UUID, contactID uuid.UUID) {
+// broadcastContactOrder tells all tabs to update a contact's status bubble in
+// real time: `tags` is the contact's current tag set (so the bubble takes the
+// right colour / cart icon) and `pending` whether it should show. TRT #44/#48.
+func (a *App) broadcastContactOrder(orgID uuid.UUID, contactID uuid.UUID, tags []string, pending bool) {
 	if a.WSHub == nil {
 		return
 	}
@@ -604,6 +605,8 @@ func (a *App) broadcastContactOrder(orgID uuid.UUID, contactID uuid.UUID) {
 		Type: "contact_order",
 		Payload: map[string]any{
 			"contact_id": contactID.String(),
+			"tags":       tags,
+			"pending":    pending,
 		},
 	})
 }

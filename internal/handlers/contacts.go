@@ -1489,6 +1489,17 @@ type UpdateContactTagsRequest struct {
 }
 
 // UpdateContactTags updates the tags on a contact
+// jsonbArrayToStrings flattens a JSONB tag array to []string (TRT #48).
+func jsonbArrayToStrings(arr models.JSONBArray) []string {
+	out := make([]string, 0, len(arr))
+	for _, t := range arr {
+		if s, ok := t.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func (a *App) UpdateContactTags(r *fastglue.Request) error {
 	orgID, userID, err := a.getOrgAndUserID(r)
 	if err != nil {
@@ -1561,11 +1572,18 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update contact tags", nil, "")
 	}
 
-	// A newly added tag -> raise the status bubble (colour comes from the tag).
+	// TRT custom patch #48: recompute the status-bubble flag from the NEW tag set —
+	// a newly added tag raises it, removing all tags clears it, otherwise it's left
+	// as-is (so an agent-reply that cleared it stays cleared). Always broadcast the
+	// current tags so every tab re-colours (or drops) the bubble in real time.
+	newPending := contact.OrderPending
 	if addedTag {
-		a.DB.Model(&models.Contact{}).Where("id = ?", contactID).Update("order_pending", true)
-		a.broadcastContactOrder(orgID, contactID)
+		newPending = true
+	} else if len(req.Tags) == 0 {
+		newPending = false
 	}
+	a.DB.Model(&models.Contact{}).Where("id = ?", contactID).Update("order_pending", newPending)
+	a.broadcastContactOrder(orgID, contactID, req.Tags, newPending)
 	// Stamp converted_at once (never overwrite) when Converted is newly applied.
 	if convertedNewlyAdded && contact.ConvertedAt == nil {
 		a.DB.Model(&models.Contact{}).Where("id = ? AND converted_at IS NULL", contactID).

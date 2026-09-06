@@ -430,12 +430,15 @@ class WebSocketService {
     }
   }
 
-  // TRT custom patch #44: client submitted the order form — light the orange
-  // "order to process" bubble on that conversation across every tab.
+  // TRT custom patch #44/#48: a contact's tags changed (order form, or an agent
+  // edited tags) — sync the tags so the status bubble takes the right colour, and
+  // set whether it should show. Keeps every tab's bubble in step with the tags.
   private handleContactOrder(store: ReturnType<typeof useContactsStore>, payload: any) {
-    if (payload?.contact_id) {
-      store.markOrderPendingLocal(payload.contact_id, true)
+    if (!payload?.contact_id) return
+    if (Array.isArray(payload.tags)) {
+      store.updateContactTags(payload.contact_id, payload.tags)
     }
+    store.markOrderPendingLocal(payload.contact_id, payload.pending !== false)
   }
 
   private handleAgentTransfer(payload: any) {
