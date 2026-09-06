@@ -389,6 +389,12 @@ type Contact struct {
 	// TRT custom patch #47: when the contact was first marked Converted (sold), so
 	// the dashboard can chart exact "sold per day". Set once, never overwritten.
 	ConvertedAt *time.Time `gorm:"index" json:"converted_at,omitempty"`
+	// TRT custom patch #49: a media/unmatched message is waiting on a fallback
+	// reply — the SLA processor sends ONE fallback after the client goes quiet
+	// (~90s), so a burst of photos doesn't each trigger a reply. FallbackAccount
+	// records which number to reply from (contact.whats_app_account is unreliable).
+	FallbackPendingAt *time.Time `gorm:"index" json:"-"`
+	FallbackAccount   string     `gorm:"size:100" json:"-"`
 
 	// Relations
 	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`

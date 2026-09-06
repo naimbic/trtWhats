@@ -98,6 +98,63 @@ func (p *SLAProcessor) processOrganizationSLA(settings models.ChatbotSettings, n
 	// 5. TRT custom patch (auto-lost-tag): tag contacts "Lost" after 5 days of
 	// no inbound reply (unless already Converted/Lost).
 	p.tagLostContacts(orgID, now)
+
+	// 6. TRT custom patch #49: send the deferred media fallback once the client
+	// has gone quiet (~90s), so a burst of photos gets one reply, not many.
+	p.sendDeferredFallbacks(orgID, settings, now)
+}
+
+// sendDeferredFallbacks sends the fallback reply to contacts whose media/unmatched
+// message is still pending AND who have stopped messaging for ~90s (so we reply
+// once, after they finish). Skips chats an agent took over, and any where the bot
+// already replied since the fallback was queued. TRT custom patch #49.
+func (p *SLAProcessor) sendDeferredFallbacks(orgID uuid.UUID, settings models.ChatbotSettings, now time.Time) {
+	if settings.FallbackMessage == "" {
+		return
+	}
+	silenceCutoff := now.Add(-90 * time.Second)
+	var contacts []models.Contact
+	if err := p.app.DB.Where(
+		"organization_id = ? AND fallback_pending_at IS NOT NULL AND last_inbound_at IS NOT NULL "+
+			"AND last_inbound_at <= ? "+
+			"AND (chatbot_last_message_at IS NULL OR chatbot_last_message_at < fallback_pending_at)",
+		orgID, silenceCutoff,
+	).Limit(200).Find(&contacts).Error; err != nil {
+		p.app.Log.Error("sendDeferredFallbacks query failed", "error", err, "org", orgID)
+		return
+	}
+
+	for i := range contacts {
+		c := &contacts[i]
+		// An agent took over → cancel the bot fallback.
+		if p.app.hasActiveAgentTransfer(orgID, c.ID) {
+			p.app.DB.Model(&models.Contact{}).Where("id = ?", c.ID).Update("fallback_pending_at", nil)
+			continue
+		}
+		acctName := c.FallbackAccount
+		if acctName == "" {
+			acctName = c.WhatsAppAccount
+		}
+		account, err := p.app.resolveWhatsAppAccount(orgID, acctName)
+		if err != nil {
+			p.app.Log.Error("sendDeferredFallbacks: resolve account failed", "error", err, "contact", c.ID, "account", acctName)
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_, err = p.app.SendOutgoingMessage(ctx, OutgoingMessageRequest{
+			Account: account,
+			Contact: c,
+			Type:    models.MessageTypeText,
+			Content: settings.FallbackMessage,
+		}, ChatbotSendOptions())
+		cancel()
+		if err != nil {
+			p.app.Log.Error("sendDeferredFallbacks: send failed", "error", err, "contact", c.ID)
+			continue
+		}
+		p.app.DB.Model(&models.Contact{}).Where("id = ?", c.ID).Update("fallback_pending_at", nil)
+		p.app.Log.Info("Sent deferred media fallback after client went quiet", "contact", c.ID)
+	}
 }
 
 // tagLostContacts adds the "Lost" tag to contacts whose last inbound message is

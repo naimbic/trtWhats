@@ -324,12 +324,13 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		// or an in-flight flow reply — doesn't spam the customer.
 		switch msg.Type {
 		case "image", "video", "document", "sticker", "audio":
-			recentlyMessaged := contact.ChatbotLastMessageAt != nil &&
-				time.Since(*contact.ChatbotLastMessageAt) < 90*time.Second
-			if settings.FallbackMessage != "" && !recentlyMessaged {
-				if err := a.sendAndSaveTextMessage(account, contact, settings.FallbackMessage); err != nil {
-					a.Log.Error("Failed to send media fallback reply", "error", err, "type", msg.Type)
-				}
+			// TRT custom patch #49: don't reply to each photo immediately — mark a
+			// fallback as PENDING and let the SLA processor send ONE reply once the
+			// client has gone quiet (~90s). Records the number to reply from.
+			// Re-marking on each media message resets the "quiet" timer.
+			if settings.FallbackMessage != "" {
+				a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).
+					Updates(map[string]any{"fallback_pending_at": time.Now(), "fallback_account": account.Name})
 			}
 		}
 		a.Log.Debug("Skipping message with no text content for chatbot", "type", msg.Type)
