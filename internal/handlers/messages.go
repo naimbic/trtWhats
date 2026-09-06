@@ -260,6 +260,16 @@ func (a *App) SendOutgoingMessage(ctx context.Context, req OutgoingMessageReques
 	preview := a.getMessagePreview(req)
 	a.updateContactLastMessage(req.Contact, preview)
 
+	// TRT custom patch #43: a human agent replying is what "handles" the chat, so
+	// clear the unread bubble HERE (not when the chat is merely opened). Bot and
+	// keyword/auto replies leave SentByUserID nil, so they never clear the badge —
+	// the count stays active until a real agent answers. markMessagesAsRead also
+	// sends WhatsApp read receipts (if the account has them on).
+	if opts.SentByUserID != nil {
+		a.markMessagesAsRead(req.Account.OrganizationID, req.Contact.ID, req.Contact)
+		a.broadcastContactRead(req.Account.OrganizationID, req.Contact.ID)
+	}
+
 	return msg, nil
 }
 
@@ -554,6 +564,21 @@ func (a *App) broadcastReactionUpdate(orgID uuid.UUID, messageID, contactID uuid
 			"message_id": messageID.String(),
 			"contact_id": contactID.String(),
 			"reactions":  reactions,
+		},
+	})
+}
+
+// broadcastContactRead tells all connected tabs that a contact's incoming
+// messages were marked read (a human agent replied) so they can clear the
+// unread badge + refresh the per-number chip counts in real time. TRT #43.
+func (a *App) broadcastContactRead(orgID uuid.UUID, contactID uuid.UUID) {
+	if a.WSHub == nil {
+		return
+	}
+	a.WSHub.BroadcastToOrg(orgID, websocket.WSMessage{
+		Type: "contact_read",
+		Payload: map[string]any{
+			"contact_id": contactID.String(),
 		},
 	})
 }

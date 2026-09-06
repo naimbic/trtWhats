@@ -581,11 +581,8 @@ onMounted(async () => {
 function onUserActive() {
   if (document.visibilityState !== 'visible' || !document.hasFocus()) return
   if (!firstUnreadId.value) return
-  if (contactsStore.currentContact) {
-    contactsService.markRead(contactsStore.currentContact.id)
-      .then(() => contactsStore.fetchAccountUnreads())
-      .catch(() => { /* non-critical */ })
-  }
+  // TRT custom patch #43: viewing a chat no longer marks it read — the unread
+  // bubble stays until a real agent replies. We only scroll to the first unread.
   nextTick(() => {
     const el = document.getElementById(`message-${firstUnreadId.value}`)
     if (el) {

@@ -363,9 +363,8 @@ export const useContactsStore = defineStore('contacts', () => {
   function setCurrentContact(contact: Contact | null) {
     currentContact.value = contact
     replyingTo.value = null // Clear reply state when switching contacts
-    if (contact) {
-      contact.unread_count = 0
-    }
+    // TRT custom patch #43: opening a chat no longer zeroes its unread badge —
+    // it (and the per-number chip count) stays until a real agent replies.
   }
 
   function setAccountFilter(account: string | null) {
@@ -445,7 +444,7 @@ export const useContactsStore = defineStore('contacts', () => {
   // date/tag filter + loaded pages are preserved.
   function applyRealtimeContactUpdate(
     payload: { contact_id: string; created_at: string; direction: string },
-    opts: { isViewing: boolean }
+    _opts: { isViewing: boolean }
   ): boolean {
     const contact = contacts.value.find(c => c.id === payload.contact_id)
     if (!contact) return false
@@ -453,7 +452,9 @@ export const useContactsStore = defineStore('contacts', () => {
     if (payload.direction === 'incoming') {
       contact.last_inbound_at = payload.created_at
       contact.service_window_open = true
-      if (!opts.isViewing) contact.unread_count = (contact.unread_count ?? 0) + 1
+      // TRT custom patch #43: bump the unread badge even when the chat is open —
+      // it stays until a real agent replies (matches the per-number chip counts).
+      contact.unread_count = (contact.unread_count ?? 0) + 1
     }
     return true
   }

@@ -3,7 +3,6 @@ import { useTransfersStore } from '@/stores/transfers'
 import { useCallingStore } from '@/stores/calling'
 import { useAuthStore } from '@/stores/auth'
 import { useNotesStore } from '@/stores/notes'
-import { contactsService } from '@/services/api'
 import { toast } from 'vue-sonner'
 import router from '@/router'
 
@@ -75,6 +74,9 @@ const WS_TYPE_PONG = 'pong'
 
 // Reaction types
 const WS_TYPE_REACTION_UPDATE = 'reaction_update'
+
+// Contact read (TRT custom patch #43): a real agent replied → clear the badge.
+const WS_TYPE_CONTACT_READ = 'contact_read'
 
 // Agent transfer types
 const WS_TYPE_AGENT_TRANSFER = 'agent_transfer'
@@ -265,6 +267,9 @@ class WebSocketService {
         case WS_TYPE_REACTION_UPDATE:
           this.handleReactionUpdate(store, message.payload)
           break
+        case WS_TYPE_CONTACT_READ:
+          this.handleContactRead(store, message.payload)
+          break
         case WS_TYPE_PONG:
           // Pong received, connection is alive
           break
@@ -374,26 +379,6 @@ class WebSocketService {
       }
     }
 
-    // If the user is actively viewing this contact, mark messages read on
-    // the server before refetching so the unread badge stays at zero
-    // (otherwise the new message comes back as unread and the sidebar flashes
-    // a count for a chat that's already open). See issue #280.
-    // Use currentContact.id (already validated, from our /contacts response)
-    // rather than the WS payload value to avoid pushing untrusted data into
-    // a request URL.
-    // Skip the call when the message already arrived as 'read' — the backend
-    // pre-marks chatbot-handled messages at save time, and re-marking just
-    // touches DB rows that are already in the right state.
-    // Also skip when the agent isn't actually looking — that includes both
-    // tab-hidden (different browser tab) and window-unfocused (browser is
-    // visible but agent is in another OS window). Firing markRead in those
-    // cases would send a WhatsApp read receipt to the customer (blue ticks)
-    // for a message no one has read. The mark fires when the user comes
-    // back instead (handled in ChatView's focus/visibility listeners).
-    const alreadyRead = payload.status === 'read'
-    const userActive = typeof document === 'undefined'
-      || (document.visibilityState === 'visible' && document.hasFocus())
-
     // TRT custom patch #32: update the affected conversation in place instead
     // of refetching the whole list on every message. A full fetchContacts()
     // per message rebuilt the sidebar array, which made the list flicker/jump
@@ -403,14 +388,11 @@ class WebSocketService {
     // brand-new conversation that should now appear.
     const inList = store.applyRealtimeContactUpdate(payload, { isViewing: !!isViewingThisContact })
 
-    if (isViewingThisContact && currentContact && payload.direction === 'incoming' && !alreadyRead && userActive) {
-      contactsService.markRead(currentContact.id)
-        // TRT custom patch #41: the just-read message leaves this number's unread
-        // tally — refresh the chip counts once the server has marked it read.
-        .then(() => { store.markContactReadLocal(currentContact.id); store.fetchAccountUnreads() })
-        .catch(() => { /* non-critical, will resync on next chat-open */ })
-    } else if (payload.direction === 'incoming') {
-      // A new unread on some number — refresh the per-number chip counts.
+    // TRT custom patch #43: incoming messages are NOT auto-read anymore — not even
+    // while the agent is viewing the chat. The unread bubble stays until a real
+    // agent replies (which marks read server-side and broadcasts 'contact_read').
+    // On any inbound message just refresh the per-number chip counts.
+    if (payload.direction === 'incoming') {
       store.fetchAccountUnreads()
     }
 
@@ -430,6 +412,15 @@ class WebSocketService {
     const currentContact = store.currentContact
     if (currentContact && payload.contact_id === currentContact.id) {
       store.updateMessageReactions(payload.message_id, payload.reactions)
+    }
+  }
+
+  // TRT custom patch #43: a real agent replied to this contact — clear its unread
+  // badge locally and refresh the per-number chip counts on every tab.
+  private handleContactRead(store: ReturnType<typeof useContactsStore>, payload: any) {
+    if (payload?.contact_id) {
+      store.markContactReadLocal(payload.contact_id)
+      store.fetchAccountUnreads()
     }
   }
 

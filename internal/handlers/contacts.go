@@ -468,8 +468,9 @@ func (a *App) GetMessages(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list messages", nil, "")
 	}
 
-	// Mark messages as read
-	a.markMessagesAsRead(orgID, contactID, &contact)
+	// TRT custom patch #43: opening a conversation no longer marks it read — the
+	// unread bubble must stay until a REAL agent replies (see the mark-read on
+	// agent send in SendOutgoingMessage). Bot/keyword auto-replies never clear it.
 
 	response := a.buildMessagesResponse(messages)
 	return r.SendEnvelope(map[string]any{
