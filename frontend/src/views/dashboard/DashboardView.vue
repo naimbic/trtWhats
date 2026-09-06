@@ -166,6 +166,22 @@ const chartTypeOptions = computed(() => [
   { value: 'pie', label: t('dashboard.chartPie') }
 ])
 
+// TRT custom patch #46: translate the backend-sourced labels shown in the widget
+// builder + cards (data sources, field names, operators, enum values). Falls back
+// to the raw English string when a key is missing.
+function sourceLabel(source: { name: string; label?: string }): string {
+  return t(`dashboard.source_${source.name}`, source.label || source.name)
+}
+function fieldLabel(field: string): string {
+  return field ? t(`dashboard.field_${field}`, field) : field
+}
+function operatorLabel(op: { value: string; label: string }): string {
+  return t(`dashboard.op_${op.value}`, op.label)
+}
+function valueLabel(value: string): string {
+  return value ? t(`dashboard.val_${value}`, value) : value
+}
+
 // Chart color palette for pie charts
 const chartColors = [
   'rgba(59, 130, 246, 0.8)',
@@ -923,7 +939,7 @@ onMounted(() => {
                   @click.stop
                   class="inline-flex items-center gap-1 mt-3 text-xs font-medium text-emerald-400 hover:text-emerald-300 light:text-emerald-600"
                 >
-                  {{ getWidgetById(item.i)!.config.link_label || 'Open link' }}
+                  {{ getWidgetById(item.i)!.config.link_label || $t('dashboard.openLink') }}
                   <ExternalLink class="h-3 w-3" />
                 </a>
               </div>
@@ -996,7 +1012,7 @@ onMounted(() => {
                 @click.stop
                 class="inline-flex items-center gap-1 mt-2 text-xs font-medium text-emerald-400 hover:text-emerald-300 light:text-emerald-600"
               >
-                {{ getWidgetById(item.i)!.config.link_label || 'Open link' }}
+                {{ getWidgetById(item.i)!.config.link_label || $t('dashboard.openLink') }}
                 <ExternalLink class="h-3 w-3" />
               </a>
             </div>
@@ -1037,7 +1053,7 @@ onMounted(() => {
                   <table class="w-full">
                     <thead>
                       <tr class="border-b border-white/[0.08] light:border-gray-200">
-                        <th class="text-left py-2 text-xs font-medium text-white/40 light:text-gray-500 uppercase">{{ getWidgetById(item.i)!.group_by_field }}</th>
+                        <th class="text-left py-2 text-xs font-medium text-white/40 light:text-gray-500 uppercase">{{ fieldLabel(getWidgetById(item.i)!.group_by_field) }}</th>
                         <th class="text-right py-2 text-xs font-medium text-white/40 light:text-gray-500 uppercase">{{ $t('dashboard.count') }}</th>
                       </tr>
                     </thead>
@@ -1082,7 +1098,7 @@ onMounted(() => {
                               row.direction === 'incoming' ? 'bg-emerald-500/20 text-emerald-400 light:bg-emerald-100 light:text-emerald-700' : 'bg-blue-500/20 text-blue-400 light:bg-blue-100 light:text-blue-700'
                             ]"
                           >
-                            {{ row.direction }}
+                            {{ valueLabel(row.direction) }}
                           </span>
                           <span
                             v-if="row.status"
@@ -1094,7 +1110,7 @@ onMounted(() => {
                               'bg-white/10 text-white/50 light:bg-gray-100 light:text-gray-600'
                             ]"
                           >
-                            {{ row.status }}
+                            {{ valueLabel(row.status) }}
                           </span>
                         </div>
                       </div>
@@ -1205,7 +1221,7 @@ onMounted(() => {
                   :value="source.name"
                   class="text-white/70 focus:bg-white/[0.08] focus:text-white light:text-gray-700 light:focus:bg-gray-100"
                 >
-                  {{ source.label }}
+                  {{ sourceLabel(source) }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -1282,7 +1298,7 @@ onMounted(() => {
                   :value="field"
                   class="text-white/70 focus:bg-white/[0.08] focus:text-white light:text-gray-700 light:focus:bg-gray-100"
                 >
-                  {{ field }}
+                  {{ fieldLabel(field) }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -1338,7 +1354,7 @@ onMounted(() => {
                       :value="field"
                       class="text-white/70 focus:bg-white/[0.08] focus:text-white light:text-gray-700 light:focus:bg-gray-100"
                     >
-                      {{ field }}
+                      {{ fieldLabel(field) }}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -1355,7 +1371,7 @@ onMounted(() => {
                       :value="op.value"
                       class="text-white/70 focus:bg-white/[0.08] focus:text-white light:text-gray-700 light:focus:bg-gray-100"
                     >
-                      {{ op.label }}
+                      {{ operatorLabel(op) }}
                     </SelectItem>
                   </SelectContent>
                 </Select>
