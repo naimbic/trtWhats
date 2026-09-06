@@ -630,6 +630,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	// Contacts
 	g.GET("/api/contacts", app.ListContacts)
 	g.GET("/api/contacts/account-unreads", app.AccountUnreadCounts) // TRT custom patch #41
+	g.POST("/api/contacts/backfill-order-flags", app.BackfillOrderFlags) // TRT custom patch #45
 	g.POST("/api/contacts", app.CreateContact)
 	g.GET("/api/contacts/{id}", app.GetContact)
 	g.PUT("/api/contacts/{id}", app.UpdateContact)

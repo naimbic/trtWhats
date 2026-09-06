@@ -123,6 +123,43 @@ const { isDark } = useColorMode()
 
 const canWriteContacts = authStore.hasPermission('contacts', 'write')
 
+// TRT custom patch #44/#45: per-conversation status bubble. When a contact has a
+// pending status (order_pending — set when a tag is added / order form submitted,
+// cleared when a real agent replies), show a small bubble coloured with that
+// contact's tag colour. The Converted ("order") tag shows a cart icon; other
+// tags show a coloured dot. Colour follows the tag's own colour (purple for
+// "En attente du reste", etc.).
+const CONVERTED_TAG = 'تم البيع - Converti'
+const TAG_SOLID: Record<string, string> = {
+  blue: '#3b82f6', red: '#ef4444', green: '#22c55e',
+  yellow: '#eab308', purple: '#a855f7', gray: '#6b7280'
+}
+function statusBubble(contact: any): { bg: string; label: string; cart: boolean } | null {
+  if (!contact?.order_pending) return null
+  // Last-added tag that resolves to a known tag wins ("whenever a tag is added,
+  // the bubble takes that tag's colour").
+  if (Array.isArray(contact.tags)) {
+    for (let i = contact.tags.length - 1; i >= 0; i--) {
+      const name = contact.tags[i]
+      const tag = tagsStore.getTagByName(name)
+      if (tag) {
+        return { bg: TAG_SOLID[tag.color || 'gray'] || TAG_SOLID.gray, label: name, cart: name === CONVERTED_TAG }
+      }
+    }
+  }
+  // Pending but no resolvable tag yet (e.g. a just-submitted order form before
+  // its Converted tag has synced) — fall back to the orange order cart.
+  return { bg: '#f97316', label: 'Order', cart: true }
+}
+const statusBubbles = computed(() => {
+  const m: Record<string, { bg: string; label: string; cart: boolean }> = {}
+  for (const c of contactsStore.sortedContacts) {
+    const b = statusBubble(c)
+    if (b) m[c.id] = b
+  }
+  return m
+})
+
 const messageInput = ref('')
 const messagesEndRef = ref<HTMLElement | null>(null)
 const messageInputRef = ref<HTMLTextAreaElement | null>(null)
@@ -2172,11 +2209,18 @@ async function sendAudioBlob(blob: Blob) {
                   {{ contact.phone_number }}
                 </p>
                 <div class="flex-shrink-0 flex items-center gap-1">
-                  <!-- TRT custom patch #44: orange "order to process" bubble — the
-                       client submitted the order form; clears when an agent replies. -->
-                  <Badge v-if="contact.order_pending" class="h-5 px-1.5 rounded-full text-[11px] font-semibold text-white border-0 flex items-center gap-0.5 shadow-sm" style="background-color:#f97316" :title="$t('chat.orderPending', 'New order to process')">
-                    <ShoppingBag class="h-3 w-3" />
-                  </Badge>
+                  <!-- TRT custom patch #44/#45: status bubble coloured by the
+                       contact's tag (cart icon for the Converted "order" tag, a
+                       coloured dot otherwise); clears when a real agent replies. -->
+                  <span
+                    v-if="statusBubbles[contact.id]"
+                    class="flex items-center justify-center rounded-full shadow-sm text-white"
+                    :class="statusBubbles[contact.id].cart ? 'h-5 px-1.5' : 'h-3 w-3'"
+                    :style="{ backgroundColor: statusBubbles[contact.id].bg }"
+                    :title="statusBubbles[contact.id].label"
+                  >
+                    <ShoppingBag v-if="statusBubbles[contact.id].cart" class="h-3 w-3" />
+                  </span>
                   <!-- TRT custom patch (whatsapp-unread-badge): WhatsApp-style solid-green
                        unread bubble; hidden (v-if) once a real agent replies (patch #43). -->
                   <Badge v-if="contact.unread_count > 0" class="h-5 min-w-[20px] px-1.5 rounded-full text-[11px] font-semibold text-white border-0 flex items-center justify-center shadow-sm" style="background-color:#25D366">

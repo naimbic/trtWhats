@@ -1518,21 +1518,20 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 		return nil
 	}
 
-	// TRT custom patch #44: adding the Converted tag ("order placed") also lights
-	// the orange order bubble — whether the tag arrives from the order form or an
-	// agent applies it by hand. Detect the transition (absent -> present).
-	const convertedTag = "تم البيع - Converti"
-	hadConverted := false
+	// TRT custom patch #44/#45: adding ANY tag raises the status bubble on the
+	// conversation (the frontend colours it with that tag's colour — orange cart
+	// for Converted, purple for En attente, etc.). It clears when a real agent
+	// replies. Detect whether a new tag was added (present now, absent before).
+	oldSet := map[string]bool{}
 	for _, t := range contact.Tags {
-		if s, ok := t.(string); ok && s == convertedTag {
-			hadConverted = true
-			break
+		if s, ok := t.(string); ok {
+			oldSet[s] = true
 		}
 	}
-	nowConverted := false
+	addedTag := false
 	for _, t := range req.Tags {
-		if t == convertedTag {
-			nowConverted = true
+		if !oldSet[t] {
+			addedTag = true
 			break
 		}
 	}
@@ -1549,8 +1548,8 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update contact tags", nil, "")
 	}
 
-	// TRT custom patch #44: newly Converted -> raise the orange order bubble.
-	if nowConverted && !hadConverted {
+	// A newly added tag -> raise the status bubble (colour comes from the tag).
+	if addedTag {
 		a.DB.Model(&models.Contact{}).Where("id = ?", contactID).Update("order_pending", true)
 		a.broadcastContactOrder(orgID, contactID)
 	}
@@ -1574,6 +1573,39 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 		"message": "Contact tags updated",
 		"tags":    tags,
 	})
+}
+
+// BackfillOrderFlags is a one-time reconcile that lights the status bubble
+// (order_pending) for contacts already tagged Converted within the last N days
+// (default 30) — so existing orders show the cart icon without re-tagging. TRT
+// #45. Idempotent-ish: only touches rows where order_pending is still false, so
+// a conversation an agent already handled (cleared) is not re-lit.
+func (a *App) BackfillOrderFlags(r *fastglue.Request) error {
+	orgID, userID, err := a.getOrgAndUserID(r)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+	}
+	if !a.HasPermission(userID, models.ResourceTags, models.ActionWrite, orgID) {
+		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You do not have permission", nil, "")
+	}
+	days := 30
+	if d := string(r.RequestCtx.QueryArgs().Peek("days")); d != "" {
+		if n, perr := strconv.Atoi(d); perr == nil && n > 0 && n <= 365 {
+			days = n
+		}
+	}
+	const convertedTag = "تم البيع - Converti"
+	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	res := a.DB.Model(&models.Contact{}).
+		Where("organization_id = ? AND order_pending = ? AND last_message_at >= ? AND tags @> ?::jsonb",
+			orgID, false, cutoff, `["`+convertedTag+`"]`).
+		Update("order_pending", true)
+	if res.Error != nil {
+		a.Log.Error("BackfillOrderFlags failed", "error", res.Error)
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Backfill failed", nil, "")
+	}
+	a.Log.Info("Backfilled order flags", "org", orgID, "days", days, "updated", res.RowsAffected)
+	return r.SendEnvelope(map[string]any{"updated": res.RowsAffected, "days": days})
 }
 
 // SetContactConversionRequest is the body for setting order details on a contact.

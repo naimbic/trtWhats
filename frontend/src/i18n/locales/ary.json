@@ -834,7 +834,10 @@
     "createTagTitle": "صاوب وسم",
     "createTagDesc": "زيد وسم جديد لجهات الاتصال.",
     "deleteWarning": "هادشي غادي يحيّد الوسم من كامل جهات الاتصال اللي عندهم.",
-    "nameRequired": "الاسم ضروري"
+    "nameRequired": "الاسم ضروري",
+    "backfillOrders": "علّم الكوموندات الأخيرة (30 يوم)",
+    "backfillDone": "تعلّمو {count} كوموند حديث",
+    "backfillFailed": "ما تعلّموش"
   },
   "analytics": {
     "title": "التحليلات",

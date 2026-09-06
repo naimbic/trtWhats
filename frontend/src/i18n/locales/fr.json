@@ -834,7 +834,10 @@
     "createTagTitle": "Créer une étiquette",
     "createTagDesc": "Ajoutez une nouvelle étiquette pour les contacts.",
     "deleteWarning": "Cela retirera l'étiquette de tous les contacts qui la possèdent.",
-    "nameRequired": "Le nom est obligatoire"
+    "nameRequired": "Le nom est obligatoire",
+    "backfillOrders": "Marquer les commandes récentes (30j)",
+    "backfillDone": "{count} commandes récentes marquées",
+    "backfillFailed": "Échec du marquage"
   },
   "analytics": {
     "title": "Statistiques",

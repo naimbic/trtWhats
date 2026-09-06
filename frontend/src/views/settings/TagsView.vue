@@ -13,7 +13,8 @@ import type { Tag } from '@/services/api'
 import { useTagsStore } from '@/stores/tags'
 import { useCrudState } from '@/composables/useCrudState'
 import { toast } from 'vue-sonner'
-import { Plus, Tags, Pencil, Trash2 } from 'lucide-vue-next'
+import { Plus, Tags, Pencil, Trash2, Loader2, ShoppingBag } from 'lucide-vue-next'
+import { contactsService } from '@/services/api'
 import { getErrorMessage } from '@/lib/api-utils'
 import { TAG_COLORS } from '@/lib/constants'
 import { formatDate } from '@/lib/utils'
@@ -44,6 +45,22 @@ const { searchQuery, currentPage, totalItems, pageSize, handlePageChange } = use
 // Sorting state
 const sortKey = ref('name')
 const sortDirection = ref<'asc' | 'desc'>('asc')
+
+// TRT custom patch #45: one-time backfill of the order/status bubble.
+const isBackfilling = ref(false)
+async function runBackfill() {
+  if (isBackfilling.value) return
+  isBackfilling.value = true
+  try {
+    const res = await contactsService.backfillOrderFlags(30)
+    const updated = (res.data as any).data?.updated ?? (res.data as any).updated ?? 0
+    toast.success(t('tags.backfillDone', { count: updated }))
+  } catch (e: any) {
+    toast.error(getErrorMessage(e, t('tags.backfillFailed', 'Backfill failed')))
+  } finally {
+    isBackfilling.value = false
+  }
+}
 
 const columns = computed<Column<Tag>[]>(() => [
   { key: 'name', label: t('tags.tag'), sortable: true },
@@ -127,6 +144,13 @@ function getColorLabel(color: string): string {
   <div class="flex flex-col h-full bg-[#0a0a0b] light:bg-gray-50">
     <PageHeader :title="$t('tags.title')" :subtitle="$t('tags.subtitle')" :icon="Tags" icon-gradient="bg-gradient-to-br from-indigo-500 to-purple-600 shadow-indigo-500/20" back-link="/settings">
       <template #actions>
+        <!-- TRT custom patch #45: one-time backfill of the order/status bubble
+             for contacts already Converted in the last 30 days. -->
+        <Button variant="outline" size="sm" :disabled="isBackfilling" @click="runBackfill">
+          <Loader2 v-if="isBackfilling" class="h-4 w-4 mr-2 animate-spin" />
+          <ShoppingBag v-else class="h-4 w-4 mr-2" />
+          {{ $t('tags.backfillOrders', 'Mark recent orders (30d)') }}
+        </Button>
         <Button variant="outline" size="sm" @click="openCreateDialog"><Plus class="h-4 w-4 mr-2" />{{ $t('tags.addTag') }}</Button>
       </template>
     </PageHeader>

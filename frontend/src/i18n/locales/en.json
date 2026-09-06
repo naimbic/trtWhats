@@ -834,7 +834,10 @@
     "createTagTitle": "Create Tag",
     "createTagDesc": "Add a new tag for contacts.",
     "deleteWarning": "This will remove the tag from all contacts that have it.",
-    "nameRequired": "Name is required"
+    "nameRequired": "Name is required",
+    "backfillOrders": "Mark recent orders (30d)",
+    "backfillDone": "Marked {count} recent orders",
+    "backfillFailed": "Backfill failed"
   },
   "analytics": {
     "title": "Analytics",
