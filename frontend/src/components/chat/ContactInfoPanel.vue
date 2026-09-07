@@ -298,6 +298,11 @@ async function updateContactTags(tags: string[]) {
   isUpdatingTags.value = true
   try {
     await contactsService.updateTags(props.contact.id, tags)
+    // TRT custom patch #51: update the store directly so the applied tags AND the
+    // coloured status bubble reflect immediately, without waiting for (or depending
+    // on) the WebSocket round-trip. order_pending mirrors "has a tag".
+    contactsStore.updateContactTags(props.contact.id, tags)
+    contactsStore.markOrderPendingLocal(props.contact.id, tags.length > 0)
     emit('tagsUpdated', tags)
     toast.success('Tags updated')
   } catch (e: any) {
