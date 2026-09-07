@@ -82,6 +82,13 @@ const collapsedSections = ref<Record<string, boolean>>({})
 const tagSelectorOpen = ref(false)
 const isUpdatingTags = ref(false)
 
+// TRT custom patch #50: refresh the tag list whenever the picker opens, so a tag
+// created in Settings shows up (and resolves for the coloured bubble) without a
+// full page reload. tagsStore is shared, so this also updates the chat bubble.
+watch(tagSelectorOpen, (open) => {
+  if (open) tagsStore.fetchTags().catch(() => { /* keep the current list */ })
+})
+
 // Resizable panel state
 const MIN_WIDTH = 280
 const MAX_WIDTH = 480
