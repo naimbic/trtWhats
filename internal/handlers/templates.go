@@ -594,6 +594,90 @@ func (a *App) SyncTemplates(r *fastglue.Request) error {
 	})
 }
 
+// SeedBusinessTemplates creates a starter set of business templates (French +
+// Darija, no emoji) for the given number and submits each to Meta for approval.
+// Additive: skips any that already exist (name+language); a failed Meta submit
+// leaves that one as a local DRAFT to retry. TRT custom patch #56.
+func (a *App) SeedBusinessTemplates(r *fastglue.Request) error {
+	orgID, userID, err := a.getOrgAndUserID(r)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+	}
+	var body struct {
+		Account string `json:"account"`
+	}
+	if err := a.decodeRequest(r, &body); err != nil {
+		return nil
+	}
+	if body.Account == "" {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "account is required", nil, "")
+	}
+	account, err := a.resolveWhatsAppAccount(orgID, body.Account)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "WhatsApp account not found", nil, "")
+	}
+
+	type seed struct{ name, category, lang, bodyText string }
+	seeds := []seed{
+		{"order_confirmation", "UTILITY", "fr", "Bonjour {{1}}, nous avons bien reçu votre commande. Notre équipe la prépare et vous contactera pour la livraison. Merci de votre confiance."},
+		{"order_confirmation", "UTILITY", "ar", "سلام {{1}}، توصلنا بالطلب ديالك. الفريق ديالنا كيوجدو وغادي نتواصلو معاك على التوصيل. شكرا على الثقة."},
+		{"order_details_request", "UTILITY", "fr", "Bonjour {{1}}, pour finaliser votre commande, merci de nous envoyer le modele, la taille, la couleur, ainsi que votre ville et adresse de livraison."},
+		{"order_details_request", "UTILITY", "ar", "سلام {{1}}، باش نكملو الطلب ديالك، عافاك صيفط لينا الموديل، القياس، اللون، والمدينة مع العنوان ديال التوصيل."},
+		{"order_followup", "UTILITY", "fr", "Bonjour {{1}}, nous revenons vers vous concernant votre commande. Souhaitez-vous toujours la finaliser ? Nous restons a votre disposition."},
+		{"order_followup", "UTILITY", "ar", "سلام {{1}}، كنعاودو نتواصلو معاك على الطلب ديالك. واش مازال باغي تكملو؟ حنا فالخدمة ديالك."},
+		{"order_shipped", "UTILITY", "fr", "Bonjour {{1}}, votre commande a ete expediee et arrivera bientot. Le livreur vous contactera avant la livraison. Merci."},
+		{"order_shipped", "UTILITY", "ar", "سلام {{1}}، الطلب ديالك تصيفط وغادي يوصلك قريب. الليفرور غادي يتواصل معاك قبل التوصيل. شكرا."},
+		{"delivery_today", "UTILITY", "fr", "Bonjour {{1}}, votre commande sera livree aujourd'hui. Merci de rester joignable au numero que vous nous avez communique."},
+		{"delivery_today", "UTILITY", "ar", "سلام {{1}}، الطلب ديالك غادي يتسلم ليك اليوم. عافاك بقى متوفر على الرقم اللي عطيتينا."},
+		{"reconnect", "UTILITY", "fr", "Bonjour {{1}}, nous n'avons pas eu de vos nouvelles. Si vous avez une question sur nos produits ou votre commande, ecrivez-nous, nous sommes la pour vous aider."},
+		{"reconnect", "UTILITY", "ar", "سلام {{1}}، مامزال ماوصلنا خبر منك. إلا عندك شي سؤال على المنتجات ولا الطلب ديالك، كتب لينا، حنا هنا باش نعاونوك."},
+		{"welcome_catalog", "MARKETING", "fr", "Bonjour {{1}}, bienvenue chez Belle Tulipe. Pour decouvrir nos modeles et commander, repondez a ce message et notre equipe vous guidera."},
+		{"welcome_catalog", "MARKETING", "ar", "سلام {{1}}، مرحبا بيك فبيل توليب. باش تشوف الموديلات وتكوموندي، جاوب على هاد الرسالة والفريق ديالنا غادي يوجهك."},
+		{"special_offer", "MARKETING", "fr", "Bonjour {{1}}, une offre speciale est disponible cette semaine sur nos pyjamas. Repondez a ce message pour connaitre les details et commander."},
+		{"special_offer", "MARKETING", "ar", "سلام {{1}}، هاد السيمانة عندنا عرض خاص على البيجامات. جاوب على هاد الرسالة باش تعرف التفاصيل وتكوموندي."},
+	}
+
+	created, submitted := 0, 0
+	notes := []string{}
+	for _, s := range seeds {
+		name := normalizeTemplateName(s.name)
+		var count int64
+		a.DB.Model(&models.Template{}).
+			Where("organization_id = ? AND whats_app_account = ? AND name = ? AND language = ?", orgID, account.Name, name, s.lang).
+			Count(&count)
+		if count > 0 {
+			continue
+		}
+		tpl := models.Template{
+			OrganizationID:  orgID,
+			WhatsAppAccount: account.Name,
+			Name:            name,
+			DisplayName:     s.name,
+			Language:        s.lang,
+			Category:        s.category,
+			BodyContent:     s.bodyText,
+			Status:          "DRAFT",
+			SampleValues:    convertToJSONBArray([]any{"Meriem"}),
+			CreatedByID:     &userID,
+		}
+		if err := a.DB.Create(&tpl).Error; err != nil {
+			notes = append(notes, name+"/"+s.lang+": create failed")
+			continue
+		}
+		created++
+		metaID, serr := a.submitTemplateToMeta(account, &tpl)
+		if serr != nil {
+			notes = append(notes, name+"/"+s.lang+": "+serr.Error())
+			continue // stays DRAFT, user can submit later
+		}
+		a.DB.Model(&models.Template{}).Where("id = ?", tpl.ID).
+			Updates(map[string]any{"meta_template_id": metaID, "status": "PENDING"})
+		submitted++
+	}
+	a.Log.Info("Seeded business templates", "org", orgID, "account", account.Name, "created", created, "submitted", submitted)
+	return r.SendEnvelope(map[string]any{"created": created, "submitted": submitted, "notes": notes})
+}
+
 func (a *App) fetchTemplatesFromMeta(account *models.WhatsAppAccount) ([]whatsapp.MetaTemplate, error) {
 	waAccount := a.toWhatsAppAccount(account)
 

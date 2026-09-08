@@ -1027,7 +1027,11 @@
     "autofillText": "Texte de remplissage automatique",
     "packageName": "Nom du package",
     "signatureHash": "Hash de signature",
-    "deleteConfirm": "Êtes-vous sûr ? Cette action est irréversible."
+    "deleteConfirm": "Êtes-vous sûr ? Cette action est irréversible.",
+    "addBusinessTemplates": "Ajouter des modèles pro",
+    "seedDone": "{created} modèles ajoutés, {submitted} envoyés à Meta",
+    "seedNotes": "{count} n'ont pas pu être envoyés — vérifiez-les dans la liste",
+    "seedFailed": "Échec de l'ajout des modèles"
   },
   "sso": {
     "title": "Authentification unique (SSO)",

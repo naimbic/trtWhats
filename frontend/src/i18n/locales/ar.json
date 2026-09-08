@@ -813,7 +813,11 @@
     "autofillText": "نص التعبئة التلقائية",
     "packageName": "اسم الحزمة",
     "signatureHash": "توقيع هاش",
-    "deleteConfirm": "هل أنت متأكد؟ لا يمكن التراجع عن هذا الإجراء."
+    "deleteConfirm": "هل أنت متأكد؟ لا يمكن التراجع عن هذا الإجراء.",
+    "addBusinessTemplates": "إضافة قوالب الأعمال",
+    "seedDone": "أُضيف {created} قالب، وأُرسل {submitted} إلى ميتا",
+    "seedNotes": "{count} لم تُرسل بعد — تحقق منها في القائمة",
+    "seedFailed": "فشل إضافة القوالب"
   },
   "sso": {
     "title": "تسجيل الدخول الموحد (SSO)",

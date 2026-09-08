@@ -1027,7 +1027,11 @@
     "autofillText": "نص التعبئة الأوتوماتيكية",
     "packageName": "اسم الحزمة",
     "signatureHash": "توقيع Hash",
-    "deleteConfirm": "واش متأكد؟ هاد الإجراء ما يتردّش."
+    "deleteConfirm": "واش متأكد؟ هاد الإجراء ما يتردّش.",
+    "addBusinessTemplates": "زيد قوالب الخدمة",
+    "seedDone": "تزادو {created} قالب، وتصيفطو {submitted} لميتا",
+    "seedNotes": "{count} ما تصيفطوش — شوفهم فاللائحة",
+    "seedFailed": "ما تزادوش القوالب"
   },
   "sso": {
     "title": "الدخول الموحّد (SSO)",

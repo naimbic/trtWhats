@@ -1027,7 +1027,11 @@
     "autofillText": "Autofill Text",
     "packageName": "Package Name",
     "signatureHash": "Signature Hash",
-    "deleteConfirm": "Are you sure? This action cannot be undone."
+    "deleteConfirm": "Are you sure? This action cannot be undone.",
+    "addBusinessTemplates": "Add business templates",
+    "seedDone": "{created} templates added, {submitted} submitted to Meta",
+    "seedNotes": "{count} could not be submitted yet — check them in the list",
+    "seedFailed": "Failed to add business templates"
   },
   "sso": {
     "title": "Single Sign-On (SSO)",

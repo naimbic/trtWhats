@@ -229,6 +229,30 @@ async function syncTemplates() {
   }
 }
 
+// TRT custom patch #56: seed a starter set of FR + Darija business templates
+// and submit them to Meta for the selected number.
+const isSeeding = ref(false)
+async function seedBusinessTemplates() {
+  if (!selectedAccount.value || selectedAccount.value === 'all') {
+    toast.error(t('templates.selectAccountFirst'))
+    return
+  }
+  isSeeding.value = true
+  try {
+    const response = await api.post('/templates/seed-business', { account: selectedAccount.value })
+    const d = response.data.data || response.data
+    toast.success(t('templates.seedDone', { created: d.created ?? 0, submitted: d.submitted ?? 0 }))
+    if (Array.isArray(d.notes) && d.notes.length) {
+      toast.warning(t('templates.seedNotes', { count: d.notes.length }), { duration: 9000 })
+    }
+    await fetchTemplates()
+  } catch (error) {
+    toast.error(getErrorMessage(error, t('templates.seedFailed', 'Failed to add business templates')))
+  } finally {
+    isSeeding.value = false
+  }
+}
+
 function openDeleteDialog(template: Template) {
   templateToDelete.value = template
   deleteDialogOpen.value = true
@@ -302,6 +326,12 @@ function getHeaderIcon(type: string) {
           <Loader2 v-if="isSyncing" class="h-4 w-4 mr-2 animate-spin" />
           <RefreshCw v-else class="h-4 w-4 mr-2" />
           {{ $t('templates.syncFromMeta') }}
+        </Button>
+        <!-- TRT custom patch #56: seed FR + Darija business templates -->
+        <Button variant="outline" size="sm" @click="seedBusinessTemplates" :disabled="isSeeding || !selectedAccount || selectedAccount === 'all'">
+          <Loader2 v-if="isSeeding" class="h-4 w-4 mr-2 animate-spin" />
+          <FileText v-else class="h-4 w-4 mr-2" />
+          {{ $t('templates.addBusinessTemplates', 'Add business templates') }}
         </Button>
         <RouterLink to="/templates/new">
           <Button variant="outline" size="sm">
