@@ -637,15 +637,22 @@ func (a *App) SeedBusinessTemplates(r *fastglue.Request) error {
 		{"special_offer", "MARKETING", "ar", "سلام {{1}}، هاد السيمانة عندنا عرض خاص على البيجامات. جاوب على هاد الرسالة باش تعرف التفاصيل وتكوموندي."},
 	}
 
-	created, submitted := 0, 0
-	notes := []string{}
+	// Create the drafts synchronously (fast DB inserts), collect them, and submit
+	// to Meta in the BACKGROUND. Submitting 16 templates inline meant 16 sequential
+	// Meta calls in one request, which blew past the gateway timeout → 502 (and tied
+	// up the server). TRT custom patch #57.
+	created := 0
+	var toSubmit []models.Template
 	for _, s := range seeds {
 		name := normalizeTemplateName(s.name)
-		var count int64
-		a.DB.Model(&models.Template{}).
-			Where("organization_id = ? AND whats_app_account = ? AND name = ? AND language = ?", orgID, account.Name, name, s.lang).
-			Count(&count)
-		if count > 0 {
+		// If it already exists, re-submit only when it's still a local DRAFT never
+		// sent to Meta (e.g. a previous run created it but the submit didn't finish);
+		// leave PENDING/APPROVED ones alone. Otherwise create it fresh.
+		var existing models.Template
+		if err := a.DB.Where("organization_id = ? AND whats_app_account = ? AND name = ? AND language = ?", orgID, account.Name, name, s.lang).First(&existing).Error; err == nil {
+			if existing.Status == "DRAFT" && existing.MetaTemplateID == "" {
+				toSubmit = append(toSubmit, existing)
+			}
 			continue
 		}
 		tpl := models.Template{
@@ -661,21 +668,37 @@ func (a *App) SeedBusinessTemplates(r *fastglue.Request) error {
 			CreatedByID:     &userID,
 		}
 		if err := a.DB.Create(&tpl).Error; err != nil {
-			notes = append(notes, name+"/"+s.lang+": create failed")
 			continue
 		}
 		created++
-		metaID, serr := a.submitTemplateToMeta(account, &tpl)
-		if serr != nil {
-			notes = append(notes, name+"/"+s.lang+": "+serr.Error())
-			continue // stays DRAFT, user can submit later
-		}
-		a.DB.Model(&models.Template{}).Where("id = ?", tpl.ID).
-			Updates(map[string]any{"meta_template_id": metaID, "status": "PENDING"})
-		submitted++
+		toSubmit = append(toSubmit, tpl)
 	}
-	a.Log.Info("Seeded business templates", "org", orgID, "account", account.Name, "created", created, "submitted", submitted)
-	return r.SendEnvelope(map[string]any{"created": created, "submitted": submitted, "notes": notes})
+
+	if len(toSubmit) > 0 {
+		a.wg.Add(1)
+		go func() {
+			defer a.wg.Done()
+			defer func() {
+				if rec := recover(); rec != nil {
+					a.Log.Error("SeedBusinessTemplates: background submit panic", "panic", rec)
+				}
+			}()
+			for i := range toSubmit {
+				tpl := toSubmit[i]
+				metaID, serr := a.submitTemplateToMeta(account, &tpl)
+				if serr != nil {
+					a.Log.Error("SeedBusinessTemplates: Meta submit failed (stays DRAFT)", "template", tpl.Name, "lang", tpl.Language, "error", serr)
+					continue
+				}
+				a.DB.Model(&models.Template{}).Where("id = ?", tpl.ID).
+					Updates(map[string]any{"meta_template_id": metaID, "status": "PENDING"})
+			}
+			a.Log.Info("Seeded business templates: background submit done", "org", orgID, "account", account.Name, "count", len(toSubmit))
+		}()
+	}
+
+	a.Log.Info("Seeded business templates (drafts created; submitting in background)", "org", orgID, "account", account.Name, "created", created)
+	return r.SendEnvelope(map[string]any{"created": created, "submitting": len(toSubmit)})
 }
 
 func (a *App) fetchTemplatesFromMeta(account *models.WhatsAppAccount) ([]whatsapp.MetaTemplate, error) {

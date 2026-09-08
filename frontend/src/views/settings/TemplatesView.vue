@@ -241,10 +241,7 @@ async function seedBusinessTemplates() {
   try {
     const response = await api.post('/templates/seed-business', { account: selectedAccount.value })
     const d = response.data.data || response.data
-    toast.success(t('templates.seedDone', { created: d.created ?? 0, submitted: d.submitted ?? 0 }))
-    if (Array.isArray(d.notes) && d.notes.length) {
-      toast.warning(t('templates.seedNotes', { count: d.notes.length }), { duration: 9000 })
-    }
+    toast.success(t('templates.seedDone', { created: d.created ?? 0 }), { duration: 8000 })
     await fetchTemplates()
   } catch (error) {
     toast.error(getErrorMessage(error, t('templates.seedFailed', 'Failed to add business templates')))

@@ -1029,7 +1029,7 @@
     "signatureHash": "Signature Hash",
     "deleteConfirm": "Are you sure? This action cannot be undone.",
     "addBusinessTemplates": "Add business templates",
-    "seedDone": "{created} templates added, {submitted} submitted to Meta",
+    "seedDone": "{created} templates added — submitting to Meta in the background. Refresh in a moment to see them turn to Pending.",
     "seedNotes": "{count} could not be submitted yet — check them in the list",
     "seedFailed": "Failed to add business templates"
   },

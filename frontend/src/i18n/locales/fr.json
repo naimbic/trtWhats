@@ -1029,7 +1029,7 @@
     "signatureHash": "Hash de signature",
     "deleteConfirm": "Êtes-vous sûr ? Cette action est irréversible.",
     "addBusinessTemplates": "Ajouter des modèles pro",
-    "seedDone": "{created} modèles ajoutés, {submitted} envoyés à Meta",
+    "seedDone": "{created} modèles ajoutés — envoi à Meta en arrière-plan. Actualisez dans un instant pour les voir passer à En attente.",
     "seedNotes": "{count} n'ont pas pu être envoyés — vérifiez-les dans la liste",
     "seedFailed": "Échec de l'ajout des modèles"
   },

@@ -1029,7 +1029,7 @@
     "signatureHash": "توقيع Hash",
     "deleteConfirm": "واش متأكد؟ هاد الإجراء ما يتردّش.",
     "addBusinessTemplates": "زيد قوالب الخدمة",
-    "seedDone": "تزادو {created} قالب، وتصيفطو {submitted} لميتا",
+    "seedDone": "تزادو {created} قالب — كيتصيفطو لميتا فالخلفية. عاود حمّل من بعد شوية باش تشوفهم كيوليو قيد الانتظار.",
     "seedNotes": "{count} ما تصيفطوش — شوفهم فاللائحة",
     "seedFailed": "ما تزادوش القوالب"
   },
