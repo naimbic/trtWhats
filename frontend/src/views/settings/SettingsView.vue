@@ -13,11 +13,64 @@ import { PageHeader, AuditLogPanel } from '@/components/shared'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import { toast } from 'vue-sonner'
 import { Settings, Bell, Loader2, Globe, Phone, Upload, Play, Pause, Music } from 'lucide-vue-next'
-import { usersService, organizationService } from '@/services/api'
+import { usersService, organizationService, accountsService, spacesService } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+
+// TRT custom patch #52: copy setup (tags / chatbot messages / keyword rules)
+// from another space into the current one. Additive only.
+const copyFromOrg = ref('')
+const copyToAccount = ref('')
+const copyTags = ref(true)
+const copyChatbot = ref(true)
+const copyKeywords = ref(true)
+const isCopying = ref(false)
+const copySourceOrgs = ref<Array<{ organization_id: string; name: string }>>([])
+const copyAccounts = ref<Array<{ name: string }>>([])
+
+async function loadCopySources() {
+  try {
+    const res = await usersService.listMyOrganizations()
+    const orgs = (res.data as any).data?.organizations || (res.data as any).organizations || (res.data as any).data || []
+    const current = localStorage.getItem('selected_organization_id') || authStore.organizationId
+    copySourceOrgs.value = orgs.filter((o: any) => o.organization_id !== current)
+  } catch { copySourceOrgs.value = [] }
+  try {
+    const res = await accountsService.list()
+    copyAccounts.value = (res.data as any).data?.accounts || []
+  } catch { copyAccounts.value = [] }
+}
+
+async function runCopy() {
+  if (!copyFromOrg.value || isCopying.value) return
+  if (copyKeywords.value && !copyToAccount.value) {
+    toast.error(t('settings.copyPickNumber', 'Pick a number to apply the keyword rules to'))
+    return
+  }
+  isCopying.value = true
+  try {
+    const res = await spacesService.copyConfig({
+      from_org_id: copyFromOrg.value,
+      to_account: copyToAccount.value || undefined,
+      copy_tags: copyTags.value,
+      copy_chatbot: copyChatbot.value,
+      copy_keywords: copyKeywords.value,
+    })
+    const d = (res.data as any).data || res.data
+    const parts: string[] = []
+    if (typeof d.tags_added === 'number') parts.push(t('settings.copyTagsAdded', { count: d.tags_added }))
+    if (typeof d.keyword_rules_added === 'number') parts.push(t('settings.copyRulesAdded', { count: d.keyword_rules_added }))
+    if (d.keyword_rules_flow_skipped) parts.push(t('settings.copyFlowsSkipped', { count: d.keyword_rules_flow_skipped }))
+    if (d.chatbot_updated) parts.push(t('settings.copyChatbotDone'))
+    toast.success(parts.join(' · ') || t('settings.copyDone', 'Setup copied'))
+  } catch (e: any) {
+    toast.error(e.response?.data?.message || t('settings.copyFailed', 'Copy failed'))
+  } finally {
+    isCopying.value = false
+  }
+}
 
 // The active org may be overridden by the X-Organization-ID header
 // (localStorage.selected_organization_id) when a super admin switches orgs.
@@ -82,6 +135,7 @@ function refreshActivityLog(key: typeof generalLogKey) {
 }
 
 onMounted(async () => {
+  loadCopySources()
   try {
     const [orgResponse, userResponse] = await Promise.all([
       organizationService.getSettings(),
@@ -374,6 +428,50 @@ function togglePlayAudio(type: 'hold_music' | 'ringback') {
                   <Button variant="outline" size="sm" class="bg-white/[0.04] border-white/[0.1] text-white/70 hover:bg-white/[0.08] hover:text-white light:bg-white light:border-gray-200 light:text-gray-700 light:hover:bg-gray-50" @click="saveGeneralSettings" :disabled="isSubmitting">
                     <Loader2 v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" />
                     {{ $t('settings.save') }}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <!-- TRT custom patch #52: copy setup from another space (additive only) -->
+            <div v-if="copySourceOrgs.length > 0" class="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] light:bg-white light:border-gray-200">
+              <div class="p-6 pb-3">
+                <h3 class="text-lg font-semibold text-white light:text-gray-900">{{ $t('settings.copySetupTitle', 'Copy setup from another space') }}</h3>
+                <p class="text-sm text-white/40 light:text-gray-500">{{ $t('settings.copySetupDesc', 'Add tags, chatbot messages and keyword rules from another of your spaces. It only adds what is missing — nothing existing is overwritten.') }}</p>
+              </div>
+              <div class="p-6 pt-3 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <Label class="text-white/70 light:text-gray-700">{{ $t('settings.copyFromSpace', 'Copy from space') }}</Label>
+                    <Select v-model="copyFromOrg">
+                      <SelectTrigger class="bg-white/[0.04] border-white/[0.1] text-white/70 light:bg-white light:border-gray-200 light:text-gray-700">
+                        <SelectValue :placeholder="$t('settings.copySelectSpace', 'Select a space')" />
+                      </SelectTrigger>
+                      <SelectContent class="bg-[#141414] border-white/[0.08] light:bg-white light:border-gray-200">
+                        <SelectItem v-for="o in copySourceOrgs" :key="o.organization_id" :value="o.organization_id" class="text-white/70 focus:bg-white/[0.08] focus:text-white light:text-gray-700 light:focus:bg-gray-100">{{ o.name }}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div v-if="copyKeywords" class="space-y-2">
+                    <Label class="text-white/70 light:text-gray-700">{{ $t('settings.copyToNumber', 'Apply keyword rules to number') }}</Label>
+                    <Select v-model="copyToAccount">
+                      <SelectTrigger class="bg-white/[0.04] border-white/[0.1] text-white/70 light:bg-white light:border-gray-200 light:text-gray-700">
+                        <SelectValue :placeholder="$t('settings.copySelectNumber', 'Select a number')" />
+                      </SelectTrigger>
+                      <SelectContent class="bg-[#141414] border-white/[0.08] light:bg-white light:border-gray-200">
+                        <SelectItem v-for="acc in copyAccounts" :key="acc.name" :value="acc.name" class="text-white/70 focus:bg-white/[0.08] focus:text-white light:text-gray-700 light:focus:bg-gray-100">{{ acc.name }}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-4 text-sm text-white/70 light:text-gray-700">
+                  <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="copyTags" class="rounded border-white/20 bg-white/[0.04] text-emerald-500 light:border-gray-300 light:bg-white" />{{ $t('settings.copyTags', 'Tags + colors') }}</label>
+                  <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="copyChatbot" class="rounded border-white/20 bg-white/[0.04] text-emerald-500 light:border-gray-300 light:bg-white" />{{ $t('settings.copyChatbot', 'Chatbot messages') }}</label>
+                  <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="copyKeywords" class="rounded border-white/20 bg-white/[0.04] text-emerald-500 light:border-gray-300 light:bg-white" />{{ $t('settings.copyKeywords', 'Keyword rules') }}</label>
+                </div>
+                <div class="flex justify-end">
+                  <Button variant="outline" size="sm" class="bg-white/[0.04] border-white/[0.1] text-white/70 hover:bg-white/[0.08] hover:text-white light:bg-white light:border-gray-200 light:text-gray-700 light:hover:bg-gray-50" :disabled="isCopying || !copyFromOrg" @click="runCopy">
+                    <Loader2 v-if="isCopying" class="mr-2 h-4 w-4 animate-spin" />
+                    {{ $t('settings.copyRun', 'Copy setup') }}
                   </Button>
                 </div>
               </div>

@@ -799,6 +799,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.POST("/api/org/audio", app.UploadOrgAudio)
 
 	// Organizations
+	g.POST("/api/spaces/copy-config", app.CopySpaceConfig) // TRT custom patch #52
 	g.GET("/api/organizations", app.ListOrganizations)
 	g.POST("/api/organizations", app.CreateOrganization)
 	g.GET("/api/organizations/current", app.GetCurrentOrganization)

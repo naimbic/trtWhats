@@ -751,6 +751,13 @@ export interface Organization {
   created_at: string
 }
 
+// TRT custom patch #52: copy setup (tags/chatbot messages/keyword rules) from
+// another space into the current one. Additive only.
+export const spacesService = {
+  copyConfig: (payload: { from_org_id: string; to_account?: string; copy_tags: boolean; copy_chatbot: boolean; copy_keywords: boolean }) =>
+    api.post<{ tags_added?: number; keyword_rules_added?: number; keyword_rules_flow_skipped?: number; chatbot_updated?: boolean }>('/spaces/copy-config', payload),
+}
+
 export const organizationsService = {
   list: () => api.get<{ organizations: Organization[] }>('/organizations'),
   create: (data: { name: string }) => api.post('/organizations', data),
