@@ -563,9 +563,34 @@ func (a *App) SyncTemplates(r *fastglue.Request) error {
 		synced++
 	}
 
+	// TRT custom patch #55: drop DB templates Meta no longer has for this account,
+	// so the picker matches Meta exactly — a stale entry (e.g. hello_world stored
+	// as en_US when the WABA only has en, or a template deleted on Meta) won't
+	// linger in the picker and fail with 132001 on send. Guarded by len>0 so a
+	// transient empty response can't wipe a valid list.
+	removed := 0
+	if len(templates) > 0 {
+		keep := make(map[string]bool, len(templates))
+		for _, mt := range templates {
+			keep[mt.Name+"|"+mt.Language] = true
+		}
+		var dbTemplates []models.Template
+		a.DB.Where("organization_id = ? AND whats_app_account = ?", orgID, account.Name).Find(&dbTemplates)
+		for i := range dbTemplates {
+			if !keep[dbTemplates[i].Name+"|"+dbTemplates[i].Language] {
+				a.DB.Delete(&dbTemplates[i]) // soft delete
+				removed++
+			}
+		}
+		if removed > 0 {
+			a.Log.Info("Sync removed stale templates", "org", orgID, "account", account.Name, "removed", removed)
+		}
+	}
+
 	return r.SendEnvelope(map[string]any{
 		"message": fmt.Sprintf("Synced %d templates", synced),
 		"count":   synced,
+		"removed": removed,
 	})
 }
 
