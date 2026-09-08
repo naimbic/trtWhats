@@ -256,10 +256,24 @@ const executingActionId = ref<string | null>(null)
 const isTagFilterOpen = ref(false)
 
 // Service window state
+// TRT custom patch #53: compute the 24h WhatsApp window LIVE from the customer's
+// last inbound time, not the server's service_window_open snapshot (which can be
+// stale while the chat sits open). nowTick re-evaluates it every minute so the
+// banner appears the moment the window closes, even with no new data.
+const nowTick = ref(Date.now())
+let serviceWindowTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  serviceWindowTimer = setInterval(() => { nowTick.value = Date.now() }, 60000)
+})
+onUnmounted(() => {
+  if (serviceWindowTimer) clearInterval(serviceWindowTimer)
+})
 const isServiceWindowExpired = computed(() => {
   const contact = contactsStore.currentContact
   if (!contact) return false
-  return contact.service_window_open === false
+  const t = nowTick.value // dependency so the computed re-runs each minute
+  if (!contact.last_inbound_at) return contact.service_window_open === false
+  return (t - new Date(contact.last_inbound_at).getTime()) >= 24 * 60 * 60 * 1000
 })
 
 function openTemplatePicker() {
@@ -840,6 +854,13 @@ function handleContactClick(contact: Contact) {
 
 async function sendMessage() {
   if (!messageInput.value.trim() || !contactsStore.currentContact) return
+  // TRT custom patch #53: the 24h window is closed — free-text will be rejected
+  // by WhatsApp. Nudge the agent to a template instead of failing the send.
+  if (isServiceWindowExpired.value) {
+    toast.warning(t('chat.serviceWindowExpired'))
+    openTemplatePicker()
+    return
+  }
 
   isSending.value = true
   try {
@@ -2943,7 +2964,7 @@ async function sendAudioBlob(blob: Blob) {
                 @keydown.enter.exact.prevent="sendMessage"
                 @input="autoResizeTextarea"
               />
-              <button type="submit" class="w-9 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 light:bg-emerald-500 light:hover:bg-emerald-600 flex items-center justify-center transition-colors disabled:opacity-50" :disabled="!messageInput.trim() || isSending">
+              <button type="submit" class="w-9 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 light:bg-emerald-500 light:hover:bg-emerald-600 flex items-center justify-center transition-colors disabled:opacity-50" :disabled="!messageInput.trim() || isSending || isServiceWindowExpired" :title="isServiceWindowExpired ? $t('chat.serviceWindowExpired') : ''">
                 <Send class="w-4 h-4 text-white" />
               </button>
             </template>
