@@ -455,6 +455,8 @@
     "preview": "Aperçu",
     "serviceWindowExpired": "La fenêtre de messagerie de 24 heures a expiré. Seuls les messages modèles peuvent être envoyés jusqu'à ce que le client réponde.",
     "sendTemplateAction": "Envoyer un modèle",
+    "newContactTemplateOnly": "Ce contact ne vous a pas encore écrit. Sur WhatsApp, vous devez ouvrir la conversation avec un modèle approuvé — dès qu'il répond, vous pouvez discuter librement pendant 24 heures.",
+    "startConversationAction": "Démarrer avec un modèle",
     "conversion": "Conversion",
     "sentToMeta": "Envoyé à Meta",
     "quantity": "Quantité",

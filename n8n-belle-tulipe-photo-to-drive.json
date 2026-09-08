@@ -1,0 +1,89 @@
+{
+  "meta": { "instanceId": "trt-belle-tulipe-photo" },
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// TRT: extract the required order photo (modele_image, base64) from the WhatsApp\n// Flow response and output it as a binary file named 'data' for Google Drive.\n// If there is no photo (e.g. an old order, or the flow field isn't published yet),\n// photo_found=false and NO binary is produced — the IF node then skips the upload.\nconst body = $input.first().json;\nconst raw = body.modele_image ?? body.data?.modele_image ?? body.response?.modele_image ?? body;\n\nfunction findPhoto(v) {\n  if (!v) return null;\n  if (Array.isArray(v)) { for (const x of v) { const r = findPhoto(x); if (r) return r; } return null; }\n  if (typeof v === 'object') {\n    const b64 = v.base64 || v.data || v.file || v.content || v.image;\n    const name = v.file_name || v.filename || v.name || 'modele.jpg';\n    const mime = v.mime_type || v.mimeType || v.type || 'image/jpeg';\n    if (typeof b64 === 'string' && b64.length > 100) return { b64, name, mime };\n    for (const k in v) { const r = findPhoto(v[k]); if (r) return r; }\n    return null;\n  }\n  if (typeof v === 'string' && v.length > 100 && /^data:|^[A-Za-z0-9+/=\\r\\n]+$/.test(v)) return { b64: v, name: 'modele.jpg', mime: 'image/jpeg' };\n  return null;\n}\n\nconst p = findPhoto(raw);\nif (!p) {\n  return [{ json: { ...body, photo_found: false, photo_public_url: '' } }];\n}\nconst clean = p.b64.replace(/^data:[^;]+;base64,/, '');\nconst fname = `${(body.nom || 'client').toString().replace(/[^\\w-]+/g, '_')}_${(body.telephone || Date.now())}.jpg`;\nreturn [{\n  json: { ...body, photo_found: true, photo_file_name: fname, photo_mime: p.mime },\n  binary: { data: { data: clean, mimeType: p.mime, fileName: fname } }\n}];"
+      },
+      "id": "extract-photo",
+      "name": "Extract photo (base64)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose", "version": 2 },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "has-photo",
+              "leftValue": "={{ $json.photo_found }}",
+              "rightValue": "",
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "has-photo",
+      "name": "Has photo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.photo_file_name }}",
+        "folderId": { "__rl": true, "mode": "id", "value": "PUT_YOUR_DRIVE_FOLDER_ID_HERE" },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "drive-upload",
+      "name": "Upload to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [460, -100],
+      "notesInFlow": true,
+      "notes": "Set your Google Drive credential + a folder for order photos."
+    },
+    {
+      "parameters": {
+        "operation": "share",
+        "fileId": { "__rl": true, "mode": "id", "value": "={{ $json.id }}" },
+        "permissionsUi": {
+          "permissionsValues": { "role": "reader", "type": "anyone", "allowFileDiscovery": false }
+        },
+        "options": {}
+      },
+      "id": "drive-share",
+      "name": "Make photo public",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [680, -100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Carry the public Drive link forward for the Sheet/email.\n// photo_public_url  -> DIRECT image URL that renders in <img> and Sheets =IMAGE()\n// photo_drive_link  -> normal clickable Drive page\nconst up = $items('Upload to Drive')[0]?.json || {};\nconst order = $items('Extract photo (base64)')[0]?.json || {};\nconst id = up.id || '';\nconst direct = id ? `https://drive.google.com/thumbnail?id=${id}&sz=w1000` : '';\nconst page = up.webViewLink || (id ? `https://drive.google.com/file/d/${id}/view` : '');\nreturn [{ json: { ...order, photo_public_url: direct, photo_drive_link: page } }];"
+      },
+      "id": "attach-link",
+      "name": "Attach photo link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, -100]
+    }
+  ],
+  "connections": {
+    "Extract photo (base64)": { "main": [[{ "node": "Has photo?", "type": "main", "index": 0 }]] },
+    "Has photo?": {
+      "main": [
+        [{ "node": "Upload to Drive", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Upload to Drive": { "main": [[{ "node": "Make photo public", "type": "main", "index": 0 }]] },
+    "Make photo public": { "main": [[{ "node": "Attach photo link", "type": "main", "index": 0 }]] }
+  }
+}

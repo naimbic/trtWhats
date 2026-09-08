@@ -455,6 +455,8 @@
     "preview": "Preview",
     "serviceWindowExpired": "The 24-hour messaging window has expired. Only template messages can be sent until the customer replies.",
     "sendTemplateAction": "Send Template",
+    "newContactTemplateOnly": "This contact hasn't messaged you yet. On WhatsApp you must open the conversation with an approved template — after they reply you can chat freely for 24 hours.",
+    "startConversationAction": "Start with Template",
     "conversion": "Conversion",
     "sentToMeta": "Sent to Meta",
     "quantity": "Quantity",

@@ -68,6 +68,7 @@ import {
   Check,
   CheckCheck,
   Clock,
+  MessageSquarePlus,
   AlertCircle,
   User,
   UserPlus,
@@ -268,13 +269,25 @@ onMounted(() => {
 onUnmounted(() => {
   if (serviceWindowTimer) clearInterval(serviceWindowTimer)
 })
-const isServiceWindowExpired = computed(() => {
+// A contact who has NEVER sent us an inbound message. On WhatsApp you cannot
+// free-text such a number at all — the conversation must be opened with an
+// approved template. This is a distinct (and expected) state from a window
+// that expired after a prior conversation, so we show different wording.
+const isNeverMessaged = computed(() => {
   const contact = contactsStore.currentContact
   if (!contact) return false
+  return !contact.last_inbound_at
+})
+// True only when a conversation existed before and its 24h window has since
+// lapsed (customer replied at some point, but >24h ago).
+const isWindowLapsed = computed(() => {
+  const contact = contactsStore.currentContact
+  if (!contact || !contact.last_inbound_at) return false
   const t = nowTick.value // dependency so the computed re-runs each minute
-  if (!contact.last_inbound_at) return contact.service_window_open === false
   return (t - new Date(contact.last_inbound_at).getTime()) >= 24 * 60 * 60 * 1000
 })
+// Free text is blocked (template required) in BOTH cases; the banner text differs.
+const isServiceWindowExpired = computed(() => isNeverMessaged.value || isWindowLapsed.value)
 
 function openTemplatePicker() {
   const btn = templatePickerRef.value?.querySelector('button')
@@ -857,7 +870,7 @@ async function sendMessage() {
   // TRT custom patch #53: the 24h window is closed — free-text will be rejected
   // by WhatsApp. Nudge the agent to a template instead of failing the send.
   if (isServiceWindowExpired.value) {
-    toast.warning(t('chat.serviceWindowExpired'))
+    toast.warning(isNeverMessaged.value ? t('chat.newContactTemplateOnly') : t('chat.serviceWindowExpired'))
     openTemplatePicker()
     return
   }
@@ -2851,9 +2864,21 @@ async function sendAudioBlob(blob: Blob) {
         </ScrollArea>
         </div>
 
-        <!-- Service window expired banner -->
+        <!-- New contact: never messaged us. Neutral/informational, not an error. -->
         <div
-          v-if="isServiceWindowExpired"
+          v-if="isNeverMessaged"
+          class="px-4 py-2.5 border-t border-amber-500/20 bg-amber-500/10 flex items-center gap-2"
+        >
+          <MessageSquarePlus class="h-4 w-4 text-amber-500 shrink-0" />
+          <span class="text-sm text-amber-500 flex-1">{{ $t('chat.newContactTemplateOnly') }}</span>
+          <Button variant="outline" size="sm" class="border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 shrink-0" @click="openTemplatePicker">
+            {{ $t('chat.startConversationAction') }}
+          </Button>
+        </div>
+
+        <!-- Service window expired banner (prior conversation, >24h since last reply) -->
+        <div
+          v-else-if="isWindowLapsed"
           class="px-4 py-2.5 border-t border-red-500/20 bg-red-500/10 flex items-center gap-2"
         >
           <Clock class="h-4 w-4 text-red-500 shrink-0" />

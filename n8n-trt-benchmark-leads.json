@@ -1,0 +1,128 @@
+{
+  "name": "TRT Benchmark Leads (WhatsApp Flow)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trt-benchmark-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trt-bench",
+      "name": "Webhook - Benchmark Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "trt-benchmark-lead"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a1", "name": "lead_id", "value": "={{ 'benchmark_' + $now.toMillis() }}", "type": "string" },
+            { "id": "a2", "name": "timestamp", "value": "={{ $now.toISO() }}", "type": "string" },
+            { "id": "a3", "name": "name", "value": "={{ $json.body.name }}", "type": "string" },
+            { "id": "a4", "name": "email", "value": "={{ ($json.body.email || '').toLowerCase().trim() }}", "type": "string" },
+            { "id": "a5", "name": "company", "value": "={{ $json.body.company }}", "type": "string" },
+            { "id": "a6", "name": "website", "value": "={{ $json.body.website }}", "type": "string" },
+            { "id": "a7", "name": "request_type", "value": "={{ $json.body.request_type }}", "type": "string" },
+            { "id": "a8", "name": "social_links", "value": "={{ $json.body.social_links }}", "type": "string" },
+            { "id": "a9", "name": "goal", "value": "={{ $json.body.goal }}", "type": "string" },
+            { "id": "a10", "name": "phone", "value": "={{ $json.body.phone }}", "type": "string" },
+            { "id": "a11", "name": "source", "value": "={{ $json.body.source || 'whatsapp_benchmark_flow' }}", "type": "string" },
+            { "id": "a12", "name": "status", "value": "new", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "normalize-bench",
+      "name": "Normalize Lead",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"lead_id\": $json.lead_id } }}",
+        "options": {}
+      },
+      "id": "respond-bench",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [460, -220]
+    },
+    {
+      "parameters": {
+        "sendTo": "trtdigital.ma@gmail.com",
+        "subject": "=🆕 Benchmark request — {{ $json.name }} ({{ $json.company }})",
+        "message": "=<h2>New benchmark / estimation request</h2>\n<table cellpadding=\"6\" style=\"border-collapse:collapse\">\n<tr><td><b>Name</b></td><td>{{ $json.name }}</td></tr>\n<tr><td><b>Email</b></td><td>{{ $json.email }}</td></tr>\n<tr><td><b>Company</b></td><td>{{ $json.company }}</td></tr>\n<tr><td><b>Website</b></td><td>{{ $json.website }}</td></tr>\n<tr><td><b>What they need</b></td><td>{{ $json.request_type }}</td></tr>\n<tr><td><b>Social links</b></td><td>{{ $json.social_links }}</td></tr>\n<tr><td><b>Goal</b></td><td>{{ $json.goal }}</td></tr>\n<tr><td><b>WhatsApp</b></td><td>{{ $json.phone }}</td></tr>\n<tr><td><b>Source</b></td><td>{{ $json.source }}</td></tr>\n</table>",
+        "options": {}
+      },
+      "id": "gmail-bench",
+      "name": "Email Notify",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [460, -60],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "YOUR_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "gid=0", "mode": "list", "cachedResultName": "Leads" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $json.lead_id }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "name": "={{ $json.name }}",
+            "email": "={{ $json.email }}",
+            "company": "={{ $json.company }}",
+            "website": "={{ $json.website }}",
+            "request_type": "={{ $json.request_type }}",
+            "social_links": "={{ $json.social_links }}",
+            "goal": "={{ $json.goal }}",
+            "phone": "={{ $json.phone }}",
+            "source": "={{ $json.source }}",
+            "status": "={{ $json.status }}"
+          },
+          "matchingColumns": ["lead_id"]
+        },
+        "options": {}
+      },
+      "id": "sheets-bench",
+      "name": "Append to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [460, 100],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🆕 *Benchmark request*\n👤 {{ $json.name }} — {{ $json.company }}\n✉️ {{ $json.email }}\n🌐 {{ $json.website }}\n📱 {{ $json.phone }}\n🎯 {{ $json.request_type }}\n🔗 {{ $json.social_links }}\n📝 {{ $json.goal }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "telegram-bench",
+      "name": "Telegram Notify",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [460, 260],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Webhook - Benchmark Lead": { "main": [[{ "node": "Normalize Lead", "type": "main", "index": 0 }]] },
+    "Normalize Lead": {
+      "main": [[
+        { "node": "Respond OK", "type": "main", "index": 0 },
+        { "node": "Email Notify", "type": "main", "index": 0 },
+        { "node": "Append to Google Sheet", "type": "main", "index": 0 },
+        { "node": "Telegram Notify", "type": "main", "index": 0 }
+      ]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
