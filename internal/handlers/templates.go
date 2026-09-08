@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
@@ -449,7 +450,10 @@ func (a *App) submitTemplateToMeta(account *models.WhatsAppAccount, template *mo
 		CodeExpirationMinutes:     template.CodeExpirationMinutes,
 	}
 
-	ctx := context.Background()
+	// TRT custom patch #58: bound the Meta call so a slow/hanging submit returns a
+	// clear error instead of hanging the HTTP request until the gateway 502s.
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
 	return a.WhatsApp.SubmitTemplate(ctx, waAccount, submission)
 }
 
@@ -704,7 +708,9 @@ func (a *App) SeedBusinessTemplates(r *fastglue.Request) error {
 func (a *App) fetchTemplatesFromMeta(account *models.WhatsAppAccount) ([]whatsapp.MetaTemplate, error) {
 	waAccount := a.toWhatsAppAccount(account)
 
-	ctx := context.Background()
+	// TRT custom patch #58: bound the Meta call (see submitTemplateToMeta).
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
 	return a.WhatsApp.FetchTemplates(ctx, waAccount)
 }
 
