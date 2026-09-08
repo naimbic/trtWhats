@@ -463,7 +463,8 @@
     "convLocked": "Déjà envoyé — la valeur est verrouillée pour éviter les conversions en double.",
     "fromCtwaAd": "Vient d'une publicité Click-to-WhatsApp — peut être envoyé à Meta",
     "notFromCtwaAd": "Ne vient pas d'une publicité Click-to-WhatsApp — Meta ne peut pas l'attribuer, donc non envoyé",
-    "orderPending": "Nouvelle commande à traiter"
+    "orderPending": "Nouvelle commande à traiter",
+    "noTemplatesHint": "Les modèles approuvés pour ce numéro apparaissent ici. Créez-les ou resynchronisez-les dans Paramètres → Modèles."
   },
   "contacts": {
     "title": "Contacts",

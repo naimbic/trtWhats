@@ -463,7 +463,8 @@
     "convLocked": "Already sent — value is locked to avoid duplicate conversions.",
     "fromCtwaAd": "From a Click-to-WhatsApp ad — can be sent to Meta",
     "notFromCtwaAd": "Not from a Click-to-WhatsApp ad — Meta can't attribute this, so it won't be sent",
-    "orderPending": "New order to process"
+    "orderPending": "New order to process",
+    "noTemplatesHint": "Approved templates for this number appear here. Create or re-sync them in Settings → Templates."
   },
   "contacts": {
     "title": "Contacts",

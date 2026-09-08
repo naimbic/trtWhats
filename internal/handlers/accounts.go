@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"sort"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/crypto"
@@ -327,17 +328,18 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 	// conversation rows so the name-based model stays consistent. Scoped by org +
 	// old name; a pure relabel (no data loss), and uses idx_messages_account.
 	if oldAccount.Name != "" && oldAccount.Name != account.Name {
-		if err := a.DB.Model(&models.Message{}).
-			Where("organization_id = ? AND whats_app_account = ?", orgID, oldAccount.Name).
-			Update("whats_app_account", account.Name).Error; err != nil {
-			a.Log.Error("Failed to propagate account rename to messages", "error", err, "old", oldAccount.Name, "new", account.Name)
+		// TRT custom patch #54: relabel EVERY name-coupled table so nothing is
+		// orphaned by a rename — messages, contacts, templates, keyword rules, flows.
+		for _, m := range []interface{}{&models.Message{}, &models.Contact{}, &models.Template{}, &models.KeywordRule{}, &models.ChatbotFlow{}} {
+			if err := a.DB.Model(m).
+				Where("organization_id = ? AND whats_app_account = ?", orgID, oldAccount.Name).
+				Update("whats_app_account", account.Name).Error; err != nil {
+				a.Log.Error("Failed to propagate account rename", "error", err, "old", oldAccount.Name, "new", account.Name)
+			}
 		}
-		if err := a.DB.Model(&models.Contact{}).
-			Where("organization_id = ? AND whats_app_account = ?", orgID, oldAccount.Name).
-			Update("whats_app_account", account.Name).Error; err != nil {
-			a.Log.Error("Failed to propagate account rename to contacts", "error", err, "old", oldAccount.Name, "new", account.Name)
-		}
-		a.Log.Info("Propagated account rename to conversations", "old", oldAccount.Name, "new", account.Name, "org", orgID)
+		a.InvalidateKeywordRulesCache(orgID)
+		a.InvalidateChatbotFlowsCache(orgID)
+		a.Log.Info("Propagated account rename across name-coupled tables", "old", oldAccount.Name, "new", account.Name, "org", orgID)
 	}
 
 	// Invalidate cache
@@ -379,17 +381,33 @@ func (a *App) OrphanedNumberNames(r *fastglue.Request) error {
 		Name  string `json:"name"`
 		Count int64  `json:"count"`
 	}
-	var rows []orphan
-	q := a.DB.Model(&models.Message{}).
-		Where("organization_id = ? AND whats_app_account <> ''", orgID)
-	if len(current) > 0 {
-		q = q.Where("whats_app_account NOT IN ?", current)
+	// TRT custom patch #54: collect orphaned names from EVERY name-coupled table
+	// (messages, templates, keyword rules, flows), not just messages — otherwise a
+	// rename that was already reconciled for messages would hide still-orphaned
+	// templates, and the chat template picker (filtered by the current name) would
+	// keep coming up empty with no way to fix it.
+	counts := map[string]int64{}
+	scan := func(table string) {
+		var rows []orphan
+		q := a.DB.Table(table).Where("organization_id = ? AND whats_app_account <> ''", orgID)
+		if len(current) > 0 {
+			q = q.Where("whats_app_account NOT IN ?", current)
+		}
+		q.Select("whats_app_account AS name, COUNT(*) AS count").Group("whats_app_account").Scan(&rows)
+		for _, row := range rows {
+			counts[row.Name] += row.Count
+		}
 	}
-	if err := q.Select("whats_app_account AS name, COUNT(*) AS count").
-		Group("whats_app_account").Order("count DESC").Scan(&rows).Error; err != nil {
-		a.Log.Error("OrphanedNumberNames: query failed", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to load orphaned names", nil, "")
+	scan("messages")
+	scan("templates")
+	scan("keyword_rules")
+	scan("chatbot_flows")
+
+	rows := make([]orphan, 0, len(counts))
+	for name, c := range counts {
+		rows = append(rows, orphan{Name: name, Count: c})
 	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Count > rows[j].Count })
 	return r.SendEnvelope(map[string]any{"orphans": rows})
 }
 
@@ -421,18 +439,29 @@ func (a *App) AdoptNumberName(r *fastglue.Request) error {
 	if body.FromName == account.Name {
 		return r.SendEnvelope(map[string]any{"updated": 0, "new_name": account.Name})
 	}
-	res := a.DB.Model(&models.Message{}).
-		Where("organization_id = ? AND whats_app_account = ?", orgID, body.FromName).
-		Update("whats_app_account", account.Name)
-	if res.Error != nil {
-		a.Log.Error("AdoptNumberName: relabel messages failed", "error", res.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to reassign conversations", nil, "")
+	// TRT custom patch #54: relabel EVERY table that references an account by name
+	// (not just messages/contacts) — templates, keyword rules and flows too — so a
+	// rename doesn't orphan e.g. the message templates (which the chat picker filters
+	// by the current number name). Org-scoped pure relabel.
+	relabel := func(model interface{}) int64 {
+		res := a.DB.Model(model).
+			Where("organization_id = ? AND whats_app_account = ?", orgID, body.FromName).
+			Update("whats_app_account", account.Name)
+		if res.Error != nil {
+			a.Log.Error("AdoptNumberName: relabel failed", "error", res.Error, "from", body.FromName)
+		}
+		return res.RowsAffected
 	}
-	a.DB.Model(&models.Contact{}).
-		Where("organization_id = ? AND whats_app_account = ?", orgID, body.FromName).
-		Update("whats_app_account", account.Name)
-	a.Log.Info("Adopted old number name", "from", body.FromName, "to", account.Name, "org", orgID, "messages", res.RowsAffected, "by", userID)
-	return r.SendEnvelope(map[string]any{"updated": res.RowsAffected, "new_name": account.Name})
+	msgs := relabel(&models.Message{})
+	relabel(&models.Contact{})
+	tpls := relabel(&models.Template{})
+	relabel(&models.KeywordRule{})
+	relabel(&models.ChatbotFlow{})
+	// Refresh caches so the target account picks up the reassigned rules/flows.
+	a.InvalidateKeywordRulesCache(orgID)
+	a.InvalidateChatbotFlowsCache(orgID)
+	a.Log.Info("Adopted old number name", "from", body.FromName, "to", account.Name, "org", orgID, "messages", msgs, "templates", tpls, "by", userID)
+	return r.SendEnvelope(map[string]any{"updated": msgs + tpls, "new_name": account.Name})
 }
 
 // DeleteAccount deletes a WhatsApp account

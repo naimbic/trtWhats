@@ -134,8 +134,10 @@ function selectTemplate(tpl: any) {
           <Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
 
-        <div v-else-if="filteredTemplates.length === 0" class="py-8 text-center text-muted-foreground text-sm">
-          {{ t('chat.noApprovedTemplates') }}
+        <div v-else-if="filteredTemplates.length === 0" class="py-8 px-4 text-center text-muted-foreground text-sm space-y-1">
+          <p>{{ t('chat.noApprovedTemplates') }}</p>
+          <p v-if="selectedAccount" class="text-xs opacity-70">{{ selectedAccount }}</p>
+          <p class="text-xs opacity-70">{{ t('chat.noTemplatesHint', 'Approved templates for this number appear here. Create or re-sync them in Settings → Templates.') }}</p>
         </div>
 
         <div v-else class="p-2">
