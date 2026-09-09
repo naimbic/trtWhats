@@ -319,13 +319,18 @@ function getHeaderIcon(type: string) {
   <div class="flex flex-col h-full bg-[#0a0a0b] light:bg-gray-50">
     <PageHeader :title="$t('templates.title')" :subtitle="$t('templates.subtitle')" :icon="FileText" icon-gradient="bg-gradient-to-br from-blue-500 to-cyan-600 shadow-blue-500/20">
       <template #actions>
-        <Button variant="outline" size="sm" @click="syncTemplates" :disabled="isSyncing || !selectedAccount || selectedAccount === 'all'">
+        <!-- TRT custom patch #60: these act on ONE number, so they stayed greyed on
+             the "All" view with no explanation (looked broken). Keep them clickable
+             and let the handler prompt to pick a number; a tooltip explains it too. -->
+        <Button variant="outline" size="sm" @click="syncTemplates" :disabled="isSyncing"
+                :title="selectedAccount === 'all' ? $t('templates.selectAccountFirst') : ''">
           <Loader2 v-if="isSyncing" class="h-4 w-4 mr-2 animate-spin" />
           <RefreshCw v-else class="h-4 w-4 mr-2" />
           {{ $t('templates.syncFromMeta') }}
         </Button>
         <!-- TRT custom patch #56: seed FR + Darija business templates -->
-        <Button variant="outline" size="sm" @click="seedBusinessTemplates" :disabled="isSeeding || !selectedAccount || selectedAccount === 'all'">
+        <Button variant="outline" size="sm" @click="seedBusinessTemplates" :disabled="isSeeding"
+                :title="selectedAccount === 'all' ? $t('templates.selectAccountFirst') : ''">
           <Loader2 v-if="isSeeding" class="h-4 w-4 mr-2 animate-spin" />
           <FileText v-else class="h-4 w-4 mr-2" />
           {{ $t('templates.addBusinessTemplates', 'Add business templates') }}
@@ -442,7 +447,8 @@ function getHeaderIcon(type: string) {
                 </template>
                 <template #empty-action>
                   <div class="flex items-center justify-center gap-2">
-                    <Button variant="outline" size="sm" @click="syncTemplates" :disabled="!selectedAccount || selectedAccount === 'all'">
+                    <Button variant="outline" size="sm" @click="syncTemplates" :disabled="isSyncing"
+                            :title="selectedAccount === 'all' ? $t('templates.selectAccountFirst') : ''">
                       <RefreshCw class="h-4 w-4 mr-2" />
                       {{ $t('templates.syncFromMeta') }}
                     </Button>
