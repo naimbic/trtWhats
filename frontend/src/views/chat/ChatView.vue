@@ -1531,6 +1531,36 @@ function shouldShowDateSeparator(index: number): boolean {
   return currentDate.toDateString() !== prevDate.toDateString()
 }
 
+// TRT custom patch #60: make URLs in incoming/outgoing message text clickable. Messages are
+// untrusted user input, so we HTML-escape everything first and only wrap real http(s)/www URLs
+// in anchor tags (escaped href, no javascript: scheme possible, opens in a new tab). The result
+// is rendered with v-html on the message text spans below.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function linkifyMessage(text: string): string {
+  if (!text) return ''
+  const urlRe = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,;:!?)\]}'"])/gi
+  let out = ''
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = urlRe.exec(text)) !== null) {
+    out += escapeHtml(text.slice(last, m.index))
+    const url = m[0]
+    const href = url.toLowerCase().startsWith('www.') ? `https://${url}` : url
+    out += `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer nofollow" class="chat-link">${escapeHtml(url)}</a>`
+    last = m.index + url.length
+  }
+  out += escapeHtml(text.slice(last))
+  return out
+}
+
 function getMessageContent(message: Message): string {
   if (message.message_type === 'text') {
     return message.content?.body || ''
@@ -2682,11 +2712,12 @@ async function sendAudioBlob(blob: Blob) {
                 </div>
                 <!-- Button reply - WhatsApp style -->
                 <div v-if="message.message_type === 'button_reply'" class="button-reply-bubble">
-                  <span class="whitespace-pre-wrap break-words">{{ getMessageContent(message) }}</span>
+                  <!-- TRT custom patch #60: clickable URLs -->
+                  <span class="whitespace-pre-wrap break-words" v-html="linkifyMessage(getMessageContent(message))"></span>
                   <span class="chat-bubble-time"><span>{{ formatMessageTime(message.created_at) }}</span></span>
                 </div>
                 <!-- Text content (for text messages or captions) -->
-                <span v-else-if="getMessageContent(message)" class="whitespace-pre-wrap break-words">{{ getMessageContent(message) }}<span class="chat-bubble-time"><span>{{ formatMessageTime(message.created_at) }}</span><component v-if="message.direction === 'outgoing'" :is="getMessageStatusIcon(message.status)" :class="['h-4 w-4 status-icon', getMessageStatusClass(message.status)]" /></span></span>
+                <span v-else-if="getMessageContent(message)" class="whitespace-pre-wrap break-words"><span v-html="linkifyMessage(getMessageContent(message))"></span><span class="chat-bubble-time"><span>{{ formatMessageTime(message.created_at) }}</span><component v-if="message.direction === 'outgoing'" :is="getMessageStatusIcon(message.status)" :class="['h-4 w-4 status-icon', getMessageStatusClass(message.status)]" /></span></span>
                 <!-- Fallback for media without URL -->
                 <span v-else-if="isMediaMessage(message) && !message.media_url" class="text-muted-foreground italic">[{{ message.message_type.charAt(0).toUpperCase() + message.message_type.slice(1) }}]<span class="chat-bubble-time"><span>{{ formatMessageTime(message.created_at) }}</span><component v-if="message.direction === 'outgoing'" :is="getMessageStatusIcon(message.status)" :class="['h-4 w-4 status-icon', getMessageStatusClass(message.status)]" /></span></span>
                 <!-- Interactive buttons - WhatsApp style -->
@@ -3303,6 +3334,17 @@ async function sendAudioBlob(blob: Blob) {
 </template>
 
 <style scoped>
+/* TRT custom patch #60: clickable links inside message bubbles (v-html content needs :deep). */
+:deep(.chat-link) {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500;
+  word-break: break-all;
+}
+:deep(.chat-link:hover) {
+  opacity: 0.85;
+}
 .sticky-date-enter-active,
 .sticky-date-leave-active {
   transition: opacity 0.3s ease;
