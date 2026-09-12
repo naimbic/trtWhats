@@ -469,7 +469,8 @@
     "noTemplatesHint": "القوالب المعتمدة لهاد الرقم كتبان هنا. صاوبها ولا عاود زامنها من الإعدادات → القوالب.",
     "sendToAmeex": "صيفط ل Ameex",
     "ameexSent": "تصيفط ل Ameex",
-    "ameexFailed": "ما تصيفطش ل Ameex"
+    "ameexFailed": "ما تصيفطش ل Ameex",
+    "resultsCount": "{count} نتيجة"
   },
   "contacts": {
     "title": "جهات الاتصال",

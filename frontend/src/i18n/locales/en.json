@@ -469,7 +469,8 @@
     "noTemplatesHint": "Approved templates for this number appear here. Create or re-sync them in Settings → Templates.",
     "sendToAmeex": "Send to Ameex",
     "ameexSent": "Sent to Ameex",
-    "ameexFailed": "Ameex send failed"
+    "ameexFailed": "Ameex send failed",
+    "resultsCount": "{count} results"
   },
   "contacts": {
     "title": "Contacts",

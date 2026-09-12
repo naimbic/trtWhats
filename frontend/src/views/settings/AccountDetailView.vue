@@ -641,8 +641,7 @@ onMounted(async () => {
           <Label>{{ $t('accounts.ameexEnabled', 'Activer Ameex') }}</Label>
           <Switch :checked="form.ameex_enabled" @update:checked="form.ameex_enabled = $event" :disabled="!canWrite" />
         </div>
-        <template>
-          <div class="space-y-2">
+        <div class="space-y-2">
             <Label>{{ $t('accounts.ameexApiId', 'C-Api-Id') }}</Label>
             <Input v-model="form.ameex_api_id" :disabled="!canWrite" placeholder="C-Api-Id" />
           </div>
@@ -656,7 +655,6 @@ onMounted(async () => {
             <Input v-model="form.ameex_webhook_secret" type="password" :disabled="!canWrite" :placeholder="(account as any)?.has_ameex_webhook_secret ? '••••••••' : ''" />
             <p class="text-xs text-muted-foreground">{{ $t('accounts.ameexWebhookUrl', 'URL webhook à configurer chez Ameex :') }} <code class="text-[11px]">{{ ameexWebhookUrl }}</code></p>
           </div>
-        </template>
         <div v-if="canWrite" class="flex justify-end pt-1">
           <Button size="sm" :disabled="savingAmeex" @click="saveAmeex">
             <Loader2 v-if="savingAmeex" class="h-4 w-4 mr-2 animate-spin" />

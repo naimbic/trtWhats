@@ -469,7 +469,8 @@
     "noTemplatesHint": "Les modèles approuvés pour ce numéro apparaissent ici. Créez-les ou resynchronisez-les dans Paramètres → Modèles.",
     "sendToAmeex": "Envoyer vers Ameex",
     "ameexSent": "Envoyé vers Ameex",
-    "ameexFailed": "Échec de l'envoi Ameex"
+    "ameexFailed": "Échec de l'envoi Ameex",
+    "resultsCount": "{count} résultats"
   },
   "contacts": {
     "title": "Contacts",

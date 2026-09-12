@@ -469,7 +469,8 @@
     "noTemplatesHint": "تظهر هنا القوالب المعتمدة لهذا الرقم. أنشئها أو أعد مزامنتها من الإعدادات → القوالب.",
     "sendToAmeex": "إرسال إلى Ameex",
     "ameexSent": "تم الإرسال إلى Ameex",
-    "ameexFailed": "فشل الإرسال إلى Ameex"
+    "ameexFailed": "فشل الإرسال إلى Ameex",
+    "resultsCount": "{count} نتيجة"
   },
   "contacts": {
     "title": "جهات الاتصال",

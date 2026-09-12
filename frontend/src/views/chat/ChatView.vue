@@ -2276,6 +2276,19 @@ async function sendAudioBlob(blob: Blob) {
         </button>
       </div>
 
+      <!-- TRT custom patch #64: result count when a filter (tag/search/date) is active -->
+      <div
+        v-if="contactsStore.selectedTags.length > 0 || contactsStore.searchQuery || dateRangePreset !== 'all'"
+        class="px-3 py-1.5 text-xs font-medium text-white/60 light:text-gray-500 border-b border-white/[0.06] light:border-gray-100 flex items-center justify-between"
+      >
+        <span>{{ $t('chat.resultsCount', { count: contactsStore.contactsTotal }) }}</span>
+        <button
+          v-if="contactsStore.selectedTags.length > 0"
+          class="text-primary hover:underline"
+          @click="clearTagFilter"
+        >{{ $t('common.clear') }}</button>
+      </div>
+
       <!-- Contacts -->
       <ScrollArea :ref="(el: any) => contactsScroll.scrollAreaRef.value = el" orientation="vertical" class="flex-1">
         <div class="py-1 w-full">
