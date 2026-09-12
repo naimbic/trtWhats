@@ -301,7 +301,7 @@ function openTemplatePicker() {
 const isAddContactOpen = ref(false)
 // TRT custom patch #62: when opened from an open session, prefill phone + name
 // (and the number/account) from the current contact; still editable in the dialog.
-const addContactPrefill = ref<{ phone_number?: string; profile_name?: string; whatsapp_account?: string }>({})
+const addContactPrefill = ref<{ phone_number?: string; profile_name?: string; whatsapp_account?: string; conversion_quantity?: number | null; conversion_value?: number | null; tags?: string[] }>({})
 
 function openAddContactDialog() {
   const c = contactsStore.currentContact as any
@@ -310,6 +310,9 @@ function openAddContactDialog() {
         phone_number: c.phone_number || '',
         profile_name: c.profile_name || c.name || '',
         whatsapp_account: c.whatsapp_account || '',
+        conversion_quantity: c.conversion_quantity ?? null,
+        conversion_value: c.conversion_value ?? null,
+        tags: Array.isArray(c.tags) ? c.tags : [],
       }
     : {}
   isAddContactOpen.value = true

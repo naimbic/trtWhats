@@ -616,7 +616,7 @@ onMounted(async () => {
           <Label>{{ $t('accounts.ameexEnabled', 'Activer Ameex') }}</Label>
           <Switch :checked="form.ameex_enabled" @update:checked="form.ameex_enabled = $event" :disabled="!canWrite" />
         </div>
-        <template v-if="form.ameex_enabled">
+        <template>
           <div class="space-y-2">
             <Label>{{ $t('accounts.ameexApiId', 'C-Api-Id') }}</Label>
             <Input v-model="form.ameex_api_id" :disabled="!canWrite" placeholder="C-Api-Id" />

@@ -24,7 +24,7 @@ interface Props {
   open: boolean
   // TRT custom patch #62: prefill from an open chat session (phone/name/account),
   // still fully editable in the dialog.
-  prefill?: { phone_number?: string; profile_name?: string; whatsapp_account?: string }
+  prefill?: { phone_number?: string; profile_name?: string; whatsapp_account?: string; conversion_quantity?: number | null; conversion_value?: number | null; tags?: string[] }
 }
 
 const props = defineProps<Props>()
@@ -65,6 +65,9 @@ watch(() => props.open, (isOpen) => {
       phone_number: props.prefill?.phone_number ?? '',
       profile_name: props.prefill?.profile_name ?? '',
       whatsapp_account: props.prefill?.whatsapp_account ?? '',
+      conversion_quantity: props.prefill?.conversion_quantity ?? null,
+      conversion_value: props.prefill?.conversion_value ?? null,
+      tags: Array.isArray(props.prefill?.tags) ? [...props.prefill!.tags] : [],
     }
     fetchTags()
     fetchAccounts()

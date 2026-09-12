@@ -1803,36 +1803,50 @@ func (a *App) CreateContact(r *fastglue.Request) error {
 	var existingContact models.Contact
 	if err := a.DB.Unscoped().Where("organization_id = ? AND phone_number = ?", orgID, normalizedPhone).First(&existingContact).Error; err == nil {
 		// Contact exists
+		// TRT custom patch #62/#63: the number is already a contact — update its
+		// delivery/conversion details in place (restore if soft-deleted) instead of 409,
+		// so courier fields (address/city/quantity/value) are saved and Send-to-Ameex works.
 		if existingContact.DeletedAt.Valid {
-			// Restore soft-deleted contact
 			a.DB.Unscoped().Model(&existingContact).Update("deleted_at", nil)
 			existingContact.DeletedAt.Valid = false
-			// Update fields
-			updates := map[string]any{}
-			if req.ProfileName != "" {
-				updates["profile_name"] = req.ProfileName
-			}
-			if req.WhatsAppAccount != "" {
-				updates["whats_app_account"] = req.WhatsAppAccount
-			}
-			if req.Tags != nil {
-				tagsArray := make(models.JSONBArray, len(req.Tags))
-				for i, tag := range req.Tags {
-					tagsArray[i] = tag
-				}
-				updates["tags"] = tagsArray
-			}
-			if req.Metadata != nil {
-				updates["metadata"] = models.JSONB(req.Metadata)
-			}
-			if len(updates) > 0 {
-				a.DB.Model(&existingContact).Updates(updates)
-			}
-			// Reload contact
-			a.DB.First(&existingContact, existingContact.ID)
-			return r.SendEnvelope(a.buildContactResponse(&existingContact, orgID))
 		}
-		return r.SendErrorEnvelope(fasthttp.StatusConflict, "Contact with this phone number already exists", nil, "")
+		updates := map[string]any{}
+		if req.ProfileName != "" {
+			updates["profile_name"] = req.ProfileName
+		}
+		if req.WhatsAppAccount != "" {
+			updates["whats_app_account"] = req.WhatsAppAccount
+		}
+		if req.Tags != nil {
+			tagsArray := make(models.JSONBArray, len(req.Tags))
+			for i, tag := range req.Tags {
+				tagsArray[i] = tag
+			}
+			updates["tags"] = tagsArray
+		}
+		if req.Metadata != nil {
+			updates["metadata"] = models.JSONB(req.Metadata)
+		}
+		if req.Address != "" {
+			updates["address"] = req.Address
+		}
+		if req.City != "" {
+			updates["city"] = req.City
+		}
+		if req.AmeexCityID > 0 {
+			updates["ameex_city_id"] = req.AmeexCityID
+		}
+		if req.ConversionQuantity > 0 {
+			updates["conversion_quantity"] = req.ConversionQuantity
+		}
+		if req.ConversionValue > 0 {
+			updates["conversion_value"] = req.ConversionValue
+		}
+		if len(updates) > 0 {
+			a.DB.Model(&existingContact).Updates(updates)
+		}
+		a.DB.First(&existingContact, existingContact.ID)
+		return r.SendEnvelope(a.buildContactResponse(&existingContact, orgID))
 	}
 
 	// Create new contact
