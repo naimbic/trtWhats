@@ -24,7 +24,7 @@ interface Props {
   open: boolean
   // TRT custom patch #62: prefill from an open chat session (phone/name/account),
   // still fully editable in the dialog.
-  prefill?: { phone_number?: string; profile_name?: string; whatsapp_account?: string; conversion_quantity?: number | null; conversion_value?: number | null; tags?: string[] }
+  prefill?: { phone_number?: string; profile_name?: string; whatsapp_account?: string; conversion_quantity?: number | null; conversion_value?: number | null; tags?: string[]; address?: string; city?: string; ameex_city_id?: number | null }
 }
 
 const props = defineProps<Props>()
@@ -68,6 +68,11 @@ watch(() => props.open, (isOpen) => {
       conversion_quantity: props.prefill?.conversion_quantity ?? null,
       conversion_value: props.prefill?.conversion_value ?? null,
       tags: Array.isArray(props.prefill?.tags) ? [...props.prefill!.tags] : [],
+      // TRT custom patch #62: also prefill previously-saved delivery details so the
+      // agent can see this client was already added (and edit rather than re-enter).
+      address: props.prefill?.address ?? '',
+      city: props.prefill?.city ?? '',
+      ameex_city_id: props.prefill?.ameex_city_id ?? null,
     }
     fetchTags()
     fetchAccounts()

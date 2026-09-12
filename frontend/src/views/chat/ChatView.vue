@@ -319,7 +319,7 @@ function openTemplatePicker() {
 const isAddContactOpen = ref(false)
 // TRT custom patch #62: when opened from an open session, prefill phone + name
 // (and the number/account) from the current contact; still editable in the dialog.
-const addContactPrefill = ref<{ phone_number?: string; profile_name?: string; whatsapp_account?: string; conversion_quantity?: number | null; conversion_value?: number | null; tags?: string[] }>({})
+const addContactPrefill = ref<{ phone_number?: string; profile_name?: string; whatsapp_account?: string; conversion_quantity?: number | null; conversion_value?: number | null; tags?: string[]; address?: string; city?: string; ameex_city_id?: number | null }>({})
 
 function openAddContactDialog() {
   const c = contactsStore.currentContact as any
@@ -331,10 +331,23 @@ function openAddContactDialog() {
         conversion_quantity: c.conversion_quantity ?? null,
         conversion_value: c.conversion_value ?? null,
         tags: Array.isArray(c.tags) ? c.tags : [],
+        // TRT custom patch #62: carry back previously-saved delivery details so the
+        // popup shows what was already entered instead of blank fields.
+        address: c.address || '',
+        city: c.city || '',
+        ameex_city_id: c.ameex_city_id ?? null,
       }
     : {}
   isAddContactOpen.value = true
 }
+
+// TRT custom patch #62: the open client already has delivery/conversion details saved
+// (address, Ameex city, or an order value) — show a check on the Add-Contact button.
+const currentContactSaved = computed(() => {
+  const c = contactsStore.currentContact as any
+  if (!c) return false
+  return !!(c.address || Number(c.ameex_city_id) > 0 || Number(c.conversion_value) > 0)
+})
 
 async function onContactCreated(contact: any) {
   // Refresh contacts and select the new one
@@ -2038,13 +2051,20 @@ async function sendAudioBlob(blob: Blob) {
                 variant="ghost"
                 size="icon"
                 :aria-label="$t('chat.addContact')"
-                class="h-8 w-8 shrink-0 text-white/40 hover:text-white hover:bg-white/[0.08] light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100"
+                class="h-8 w-8 shrink-0 relative text-white/40 hover:text-white hover:bg-white/[0.08] light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100"
                 @click="openAddContactDialog"
               >
                 <UserPlus class="h-4 w-4" />
+                <!-- TRT custom patch #62: already saved with delivery details -->
+                <span
+                  v-if="currentContactSaved"
+                  class="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center ring-2 ring-[#111b21] light:ring-white"
+                >
+                  <Check class="h-2.5 w-2.5" />
+                </span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{{ $t('chat.addContact') }}</TooltipContent>
+            <TooltipContent>{{ currentContactSaved ? $t('chat.contactSaved', 'Already saved as contact — click to view/edit') : $t('chat.addContact') }}</TooltipContent>
           </Tooltip>
           <!-- Tag Filter -->
           <Popover v-model:open="isTagFilterOpen">

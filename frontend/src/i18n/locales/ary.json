@@ -470,6 +470,10 @@
     "sendToAmeex": "صيفط ل Ameex",
     "ameexSent": "تصيفط ل Ameex",
     "ameexFailed": "ما تصيفطش ل Ameex",
+    "ameexNeedsBoth": "زيد أولاً مدينة التوصيل وقيمة الطلب (من إضافة جهة اتصال).",
+    "ameexNeedsCity": "زيد أولاً مدينة التوصيل (من إضافة جهة اتصال).",
+    "ameexNeedsValue": "زيد أولاً قيمة الطلب.",
+    "contactSaved": "مسجّل من قبل كجهة اتصال — كليكي باش تشوف/تبدّل",
     "resultsCount": "{count} نتيجة"
   },
   "contacts": {

@@ -470,6 +470,10 @@
     "sendToAmeex": "Send to Ameex",
     "ameexSent": "Sent to Ameex",
     "ameexFailed": "Ameex send failed",
+    "ameexNeedsBoth": "Add the delivery city and order value first (via Add contact).",
+    "ameexNeedsCity": "Add the delivery city first (via Add contact).",
+    "ameexNeedsValue": "Add the order value first.",
+    "contactSaved": "Already saved as contact — click to view/edit",
     "resultsCount": "{count} results"
   },
   "contacts": {

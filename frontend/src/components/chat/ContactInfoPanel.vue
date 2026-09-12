@@ -121,8 +121,13 @@ const isSendingAmeex = ref(false)
 const ameexParcelCode = computed(() => (props.contact as any)?.ameex_parcel_code || '')
 const ameexStatus = computed(() => (props.contact as any)?.ameex_status || '')
 const ameexStatusName = computed(() => (props.contact as any)?.ameex_status_name || '')
+// TRT custom patch #63: the button only turns green (and becomes clickable) once the
+// contact has everything Ameex needs — a delivery city and a saved order value.
+const ameexHasCity = computed(() => Number((props.contact as any)?.ameex_city_id || 0) > 0)
+const ameexHasValue = computed(() => Number(props.contact.conversion_value || convValue.value || 0) > 0)
+const ameexReady = computed(() => ameexHasCity.value && ameexHasValue.value)
 async function sendToAmeex() {
-  if (isSendingAmeex.value) return
+  if (isSendingAmeex.value || !ameexReady.value) return
   isSendingAmeex.value = true
   try {
     const res = await contactsService.sendToAmeex(props.contact.id)
@@ -481,10 +486,30 @@ async function updateContactTags(tags: string[]) {
                 <span class="font-medium">Ameex:</span> {{ ameexStatusName || ameexStatus || 'CREATED' }}
                 <span class="text-muted-foreground">· {{ ameexParcelCode }}</span>
               </div>
-              <Button v-else size="sm" variant="outline" class="w-full h-8" :disabled="isSendingAmeex" @click="sendToAmeex">
-                <Loader2 v-if="isSendingAmeex" class="h-3.5 w-3.5 mr-1 animate-spin" />
-                {{ $t('chat.sendToAmeex', 'Send to Ameex') }}
-              </Button>
+              <template v-else>
+                <Button
+                  size="sm"
+                  class="w-full h-8"
+                  :class="ameexReady
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                    : 'bg-muted text-muted-foreground border border-border cursor-not-allowed hover:bg-muted'"
+                  :disabled="isSendingAmeex || !ameexReady"
+                  @click="sendToAmeex"
+                >
+                  <Loader2 v-if="isSendingAmeex" class="h-3.5 w-3.5 mr-1 animate-spin" />
+                  {{ $t('chat.sendToAmeex', 'Send to Ameex') }}
+                </Button>
+                <p v-if="!ameexReady" class="mt-1 text-[11px] text-amber-500 flex items-start gap-1">
+                  <AlertCircle class="h-3 w-3 mt-0.5 shrink-0" />
+                  <span>
+                    {{ !ameexHasCity && !ameexHasValue
+                      ? $t('chat.ameexNeedsBoth', 'Add the delivery city and order value first (via Add contact).')
+                      : !ameexHasCity
+                        ? $t('chat.ameexNeedsCity', 'Add the delivery city first (via Add contact).')
+                        : $t('chat.ameexNeedsValue', 'Add the order value first.') }}
+                  </span>
+                </p>
+              </template>
             </div>
           </div>
         </div>

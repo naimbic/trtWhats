@@ -470,6 +470,10 @@
     "sendToAmeex": "Envoyer vers Ameex",
     "ameexSent": "Envoyé vers Ameex",
     "ameexFailed": "Échec de l'envoi Ameex",
+    "ameexNeedsBoth": "Ajoutez d'abord la ville de livraison et la valeur de la commande (via Ajouter un contact).",
+    "ameexNeedsCity": "Ajoutez d'abord la ville de livraison (via Ajouter un contact).",
+    "ameexNeedsValue": "Ajoutez d'abord la valeur de la commande.",
+    "contactSaved": "Déjà enregistré comme contact — cliquez pour voir/modifier",
     "resultsCount": "{count} résultats"
   },
   "contacts": {
