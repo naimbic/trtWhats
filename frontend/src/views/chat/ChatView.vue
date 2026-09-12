@@ -350,6 +350,19 @@ const currentContactSaved = computed(() => {
 })
 
 async function onContactCreated(contact: any) {
+  // TRT custom patch #62: if this contact is already open, patch it in place so the
+  // saved city/value/quantity show immediately and the "Send to Ameex" button can
+  // enable — currentContact is a cached ref that fetchContacts alone won't refresh.
+  if (contact?.id) {
+    contactsStore.applyContactDetails(contact.id, {
+      address: contact.address,
+      city: contact.city,
+      ameex_city_id: contact.ameex_city_id,
+      conversion_quantity: contact.conversion_quantity,
+      conversion_value: contact.conversion_value,
+      tags: Array.isArray(contact.tags) ? contact.tags : undefined,
+    } as any)
+  }
   // Refresh contacts and select the new one
   await contactsStore.fetchContacts()
   if (contact?.id) {

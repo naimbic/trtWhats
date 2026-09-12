@@ -436,6 +436,21 @@ export const useContactsStore = defineStore('contacts', () => {
     }
   }
 
+  // TRT custom patch #62: after the Add-Contact dialog saves delivery/conversion
+  // details for a contact that is already open, patch the cached list object AND
+  // currentContact in place. Without this, currentContact keeps pointing at the
+  // stale object (selectContact reuses it), so the saved city/value/quantity would
+  // not appear in the panel and the "Send to Ameex" button would stay disabled.
+  function applyContactDetails(contactId: string, patch: Partial<Contact>) {
+    const contact = contacts.value.find(c => c.id === contactId)
+    if (contact) {
+      Object.assign(contact, patch)
+    }
+    if (currentContact.value?.id === contactId) {
+      currentContact.value = { ...currentContact.value, ...patch }
+    }
+  }
+
   // TRT custom patch #32: update a single contact in the list from a realtime
   // (WebSocket) message, in place — instead of refetching the whole list on
   // every message. Returns false when the contact isn't in the current
@@ -530,6 +545,7 @@ export const useContactsStore = defineStore('contacts', () => {
     clearReplyingTo,
     updateMessageReactions,
     applyConversionUpdate,
+    applyContactDetails,
     updateContactTags,
     applyRealtimeContactUpdate,
     markContactReadLocal,

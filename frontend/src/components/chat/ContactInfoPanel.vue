@@ -149,6 +149,18 @@ watch(() => props.contact.id, () => {
   convSentAt.value = props.contact.meta_conversion_sent_at || null
 })
 
+// TRT custom patch #62: keep the Conversion box in sync when the quantity/value are
+// saved elsewhere for the SAME contact (e.g. from the Add-Contact popup). Without
+// this the box would stay empty because the contact id didn't change.
+watch(
+  () => [props.contact.conversion_quantity, props.contact.conversion_value],
+  ([q, v]) => {
+    if (convSentAt.value) return // locked once sent to Meta
+    if (q != null) convQuantity.value = q as number
+    if (v != null) convValue.value = v as number
+  }
+)
+
 async function saveConversion() {
   if (isSavingConversion.value) return
   isSavingConversion.value = true
