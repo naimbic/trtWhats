@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -153,21 +154,22 @@ func parseAmeexCities(raw []byte) []ameexCity {
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		return nil
 	}
-	// Accept either a bare array or a wrapper containing one.
-	var arr []any
-	switch t := decoded.(type) {
+	// Ameex actually returns: {"login":"success","api":{"cities":{"1":{id,name},...}}}
+	// i.e. the cities live under "api" and are a MAP keyed by id, not an array.
+	// Be liberal: descend common wrappers to find a "cities"/"villes" node, then
+	// accept it as either an array or an id-keyed map.
+	node := findCitiesNode(decoded)
+	var items []any
+	switch t := node.(type) {
 	case []any:
-		arr = t
+		items = t
 	case map[string]any:
-		for _, wrap := range []string{"data", "cities", "result", "villes"} {
-			if inner, ok := t[wrap].([]any); ok {
-				arr = inner
-				break
-			}
+		for _, v := range t {
+			items = append(items, v)
 		}
 	}
-	out := make([]ameexCity, 0, len(arr))
-	for _, item := range arr {
+	out := make([]ameexCity, 0, len(items))
+	for _, item := range items {
 		m, ok := item.(map[string]any)
 		if !ok {
 			continue
@@ -179,7 +181,31 @@ func parseAmeexCities(raw []byte) []ameexCity {
 			out = append(out, ameexCity{ID: id, Name: name})
 		}
 	}
+	// Stable, id-ascending order (the map form has no inherent order).
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
+}
+
+// findCitiesNode locates the cities collection, descending "api"/"data"/"result"
+// wrappers. Returns the array or id-keyed map that holds the city objects.
+func findCitiesNode(v any) any {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return v // already an array (or nothing useful)
+	}
+	for k, val := range m {
+		if strings.EqualFold(k, "cities") || strings.EqualFold(k, "villes") {
+			return val
+		}
+	}
+	for _, wrap := range []string{"api", "data", "result"} {
+		if inner, ok := m[wrap]; ok {
+			if found := findCitiesNode(inner); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
 }
 
 // resolveAmeexAccount picks the account from ?account=Name or the space's default.
