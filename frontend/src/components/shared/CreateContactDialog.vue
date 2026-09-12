@@ -21,6 +21,9 @@ const tagsStore = useTagsStore()
 
 interface Props {
   open: boolean
+  // TRT custom patch #62: prefill from an open chat session (phone/name/account),
+  // still fully editable in the dialog.
+  prefill?: { phone_number?: string; profile_name?: string; whatsapp_account?: string }
 }
 
 const props = defineProps<Props>()
@@ -34,9 +37,16 @@ interface ContactFormData {
   profile_name: string
   whatsapp_account: string
   tags: string[]
+  address: string
+  city: string
+  conversion_quantity: number | null
+  conversion_value: number | null
 }
 
-const defaultFormData: ContactFormData = { phone_number: '', profile_name: '', whatsapp_account: '', tags: [] }
+const defaultFormData: ContactFormData = {
+  phone_number: '', profile_name: '', whatsapp_account: '', tags: [],
+  address: '', city: '', conversion_quantity: null, conversion_value: null,
+}
 
 const formData = ref<ContactFormData>({ ...defaultFormData })
 const isSubmitting = ref(false)
@@ -46,7 +56,12 @@ const availableAccounts = ref<{ id: string; name: string; phone_number: string }
 
 watch(() => props.open, (isOpen) => {
   if (isOpen) {
-    formData.value = { ...defaultFormData }
+    formData.value = {
+      ...defaultFormData,
+      phone_number: props.prefill?.phone_number ?? '',
+      profile_name: props.prefill?.profile_name ?? '',
+      whatsapp_account: props.prefill?.whatsapp_account ?? '',
+    }
     fetchTags()
     fetchAccounts()
   }
@@ -83,7 +98,11 @@ async function saveContact() {
       phone_number: formData.value.phone_number.trim(),
       profile_name: formData.value.profile_name.trim() || undefined,
       whatsapp_account: formData.value.whatsapp_account || undefined,
-      tags: formData.value.tags.length > 0 ? formData.value.tags : undefined
+      tags: formData.value.tags.length > 0 ? formData.value.tags : undefined,
+      address: formData.value.address.trim() || undefined,
+      city: formData.value.city.trim() || undefined,
+      conversion_quantity: formData.value.conversion_quantity != null ? Number(formData.value.conversion_quantity) : undefined,
+      conversion_value: formData.value.conversion_value != null ? Number(formData.value.conversion_value) : undefined,
     })
     const contact = response.data?.data || response.data
     toast.success(t('common.createdSuccess', { resource: t('resources.Contact') }))
@@ -138,6 +157,25 @@ function closeDialog() {
         <div class="space-y-2">
           <Label>{{ $t('contacts.profileName') }}</Label>
           <Input v-model="formData.profile_name" :placeholder="$t('contacts.namePlaceholder')" />
+        </div>
+        <!-- TRT custom patch #62: delivery + conversion details (for courier hand-off) -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-2 col-span-2">
+            <Label>{{ $t('contacts.address') }}</Label>
+            <Input v-model="formData.address" :placeholder="$t('contacts.addressPlaceholder')" />
+          </div>
+          <div class="space-y-2">
+            <Label>{{ $t('contacts.city') }}</Label>
+            <Input v-model="formData.city" :placeholder="$t('contacts.cityPlaceholder')" />
+          </div>
+          <div class="space-y-2">
+            <Label>{{ $t('contacts.conversionQuantity') }}</Label>
+            <Input v-model="formData.conversion_quantity" type="number" min="0" step="1" placeholder="0" />
+          </div>
+          <div class="space-y-2 col-span-2">
+            <Label>{{ $t('contacts.conversionValue') }}</Label>
+            <Input v-model="formData.conversion_value" type="number" min="0" step="0.01" placeholder="0" />
+          </div>
         </div>
         <div v-if="availableAccounts.length > 0" class="space-y-2">
           <Label>{{ $t('contacts.whatsappAccount') }}</Label>

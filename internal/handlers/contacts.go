@@ -44,6 +44,8 @@ type ContactResponse struct {
 	// TRT custom patch #36: agent-entered order details for the Meta conversion.
 	ConversionQuantity   int        `json:"conversion_quantity"`
 	ConversionValue      float64    `json:"conversion_value"`
+	Address              string     `json:"address"`
+	City                 string     `json:"city"`
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
 	OrderPending         bool       `json:"order_pending"` // TRT #44: orange "order to process" bubble
 	CreatedAt          time.Time  `json:"created_at"`
@@ -240,6 +242,8 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 			MarketingOptOut:    c.MarketingOptOut,
 			ConversionQuantity:   c.ConversionQuantity,
 			ConversionValue:      c.ConversionValue,
+			Address:              c.Address,
+			City:                 c.City,
 			MetaConversionSentAt: c.MetaConversionSentAt,
 			OrderPending:         c.OrderPending,
 			CreatedAt:          c.CreatedAt,
@@ -1752,6 +1756,11 @@ type CreateContactRequest struct {
 	WhatsAppAccount string         `json:"whatsapp_account"`
 	Tags            []string       `json:"tags"`
 	Metadata        map[string]any `json:"metadata"`
+	// TRT custom patch #62: delivery + conversion details for saved converted clients.
+	Address            string  `json:"address"`
+	City               string  `json:"city"`
+	ConversionQuantity int     `json:"conversion_quantity"`
+	ConversionValue    float64 `json:"conversion_value"`
 }
 
 // CreateContact creates a new contact or restores a soft-deleted one
@@ -1819,11 +1828,15 @@ func (a *App) CreateContact(r *fastglue.Request) error {
 
 	// Create new contact
 	contact := models.Contact{
-		BaseModel:       models.BaseModel{ID: uuid.New()},
-		OrganizationID:  orgID,
-		PhoneNumber:     normalizedPhone,
-		ProfileName:     req.ProfileName,
-		WhatsAppAccount: req.WhatsAppAccount,
+		BaseModel:          models.BaseModel{ID: uuid.New()},
+		OrganizationID:     orgID,
+		PhoneNumber:        normalizedPhone,
+		ProfileName:        req.ProfileName,
+		WhatsAppAccount:    req.WhatsAppAccount,
+		Address:            req.Address,
+		City:               req.City,
+		ConversionQuantity: req.ConversionQuantity,
+		ConversionValue:    req.ConversionValue,
 	}
 
 	if req.Tags != nil {
@@ -2020,6 +2033,8 @@ func (a *App) buildContactResponse(contact *models.Contact, orgID uuid.UUID) Con
 		MarketingOptOut:    contact.MarketingOptOut,
 		ConversionQuantity:   contact.ConversionQuantity,
 		ConversionValue:      contact.ConversionValue,
+		Address:              contact.Address,
+		City:                 contact.City,
 		MetaConversionSentAt: contact.MetaConversionSentAt,
 		OrderPending:         contact.OrderPending,
 		CreatedAt:          contact.CreatedAt,

@@ -512,7 +512,13 @@
     "searchTags": "Rechercher des étiquettes...",
     "noTagsFound": "Aucune étiquette trouvée",
     "whatsappAccount": "Compte WhatsApp",
-    "selectAccount": "Sélectionnez un compte..."
+    "selectAccount": "Sélectionnez un compte...",
+    "address": "Adresse",
+    "addressPlaceholder": "Rue, immeuble, etc.",
+    "city": "Ville",
+    "cityPlaceholder": "Ville",
+    "conversionQuantity": "Quantité commandée",
+    "conversionValue": "Montant de la commande"
   },
   "importExport": {
     "title": "Importer/Exporter {resource}",

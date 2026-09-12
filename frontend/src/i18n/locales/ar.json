@@ -512,7 +512,13 @@
     "searchTags": "بحث في الأوسمة...",
     "noTagsFound": "لم يتم العثور على أوسمة",
     "whatsappAccount": "حساب واتساب",
-    "selectAccount": "اختر الحساب..."
+    "selectAccount": "اختر الحساب...",
+    "address": "العنوان",
+    "addressPlaceholder": "الشارع، العمارة، إلخ.",
+    "city": "المدينة",
+    "cityPlaceholder": "المدينة",
+    "conversionQuantity": "كمية الطلب",
+    "conversionValue": "قيمة الطلب"
   },
   "importExport": {
     "title": "استيراد/تصدير {resource}",

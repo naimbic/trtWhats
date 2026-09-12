@@ -512,7 +512,13 @@
     "searchTags": "قلّب فالأوسمة...",
     "noTagsFound": "ما لقينا حتى وسم",
     "whatsappAccount": "حساب WhatsApp",
-    "selectAccount": "ختار الحساب..."
+    "selectAccount": "ختار الحساب...",
+    "address": "العنوان",
+    "addressPlaceholder": "الزنقة، العمارة...",
+    "city": "المدينة",
+    "cityPlaceholder": "المدينة",
+    "conversionQuantity": "الكمية",
+    "conversionValue": "الثمن ديال الطلب"
   },
   "importExport": {
     "title": "استيراد/تصدير {resource}",

@@ -382,6 +382,10 @@ type Contact struct {
 	// conversion to Meta once (MetaConversionSentAt dedups the send).
 	ConversionQuantity int        `gorm:"default:0" json:"conversion_quantity"`
 	ConversionValue    float64    `gorm:"default:0" json:"conversion_value"`
+	// TRT custom patch #62: delivery details captured when saving a converted client
+	// as a contact (for hand-off to the courier, e.g. Ameex).
+	Address string `gorm:"size:500" json:"address"`
+	City    string `gorm:"size:255" json:"city"`
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
 	// TRT custom patch #44: an unhandled order (orange bubble). Set true when the
 	// customer submits the order form; cleared when a human agent replies.

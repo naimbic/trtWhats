@@ -512,7 +512,13 @@
     "searchTags": "Search tags...",
     "noTagsFound": "No tags found",
     "whatsappAccount": "WhatsApp Account",
-    "selectAccount": "Select account..."
+    "selectAccount": "Select account...",
+    "address": "Address",
+    "addressPlaceholder": "Street, building, etc.",
+    "city": "City",
+    "cityPlaceholder": "City",
+    "conversionQuantity": "Order quantity",
+    "conversionValue": "Order value"
   },
   "importExport": {
     "title": "Import/Export {resource}",
