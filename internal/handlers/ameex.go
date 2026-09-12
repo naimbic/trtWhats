@@ -136,6 +136,15 @@ func (a *App) GetAmeexCities(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Ameex cities request failed", nil, "")
 	}
 	cities := parseAmeexCities(raw)
+	a.Log.Info("ameex: cities fetched", "account", acc.Name, "count", len(cities), "status", status,
+		"sandbox", strings.HasPrefix(key, "test_"))
+	if len(cities) == 0 {
+		snippet := raw
+		if len(snippet) > 600 {
+			snippet = snippet[:600]
+		}
+		a.Log.Warn("ameex: cities empty — check response shape", "body", string(snippet))
+	}
 	return r.SendEnvelope(map[string]any{"cities": cities})
 }
 
@@ -209,6 +218,8 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 	if err != nil {
 		return nil
 	}
+	a.Log.Info("ameex: send requested", "contact_id", contact.ID, "city_id", contact.AmeexCityID,
+		"city", contact.City, "cod", contact.ConversionValue)
 
 	var req struct {
 		Account  string `json:"account"`
@@ -241,8 +252,31 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 	if len(phone) < 9 {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Contact phone must have at least 9 digits", nil, "")
 	}
-	if contact.AmeexCityID <= 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Select the contact's Ameex city first", nil, "")
+	// Resolve the delivery city id. Prefer the stored numeric id (picked from the
+	// dropdown); otherwise match the free-typed city name against Ameex's list so
+	// agents who typed the city instead of selecting it can still send.
+	cityID := contact.AmeexCityID
+	if cityID <= 0 && strings.TrimSpace(contact.City) != "" {
+		if raw, status, cerr := a.ameexRequest(http.MethodGet, "/Delivery/Cities", apiID, apiKey, nil); cerr == nil && status >= 200 && status < 300 {
+			want := strings.ToLower(strings.TrimSpace(contact.City))
+			for _, c := range parseAmeexCities(raw) {
+				if strings.ToLower(strings.TrimSpace(c.Name)) == want {
+					cityID = c.ID
+					break
+				}
+			}
+		} else {
+			a.Log.Error("ameex: city lookup failed", "status", status, "err", cerr)
+		}
+		if cityID > 0 {
+			// Persist so the dropdown shows it next time and we skip the lookup.
+			a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).Update("ameex_city_id", cityID)
+			contact.AmeexCityID = cityID
+		}
+	}
+	if cityID <= 0 {
+		a.Log.Warn("ameex: no city id for contact", "contact_id", contact.ID, "city", contact.City)
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Couldn't match the delivery city \""+contact.City+"\" to an Ameex city — pick it from the city dropdown in Add contact.", nil, "")
 	}
 	if contact.ConversionValue <= 0 {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Order value (COD) is required", nil, "")
@@ -258,7 +292,7 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 	form.Set("type", "SIMPLE")
 	form.Set("receiver", receiver)
 	form.Set("phone", phone)
-	form.Set("city", strconv.Itoa(contact.AmeexCityID))
+	form.Set("city", strconv.Itoa(cityID))
 	form.Set("cod", strconv.FormatFloat(contact.ConversionValue, 'f', -1, 64))
 	if contact.Address != "" {
 		form.Set("address", contact.Address)
@@ -272,7 +306,7 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 	form.Set("order_num", orderNum)
 
 	a.Log.Info("ameex: creating parcel", "contact_id", contact.ID, "account", acc.Name,
-		"city_id", contact.AmeexCityID, "cod", contact.ConversionValue, "phone", phone,
+		"city_id", cityID, "cod", contact.ConversionValue, "phone", phone,
 		"sandbox", strings.HasPrefix(apiKey, "test_"))
 	raw, status, err := a.ameexRequest(http.MethodPost, "/Delivery/Parcels/Action/Type/Add", apiID, apiKey, form)
 	if err != nil || status >= 400 {

@@ -123,7 +123,12 @@ const ameexStatus = computed(() => (props.contact as any)?.ameex_status || '')
 const ameexStatusName = computed(() => (props.contact as any)?.ameex_status_name || '')
 // TRT custom patch #63: the button only turns green (and becomes clickable) once the
 // contact has everything Ameex needs — a delivery city and a saved order value.
-const ameexHasCity = computed(() => Number((props.contact as any)?.ameex_city_id || 0) > 0)
+// City counts whether it's a picked Ameex id OR free-typed text — the backend
+// resolves a typed city name to its Ameex id at send time.
+const ameexHasCity = computed(() =>
+  Number((props.contact as any)?.ameex_city_id || 0) > 0 ||
+  !!String((props.contact as any)?.city || '').trim()
+)
 const ameexHasValue = computed(() => Number(props.contact.conversion_value || convValue.value || 0) > 0)
 const ameexReady = computed(() => ameexHasCity.value && ameexHasValue.value)
 async function sendToAmeex() {
