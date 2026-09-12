@@ -139,7 +139,12 @@ function statusBubble(contact: any): { bg: string; label: string; cart: boolean 
   // The bubble strictly follows the contact's CURRENT tags — no tag, no bubble.
   // (order_pending only gates whether an already-tagged, still-unhandled chat
   // shows it; it never invents a bubble on its own.)
-  if (!contact?.order_pending || !Array.isArray(contact.tags) || contact.tags.length === 0) return null
+  if (!Array.isArray(contact.tags) || contact.tags.length === 0) return null
+  // TRT custom patch #61b: a Converted client ALWAYS shows the orange cart, whether or
+  // not order_pending is still set (it's cleared once an agent replies, but the order
+  // stands). Other tags' dots only appear while the order is still unhandled.
+  if (contact.tags.includes(CONVERTED_TAG)) return { bg: '#f97316', label: CONVERTED_TAG, cart: true }
+  if (!contact.order_pending) return null
   // Last-added tag that resolves to a known tag wins ("whenever a tag is added,
   // the bubble takes that tag's colour").
   for (let i = contact.tags.length - 1; i >= 0; i--) {
@@ -165,6 +170,19 @@ const statusBubbles = computed(() => {
   }
   return m
 })
+
+// TRT custom patch #61c/#64: reliable tag colours (dynamic Tailwind classes get purged,
+// so use the actual hex) + a light row/pill tint at ~10% opacity.
+function tagHex(color?: string): string {
+  return TAG_SOLID[color || 'gray'] || TAG_SOLID.gray
+}
+function tagTint(color?: string): string {
+  return tagHex(color) + '1a'
+}
+function rowTint(contactId: string): Record<string, string> {
+  const b = statusBubbles.value[contactId]
+  return b ? { backgroundColor: b.bg + '1a' } : {}
+}
 
 const messageInput = ref('')
 const messagesEndRef = ref<HTMLElement | null>(null)
@@ -2065,11 +2083,12 @@ async function sendAudioBlob(blob: Blob) {
                   <button
                     v-for="tag in tagsStore.tags"
                     :key="tag.name"
-                    class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-white/[0.08] light:hover:bg-gray-100 transition-colors"
-                    :class="contactsStore.selectedTags.includes(tag.name) && 'bg-white/[0.08] light:bg-gray-100'"
+                    class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-[filter] hover:brightness-125"
+                    :class="contactsStore.selectedTags.includes(tag.name) && 'ring-1 ring-inset ring-white/25'"
+                    :style="{ backgroundColor: tagTint(tag.color) }"
                     @click="toggleTagFilter(tag.name)"
                   >
-                    <span :class="['w-2 h-2 rounded-full shrink-0', getTagColorClass(tag.color).split(' ')[0]]" />
+                    <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: tagHex(tag.color) }" />
                     <span class="flex-1 text-left truncate">{{ tag.name }}</span>
                     <Check
                       v-if="contactsStore.selectedTags.includes(tag.name)"
@@ -2264,9 +2283,11 @@ async function sendAudioBlob(blob: Blob) {
             v-for="contact in contactsStore.sortedContacts"
             :key="contact.id"
             :class="[
-              'flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-white/[0.04] light:hover:bg-gray-50 transition-colors',
-              contactsStore.currentContact?.id === contact.id && 'bg-white/[0.08] light:bg-gray-100'
+              'flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors',
+              statusBubbles[contact.id] ? 'hover:brightness-110' : 'hover:bg-white/[0.04] light:hover:bg-gray-50',
+              contactsStore.currentContact?.id === contact.id && (statusBubbles[contact.id] ? 'ring-1 ring-inset ring-white/25 light:ring-black/10' : 'bg-white/[0.08] light:bg-gray-100')
             ]"
+            :style="rowTint(contact.id)"
             @click="handleContactClick(contact)"
           >
             <Avatar class="h-9 w-9 ring-2 ring-white/[0.1] light:ring-gray-200">
