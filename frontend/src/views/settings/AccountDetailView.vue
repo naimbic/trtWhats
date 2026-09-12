@@ -115,7 +115,32 @@ const { showLeaveDialog, confirmLeave, cancelLeave } = useUnsavedChangesGuard(ha
 const canWrite = computed(() => authStore.hasPermission('accounts', 'write'))
 const canDelete = computed(() => authStore.hasPermission('accounts', 'delete'))
 
+const AMEEX_MASK = '••••••••'
 const ameexWebhookUrl = `${window.location.origin}/api/ameex/webhook`
+const savingAmeex = ref(false)
+async function saveAmeex() {
+  if (!account.value?.id) return
+  savingAmeex.value = true
+  try {
+    const payload: any = {
+      ameex_enabled: form.value.ameex_enabled,
+      ameex_api_id: form.value.ameex_api_id,
+    }
+    // Only send secrets when actually changed (not the •••• placeholder).
+    if (form.value.ameex_api_key && form.value.ameex_api_key !== AMEEX_MASK) payload.ameex_api_key = form.value.ameex_api_key
+    if (form.value.ameex_webhook_secret && form.value.ameex_webhook_secret !== AMEEX_MASK) payload.ameex_webhook_secret = form.value.ameex_webhook_secret
+    const res = await accountsService.updateAmeex(account.value.id, payload)
+    account.value = (res.data as any)?.data || res.data
+    // Re-mask the fields to show they are set.
+    form.value.ameex_api_key = (account.value as any)?.has_ameex_api_key ? AMEEX_MASK : ''
+    form.value.ameex_webhook_secret = (account.value as any)?.has_ameex_webhook_secret ? AMEEX_MASK : ''
+    toast.success(t('accounts.ameexSaved', 'Ameex settings saved'))
+  } catch (e) {
+    toast.error(getErrorMessage(e, t('common.failedSave', 'Failed to save')))
+  } finally {
+    savingAmeex.value = false
+  }
+}
 
 const form = ref({
   name: '',
@@ -190,8 +215,8 @@ function syncForm() {
     meta_capi_enabled: account.value.meta_capi_enabled ?? false,
     ameex_enabled: (account.value as any).ameex_enabled ?? false,
     ameex_api_id: (account.value as any).ameex_api_id ?? '',
-    ameex_api_key: '',
-    ameex_webhook_secret: '',
+    ameex_api_key: (account.value as any).has_ameex_api_key ? AMEEX_MASK : '',
+    ameex_webhook_secret: (account.value as any).has_ameex_webhook_secret ? AMEEX_MASK : '',
     meta_dataset_id: account.value.meta_dataset_id || '',
     meta_page_id: account.value.meta_page_id || '',
     meta_access_token: '',
@@ -632,6 +657,12 @@ onMounted(async () => {
             <p class="text-xs text-muted-foreground">{{ $t('accounts.ameexWebhookUrl', 'URL webhook à configurer chez Ameex :') }} <code class="text-[11px]">{{ ameexWebhookUrl }}</code></p>
           </div>
         </template>
+        <div v-if="canWrite" class="flex justify-end pt-1">
+          <Button size="sm" :disabled="savingAmeex" @click="saveAmeex">
+            <Loader2 v-if="savingAmeex" class="h-4 w-4 mr-2 animate-spin" />
+            {{ $t('accounts.saveAmeex', 'Enregistrer Ameex') }}
+          </Button>
+        </div>
       </CardContent>
     </Card>
 

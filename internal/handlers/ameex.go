@@ -271,6 +271,9 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 	}
 	form.Set("order_num", orderNum)
 
+	a.Log.Info("ameex: creating parcel", "contact_id", contact.ID, "account", acc.Name,
+		"city_id", contact.AmeexCityID, "cod", contact.ConversionValue, "phone", phone,
+		"sandbox", strings.HasPrefix(apiKey, "test_"))
 	raw, status, err := a.ameexRequest(http.MethodPost, "/Delivery/Parcels/Action/Type/Add", apiID, apiKey, form)
 	if err != nil || status >= 400 {
 		a.Log.Error("ameex create parcel failed", "status", status, "err", err, "body", string(raw))
@@ -285,6 +288,8 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Ameex accepted the parcel but returned no code", nil, "")
 	}
 
+	a.Log.Info("ameex: parcel created", "contact_id", contact.ID, "parcel_code", code,
+		"sandbox", strings.HasPrefix(apiKey, "test_"))
 	now := time.Now()
 	updates := map[string]any{
 		"ameex_parcel_code": code,
@@ -429,4 +434,54 @@ func ameexVerifySignature(header string, rawBody []byte, secret string) bool {
 	mac.Write([]byte(ts + "." + string(rawBody)))
 	expected := hex.EncodeToString(mac.Sum(nil))
 	return hmac.Equal([]byte(expected), []byte(v1))
+}
+
+// ---- Dedicated Ameex settings save (doesn't touch other account settings) ----
+
+// UpdateAmeexSettings updates ONLY the Ameex fields on a number, so saving Ameex
+// can't clobber the Meta/webhook settings by mistake. Empty key/secret = keep current.
+// PUT /api/accounts/{id}/ameex
+func (a *App) UpdateAmeexSettings(r *fastglue.Request) error {
+	orgID, _, err := a.requireAuth(r, models.ResourceAccounts, models.ActionWrite)
+	if err != nil {
+		return nil
+	}
+	id, err := parsePathUUID(r, "id", "account")
+	if err != nil {
+		return nil
+	}
+	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	if err != nil {
+		return nil
+	}
+	var req struct {
+		AmeexEnabled       bool   `json:"ameex_enabled"`
+		AmeexApiID         string `json:"ameex_api_id"`
+		AmeexApiKey        string `json:"ameex_api_key"`
+		AmeexWebhookSecret string `json:"ameex_webhook_secret"`
+	}
+	if err := a.decodeRequest(r, &req); err != nil {
+		return nil
+	}
+	account.AmeexEnabled = req.AmeexEnabled
+	account.AmeexApiID = req.AmeexApiID
+	if req.AmeexApiKey != "" {
+		enc, e := crypto.Encrypt(req.AmeexApiKey, a.Config.App.EncryptionKey)
+		if e != nil {
+			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save Ameex key", nil, "")
+		}
+		account.AmeexApiKey = enc
+	}
+	if req.AmeexWebhookSecret != "" {
+		enc, e := crypto.Encrypt(req.AmeexWebhookSecret, a.Config.App.EncryptionKey)
+		if e != nil {
+			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save Ameex webhook secret", nil, "")
+		}
+		account.AmeexWebhookSecret = enc
+	}
+	if err := a.DB.Save(account).Error; err != nil {
+		a.Log.Error("ameex: failed to save settings", "err", err)
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save Ameex settings", nil, "")
+	}
+	return r.SendEnvelope(accountToResponse(*account))
 }

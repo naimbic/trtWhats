@@ -2285,7 +2285,7 @@ async function sendAudioBlob(blob: Blob) {
             :class="[
               'flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors',
               statusBubbles[contact.id] ? 'hover:brightness-110' : 'hover:bg-white/[0.04] light:hover:bg-gray-50',
-              contactsStore.currentContact?.id === contact.id && (statusBubbles[contact.id] ? 'ring-1 ring-inset ring-white/25 light:ring-black/10' : 'bg-white/[0.08] light:bg-gray-100')
+              contactsStore.currentContact?.id === contact.id && !statusBubbles[contact.id] && 'bg-white/[0.08] light:bg-gray-100'
             ]"
             :style="rowTint(contact.id)"
             @click="handleContactClick(contact)"

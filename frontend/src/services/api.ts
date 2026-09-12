@@ -192,7 +192,10 @@ export const accountsService = {
     api.post<{ updated: number; new_name: string }>(`/accounts/${id}/adopt-name`, { from_name: fromName }),
   // TRT custom patch #63: Ameex courier city list for the address form.
   ameexCities: (account?: string) =>
-    api.get<{ cities: { id: number; name: string }[] }>('/ameex/cities', { params: account ? { account } : {} })
+    api.get<{ cities: { id: number; name: string }[] }>('/ameex/cities', { params: account ? { account } : {} }),
+  // TRT custom patch #63: save ONLY the Ameex settings for a number.
+  updateAmeex: (id: string, data: { ameex_enabled: boolean; ameex_api_id: string; ameex_api_key?: string; ameex_webhook_secret?: string }) =>
+    api.put(`/accounts/${id}/ameex`, data)
 }
 
 export const contactsService = {
