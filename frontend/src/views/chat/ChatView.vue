@@ -144,11 +144,14 @@ function statusBubble(contact: any): { bg: string; label: string; cart: boolean 
   // the bubble takes that tag's colour").
   for (let i = contact.tags.length - 1; i >= 0; i--) {
     const name = contact.tags[i]
+    // TRT custom patch #61: the Converted "order" tag is always the orange cart
+    // (hard-coded colour, no tag object needed). Return it WITHOUT gating on
+    // tagsStore.getTagByName — otherwise the cart wouldn't appear the moment the
+    // tag is applied if the tag list hadn't loaded yet, only after another tag
+    // op refetched the tags. Other tags still need their configured colour.
+    if (name === CONVERTED_TAG) return { bg: '#f97316', label: name, cart: true }
     const tag = tagsStore.getTagByName(name)
     if (tag) {
-      // The Converted "order" tag is always the orange cart (there is no orange
-      // in the tag palette); every other tag uses its own configured colour.
-      if (name === CONVERTED_TAG) return { bg: '#f97316', label: name, cart: true }
       return { bg: TAG_SOLID[tag.color || 'gray'] || TAG_SOLID.gray, label: name, cart: false }
     }
   }
@@ -296,8 +299,19 @@ function openTemplatePicker() {
 
 // Add contact dialog state
 const isAddContactOpen = ref(false)
+// TRT custom patch #62: when opened from an open session, prefill phone + name
+// (and the number/account) from the current contact; still editable in the dialog.
+const addContactPrefill = ref<{ phone_number?: string; profile_name?: string; whatsapp_account?: string }>({})
 
 function openAddContactDialog() {
+  const c = contactsStore.currentContact as any
+  addContactPrefill.value = c
+    ? {
+        phone_number: c.phone_number || '',
+        profile_name: c.profile_name || c.name || '',
+        whatsapp_account: c.whatsapp_account || '',
+      }
+    : {}
   isAddContactOpen.value = true
 }
 
@@ -3322,7 +3336,7 @@ async function sendAudioBlob(blob: Blob) {
     </Dialog>
 
     <!-- Add Contact Dialog -->
-    <CreateContactDialog v-model:open="isAddContactOpen" @created="onContactCreated" />
+    <CreateContactDialog v-model:open="isAddContactOpen" :prefill="addContactPrefill" @created="onContactCreated" />
 
     <!-- In-app media viewer (lightbox) -->
     <MediaViewerDialog
