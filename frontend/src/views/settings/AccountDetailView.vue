@@ -115,6 +115,8 @@ const { showLeaveDialog, confirmLeave, cancelLeave } = useUnsavedChangesGuard(ha
 const canWrite = computed(() => authStore.hasPermission('accounts', 'write'))
 const canDelete = computed(() => authStore.hasPermission('accounts', 'delete'))
 
+const ameexWebhookUrl = `${window.location.origin}/api/ameex/webhook`
+
 const form = ref({
   name: '',
   app_id: '',
@@ -130,6 +132,10 @@ const form = ref({
   business_calling_enabled: false,
   // TRT custom patch #35: per-space Meta offline-conversion settings.
   meta_capi_enabled: false,
+  ameex_enabled: false,
+  ameex_api_id: '',
+  ameex_api_key: '',
+  ameex_webhook_secret: '',
   meta_dataset_id: '',
   meta_page_id: '',
   meta_access_token: '',
@@ -182,6 +188,10 @@ function syncForm() {
     auto_read_receipt: account.value.auto_read_receipt,
     business_calling_enabled: account.value.business_calling_enabled ?? false,
     meta_capi_enabled: account.value.meta_capi_enabled ?? false,
+    ameex_enabled: (account.value as any).ameex_enabled ?? false,
+    ameex_api_id: (account.value as any).ameex_api_id ?? '',
+    ameex_api_key: '',
+    ameex_webhook_secret: '',
     meta_dataset_id: account.value.meta_dataset_id || '',
     meta_page_id: account.value.meta_page_id || '',
     meta_access_token: '',
@@ -208,6 +218,8 @@ async function save() {
     if (!isNew.value && !payload.app_secret) delete payload.app_secret
     // Empty Meta token on update keeps the existing one.
     if (!payload.meta_access_token) delete payload.meta_access_token
+    if (!payload.ameex_api_key) delete payload.ameex_api_key
+    if (!payload.ameex_webhook_secret) delete payload.ameex_webhook_secret
     // meta_default_value comes from a text input — coerce to a number.
     payload.meta_default_value = Number(payload.meta_default_value) || 0
 
@@ -588,6 +600,38 @@ onMounted(async () => {
           <Input v-model="form.meta_test_event_code" placeholder="TEST12345" :disabled="!canWrite" />
           <p class="text-[11px] text-muted-foreground mt-1">{{ $t('accounts.metaTestEventCodeHint', 'Set while testing to see events under Events Manager → Test Events. Clear it to go live.') }}</p>
         </div>
+      </CardContent>
+    </Card>
+
+    <!-- Ameex Courier Card (TRT patch #63) -->
+    <Card>
+      <CardHeader>
+        <CardTitle class="text-sm font-medium">{{ $t('accounts.ameexTitle', 'Ameex (livraison / courier)') }}</CardTitle>
+        <p class="text-xs text-muted-foreground mt-1">
+          {{ $t('accounts.ameexDesc', 'Envoyez les clients convertis vers Ameex comme colis à livrer. Une clé test_ utilise le sandbox ; la clé live passe en production. Ces identifiants sont propres à ce numéro/espace.') }}
+        </p>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <div class="flex items-center justify-between">
+          <Label>{{ $t('accounts.ameexEnabled', 'Activer Ameex') }}</Label>
+          <Switch :checked="form.ameex_enabled" @update:checked="form.ameex_enabled = $event" :disabled="!canWrite" />
+        </div>
+        <template v-if="form.ameex_enabled">
+          <div class="space-y-2">
+            <Label>{{ $t('accounts.ameexApiId', 'C-Api-Id') }}</Label>
+            <Input v-model="form.ameex_api_id" :disabled="!canWrite" placeholder="C-Api-Id" />
+          </div>
+          <div class="space-y-2">
+            <Label>{{ $t('accounts.ameexApiKey', 'C-Api-Key') }}</Label>
+            <Input v-model="form.ameex_api_key" type="password" :disabled="!canWrite" :placeholder="(account as any)?.has_ameex_api_key ? '••••••••' : 'test_… ou clé live'" />
+            <p class="text-xs text-muted-foreground">{{ $t('accounts.ameexApiKeyHint', 'Laisser vide pour conserver la clé existante.') }}</p>
+          </div>
+          <div class="space-y-2">
+            <Label>{{ $t('accounts.ameexWebhookSecret', 'Secret webhook (optionnel)') }}</Label>
+            <Input v-model="form.ameex_webhook_secret" type="password" :disabled="!canWrite" :placeholder="(account as any)?.has_ameex_webhook_secret ? '••••••••' : ''" />
+            <p class="text-xs text-muted-foreground">{{ $t('accounts.ameexWebhookUrl', 'URL webhook à configurer chez Ameex :') }} <code class="text-[11px]">{{ ameexWebhookUrl }}</code></p>
+          </div>
+        </template>
       </CardContent>
     </Card>
 

@@ -10,6 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { contactsService, accountsService, type Tag } from '@/services/api'
+// (accountsService also used for Ameex cities)
 import { useTagsStore } from '@/stores/tags'
 import { toast } from 'vue-sonner'
 import { Loader2, Check, ChevronsUpDown, X } from 'lucide-vue-next'
@@ -39,13 +40,14 @@ interface ContactFormData {
   tags: string[]
   address: string
   city: string
+  ameex_city_id: number | null
   conversion_quantity: number | null
   conversion_value: number | null
 }
 
 const defaultFormData: ContactFormData = {
   phone_number: '', profile_name: '', whatsapp_account: '', tags: [],
-  address: '', city: '', conversion_quantity: null, conversion_value: null,
+  address: '', city: '', ameex_city_id: null, conversion_quantity: null, conversion_value: null,
 }
 
 const formData = ref<ContactFormData>({ ...defaultFormData })
@@ -53,6 +55,8 @@ const isSubmitting = ref(false)
 const tagSelectorOpen = ref(false)
 const availableTags = ref<Tag[]>([])
 const availableAccounts = ref<{ id: string; name: string; phone_number: string }[]>([])
+// TRT custom patch #63: Ameex city list (empty unless the number has Ameex enabled).
+const ameexCities = ref<{ id: number; name: string }[]>([])
 
 watch(() => props.open, (isOpen) => {
   if (isOpen) {
@@ -64,8 +68,25 @@ watch(() => props.open, (isOpen) => {
     }
     fetchTags()
     fetchAccounts()
+    fetchAmeexCities()
   }
 })
+
+async function fetchAmeexCities() {
+  ameexCities.value = []
+  try {
+    const res = await accountsService.ameexCities(props.prefill?.whatsapp_account || undefined)
+    ameexCities.value = (res.data as any)?.data?.cities || (res.data as any)?.cities || []
+  } catch {
+    // Ameex not enabled for this number — fall back to the free-text city field.
+  }
+}
+
+function onAmeexCitySelected(id: number) {
+  formData.value.ameex_city_id = id
+  const city = ameexCities.value.find(c => c.id === Number(id))
+  if (city) formData.value.city = city.name
+}
 
 async function fetchTags() {
   try {
@@ -103,6 +124,7 @@ async function saveContact() {
       city: formData.value.city.trim() || undefined,
       conversion_quantity: formData.value.conversion_quantity != null ? Number(formData.value.conversion_quantity) : undefined,
       conversion_value: formData.value.conversion_value != null ? Number(formData.value.conversion_value) : undefined,
+      ameex_city_id: formData.value.ameex_city_id != null ? Number(formData.value.ameex_city_id) : undefined,
     })
     const contact = response.data?.data || response.data
     toast.success(t('common.createdSuccess', { resource: t('resources.Contact') }))
@@ -166,7 +188,16 @@ function closeDialog() {
           </div>
           <div class="space-y-2">
             <Label>{{ $t('contacts.city') }}</Label>
-            <Input v-model="formData.city" :placeholder="$t('contacts.cityPlaceholder')" />
+            <select
+              v-if="ameexCities.length > 0"
+              :value="formData.ameex_city_id ?? ''"
+              @change="onAmeexCitySelected(Number(($event.target as HTMLSelectElement).value))"
+              class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+            >
+              <option value="" disabled>{{ $t('contacts.cityPlaceholder') }}</option>
+              <option v-for="c in ameexCities" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+            <Input v-else v-model="formData.city" :placeholder="$t('contacts.cityPlaceholder')" />
           </div>
           <div class="space-y-2">
             <Label>{{ $t('contacts.conversionQuantity') }}</Label>

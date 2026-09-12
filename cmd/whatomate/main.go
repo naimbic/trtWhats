@@ -503,6 +503,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	// Webhook routes (public - for Meta)
 	g.GET("/api/webhook", app.WebhookVerify)
 	g.POST("/api/webhook", app.WebhookHandler)
+	g.POST("/api/ameex/webhook", app.AmeexWebhook) // TRT #63: Ameex status webhook (public, HMAC-verified)
 
 	// WebSocket route (auth via message-based flow after upgrade)
 	g.GET("/ws", app.WebSocketHandler)
@@ -518,7 +519,8 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 		// Skip auth for public routes
 		if path == "/health" || path == "/ready" ||
 			path == "/api/auth/login" || path == "/api/auth/register" || path == "/api/auth/refresh" ||
-			path == "/api/auth/logout" || path == "/api/webhook" || path == "/ws" {
+			path == "/api/auth/logout" || path == "/api/webhook" || path == "/ws" ||
+			path == "/api/ameex/webhook" {
 			return r
 		}
 		// TRT custom patch #24: public order-photo links (unguessable UUID filenames)
@@ -638,6 +640,10 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.PUT("/api/contacts/{id}/assign", app.AssignContact)
 	g.PUT("/api/contacts/{id}/tags", app.UpdateContactTags)
 	g.PUT("/api/contacts/{id}/conversion", app.SetContactConversion)
+	g.GET("/api/accounts/{id}/ameex/cities", app.GetAmeexCities)      // TRT #63
+	g.GET("/api/ameex/cities", app.GetAmeexCities)                    // TRT #63 (default number)
+	g.POST("/api/contacts/{id}/ameex/send", app.SendContactToAmeex)  // TRT #63
+	g.GET("/api/contacts/{id}/ameex/tracking", app.TrackContactParcel) // TRT #63
 	g.GET("/api/contacts/{id}/session-data", app.GetContactSessionData)
 
 	// Generic Import/Export

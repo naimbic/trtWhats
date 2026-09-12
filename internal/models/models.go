@@ -322,6 +322,12 @@ type WhatsAppAccount struct {
 	MetaTestEventCode string  `gorm:"size:100" json:"meta_test_event_code"` // optional: verify in Events Manager first
 	MetaCurrency      string  `gorm:"size:10" json:"meta_currency"`         // optional override (default MAD)
 	MetaDefaultValue  float64 `gorm:"default:0" json:"meta_default_value"`  // value when the order form has no price
+	// TRT custom patch #63: per-space Ameex courier credentials. Key/secret are
+	// encrypted (json:"-"); a test_ key hits the Ameex sandbox automatically.
+	AmeexEnabled       bool   `gorm:"default:false" json:"ameex_enabled"`
+	AmeexApiID         string `gorm:"size:150" json:"ameex_api_id"`
+	AmeexApiKey        string `gorm:"type:text" json:"-"`
+	AmeexWebhookSecret string `gorm:"type:text" json:"-"`
 	CreatedByID            *uuid.UUID `gorm:"type:uuid" json:"created_by_id,omitempty"`
 	UpdatedByID            *uuid.UUID `gorm:"type:uuid" json:"updated_by_id,omitempty"`
 
@@ -386,6 +392,12 @@ type Contact struct {
 	// as a contact (for hand-off to the courier, e.g. Ameex).
 	Address string `gorm:"size:500" json:"address"`
 	City    string `gorm:"size:255" json:"city"`
+	// TRT custom patch #63: Ameex courier parcel state for this contact's order.
+	AmeexCityID     int        `gorm:"default:0" json:"ameex_city_id"`
+	AmeexParcelCode string     `gorm:"size:100;index" json:"ameex_parcel_code"`
+	AmeexStatus     string     `gorm:"size:50" json:"ameex_status"`
+	AmeexStatusName string     `gorm:"size:150" json:"ameex_status_name"`
+	AmeexSentAt     *time.Time `json:"ameex_sent_at,omitempty"`
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
 	// TRT custom patch #44: an unhandled order (orange bubble). Set true when the
 	// customer submits the order form; cleared when a human agent replies.

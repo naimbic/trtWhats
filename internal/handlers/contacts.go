@@ -46,6 +46,10 @@ type ContactResponse struct {
 	ConversionValue      float64    `json:"conversion_value"`
 	Address              string     `json:"address"`
 	City                 string     `json:"city"`
+	AmeexCityID          int        `json:"ameex_city_id"`
+	AmeexParcelCode      string     `json:"ameex_parcel_code"`
+	AmeexStatus          string     `json:"ameex_status"`
+	AmeexStatusName      string     `json:"ameex_status_name"`
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
 	OrderPending         bool       `json:"order_pending"` // TRT #44: orange "order to process" bubble
 	CreatedAt          time.Time  `json:"created_at"`
@@ -244,6 +248,10 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 			ConversionValue:      c.ConversionValue,
 			Address:              c.Address,
 			City:                 c.City,
+			AmeexCityID:          c.AmeexCityID,
+			AmeexParcelCode:      c.AmeexParcelCode,
+			AmeexStatus:          c.AmeexStatus,
+			AmeexStatusName:      c.AmeexStatusName,
 			MetaConversionSentAt: c.MetaConversionSentAt,
 			OrderPending:         c.OrderPending,
 			CreatedAt:          c.CreatedAt,
@@ -1759,6 +1767,7 @@ type CreateContactRequest struct {
 	// TRT custom patch #62: delivery + conversion details for saved converted clients.
 	Address            string  `json:"address"`
 	City               string  `json:"city"`
+	AmeexCityID        int     `json:"ameex_city_id"`
 	ConversionQuantity int     `json:"conversion_quantity"`
 	ConversionValue    float64 `json:"conversion_value"`
 }
@@ -1835,6 +1844,7 @@ func (a *App) CreateContact(r *fastglue.Request) error {
 		WhatsAppAccount:    req.WhatsAppAccount,
 		Address:            req.Address,
 		City:               req.City,
+		AmeexCityID:        req.AmeexCityID,
 		ConversionQuantity: req.ConversionQuantity,
 		ConversionValue:    req.ConversionValue,
 	}
@@ -2035,6 +2045,10 @@ func (a *App) buildContactResponse(contact *models.Contact, orgID uuid.UUID) Con
 		ConversionValue:      contact.ConversionValue,
 		Address:              contact.Address,
 		City:                 contact.City,
+		AmeexCityID:          contact.AmeexCityID,
+		AmeexParcelCode:      contact.AmeexParcelCode,
+		AmeexStatus:          contact.AmeexStatus,
+		AmeexStatusName:      contact.AmeexStatusName,
 		MetaConversionSentAt: contact.MetaConversionSentAt,
 		OrderPending:         contact.OrderPending,
 		CreatedAt:          contact.CreatedAt,

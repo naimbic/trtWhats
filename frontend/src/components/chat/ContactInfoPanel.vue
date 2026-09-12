@@ -116,6 +116,26 @@ const convQuantity = ref<number | string>(props.contact.conversion_quantity ?? 0
 const convValue = ref<number | string>(props.contact.conversion_value ?? 0)
 const convSentAt = ref<string | null>(props.contact.meta_conversion_sent_at || null)
 const isSavingConversion = ref(false)
+// TRT custom patch #63: Ameex courier parcel (send + status shown in the converted box).
+const isSendingAmeex = ref(false)
+const ameexParcelCode = computed(() => (props.contact as any)?.ameex_parcel_code || '')
+const ameexStatus = computed(() => (props.contact as any)?.ameex_status || '')
+const ameexStatusName = computed(() => (props.contact as any)?.ameex_status_name || '')
+async function sendToAmeex() {
+  if (isSendingAmeex.value) return
+  isSendingAmeex.value = true
+  try {
+    const res = await contactsService.sendToAmeex(props.contact.id)
+    const data = (res.data as any)?.data || res.data
+    ;(props.contact as any).ameex_parcel_code = data.parcel_code
+    ;(props.contact as any).ameex_status = data.status || 'CREATED'
+    toast.success(t('chat.ameexSent', 'Sent to Ameex') + ' · ' + data.parcel_code)
+  } catch (e) {
+    toast.error(getErrorMessage(e, t('chat.ameexFailed', 'Ameex send failed')))
+  } finally {
+    isSendingAmeex.value = false
+  }
+}
 
 // Re-sync when switching to a different contact.
 watch(() => props.contact.id, () => {
@@ -455,6 +475,17 @@ async function updateContactTags(tags: string[]) {
             <p v-else class="text-[11px] text-muted-foreground">
               {{ $t('chat.convLocked', 'Already sent — value is locked to avoid duplicate conversions.') }}
             </p>
+            <!-- Send to Ameex (TRT patch #63) -->
+            <div class="pt-1 border-t border-border/60">
+              <div v-if="ameexParcelCode" class="rounded-md bg-muted/50 px-2 py-1.5 text-[11px]">
+                <span class="font-medium">Ameex:</span> {{ ameexStatusName || ameexStatus || 'CREATED' }}
+                <span class="text-muted-foreground">· {{ ameexParcelCode }}</span>
+              </div>
+              <Button v-else size="sm" variant="outline" class="w-full h-8" :disabled="isSendingAmeex" @click="sendToAmeex">
+                <Loader2 v-if="isSendingAmeex" class="h-3.5 w-3.5 mr-1 animate-spin" />
+                {{ $t('chat.sendToAmeex', 'Send to Ameex') }}
+              </Button>
+            </div>
           </div>
         </div>
 

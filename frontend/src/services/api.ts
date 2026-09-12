@@ -189,7 +189,10 @@ export const accountsService = {
   // TRT custom patch #42: reconcile old number-names left on messages after a rename.
   orphanedNames: () => api.get<{ orphans: { name: string; count: number }[] }>('/accounts/orphaned-names'),
   adoptName: (id: string, fromName: string) =>
-    api.post<{ updated: number; new_name: string }>(`/accounts/${id}/adopt-name`, { from_name: fromName })
+    api.post<{ updated: number; new_name: string }>(`/accounts/${id}/adopt-name`, { from_name: fromName }),
+  // TRT custom patch #63: Ameex courier city list for the address form.
+  ameexCities: (account?: string) =>
+    api.get<{ cities: { id: number; name: string }[] }>('/ameex/cities', { params: account ? { account } : {} })
 }
 
 export const contactsService = {
@@ -212,6 +215,10 @@ export const contactsService = {
   setConversion: (id: string, data: { quantity: number; value: number }) =>
     api.put(`/contacts/${id}/conversion`, data),
   getSessionData: (id: string) => api.get(`/contacts/${id}/session-data`),
+  // TRT custom patch #63: Ameex courier parcel actions.
+  sendToAmeex: (id: string, data?: { account?: string; product?: string; comment?: string; order_num?: string }) =>
+    api.post<{ parcel_code: string; status: string }>(`/contacts/${id}/ameex/send`, data || {}),
+  ameexTracking: (id: string) => api.get(`/contacts/${id}/ameex/tracking`),
   markRead: (id: string) => api.post(`/contacts/${encodeURIComponent(id)}/mark-read`)
 }
 

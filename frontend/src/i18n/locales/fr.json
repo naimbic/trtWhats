@@ -466,7 +466,10 @@
     "fromCtwaAd": "Vient d'une publicité Click-to-WhatsApp — peut être envoyé à Meta",
     "notFromCtwaAd": "Ne vient pas d'une publicité Click-to-WhatsApp — Meta ne peut pas l'attribuer, donc non envoyé",
     "orderPending": "Nouvelle commande à traiter",
-    "noTemplatesHint": "Les modèles approuvés pour ce numéro apparaissent ici. Créez-les ou resynchronisez-les dans Paramètres → Modèles."
+    "noTemplatesHint": "Les modèles approuvés pour ce numéro apparaissent ici. Créez-les ou resynchronisez-les dans Paramètres → Modèles.",
+    "sendToAmeex": "Envoyer vers Ameex",
+    "ameexSent": "Envoyé vers Ameex",
+    "ameexFailed": "Échec de l'envoi Ameex"
   },
   "contacts": {
     "title": "Contacts",

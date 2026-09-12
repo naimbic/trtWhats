@@ -41,6 +41,12 @@ type AccountRequest struct {
 	MetaTestEventCode string  `json:"meta_test_event_code"`
 	MetaCurrency      string  `json:"meta_currency"`
 	MetaDefaultValue  float64 `json:"meta_default_value"`
+	// TRT custom patch #63: per-space Ameex courier settings (key/secret empty on
+	// update keeps the existing one).
+	AmeexEnabled       bool   `json:"ameex_enabled"`
+	AmeexApiID         string `json:"ameex_api_id"`
+	AmeexApiKey        string `json:"ameex_api_key"`
+	AmeexWebhookSecret string `json:"ameex_webhook_secret"`
 }
 
 // AccountResponse represents the response for an account (without sensitive data)
@@ -66,6 +72,10 @@ type AccountResponse struct {
 	MetaTestEventCode      string     `json:"meta_test_event_code"`
 	MetaCurrency           string     `json:"meta_currency"`
 	MetaDefaultValue       float64    `json:"meta_default_value"`
+	AmeexEnabled           bool       `json:"ameex_enabled"`
+	AmeexApiID             string     `json:"ameex_api_id"`
+	HasAmeexApiKey         bool       `json:"has_ameex_api_key"`
+	HasAmeexWebhookSecret  bool       `json:"has_ameex_webhook_secret"`
 	PhoneNumber            string     `json:"phone_number,omitempty"`
 	DisplayName            string     `json:"display_name,omitempty"`
 	CreatedByID            *uuid.UUID `json:"created_by_id,omitempty"`
@@ -287,6 +297,26 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 	account.MetaTestEventCode = req.MetaTestEventCode
 	account.MetaCurrency = req.MetaCurrency
 	account.MetaDefaultValue = req.MetaDefaultValue
+
+	// TRT custom patch #63: per-space Ameex courier settings.
+	account.AmeexEnabled = req.AmeexEnabled
+	account.AmeexApiID = req.AmeexApiID
+	if req.AmeexApiKey != "" {
+		enc, err := crypto.Encrypt(req.AmeexApiKey, a.Config.App.EncryptionKey)
+		if err != nil {
+			a.Log.Error("Failed to encrypt Ameex key", "error", err)
+			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account", nil, "")
+		}
+		account.AmeexApiKey = enc
+	}
+	if req.AmeexWebhookSecret != "" {
+		enc, err := crypto.Encrypt(req.AmeexWebhookSecret, a.Config.App.EncryptionKey)
+		if err != nil {
+			a.Log.Error("Failed to encrypt Ameex webhook secret", "error", err)
+			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account", nil, "")
+		}
+		account.AmeexWebhookSecret = enc
+	}
 
 	// Handle default flags
 	if req.IsDefaultIncoming && !account.IsDefaultIncoming {
@@ -649,6 +679,10 @@ func accountToResponse(acc models.WhatsAppAccount) AccountResponse {
 		MetaTestEventCode:      acc.MetaTestEventCode,
 		MetaCurrency:           acc.MetaCurrency,
 		MetaDefaultValue:       acc.MetaDefaultValue,
+		AmeexEnabled:           acc.AmeexEnabled,
+		AmeexApiID:             acc.AmeexApiID,
+		HasAmeexApiKey:         acc.AmeexApiKey != "",
+		HasAmeexWebhookSecret:  acc.AmeexWebhookSecret != "",
 		CreatedByID:            acc.CreatedByID,
 		UpdatedByID:            acc.UpdatedByID,
 		CreatedAt:              acc.CreatedAt.Format("2006-01-02T15:04:05Z"),

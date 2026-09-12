@@ -466,7 +466,10 @@
     "fromCtwaAd": "جا من إعلان Click-to-WhatsApp — يقدر يتصيفط لميتا",
     "notFromCtwaAd": "ماجاش من إعلان Click-to-WhatsApp — ميتا ماتقدرش تنسبو، على هاد الشي ماغاديش يتصيفط",
     "orderPending": "كوموند جديد باش تعالجو",
-    "noTemplatesHint": "القوالب المعتمدة لهاد الرقم كتبان هنا. صاوبها ولا عاود زامنها من الإعدادات → القوالب."
+    "noTemplatesHint": "القوالب المعتمدة لهاد الرقم كتبان هنا. صاوبها ولا عاود زامنها من الإعدادات → القوالب.",
+    "sendToAmeex": "صيفط ل Ameex",
+    "ameexSent": "تصيفط ل Ameex",
+    "ameexFailed": "ما تصيفطش ل Ameex"
   },
   "contacts": {
     "title": "جهات الاتصال",
