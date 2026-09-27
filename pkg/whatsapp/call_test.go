@@ -186,7 +186,7 @@ func TestClient_SendCallPermissionRequest_DefaultBody(t *testing.T) {
 
 	interactive := srv.LastBody["interactive"].(map[string]any)
 	body := interactive["body"].(map[string]any)
-	assert.Contains(t, body["text"], "We'd like to call", "default body should be filled in when caller passes \"\"")
+	assert.Equal(t, "مرحبا بيك 🌷 بغينا نعيطو ليك باش نعاونوك ف الطلب ديالك. عافاك وافقي على المكالمة 🩷", body["text"], "default Darija body should be filled in when caller passes \"\"")
 	assert.Equal(t, "call_permission_request", interactive["type"])
 }
 

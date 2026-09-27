@@ -183,6 +183,38 @@ const canRetryFailed = computed(() => {
   return s === 'completed' || s === 'paused' || s === 'failed'
 })
 
+// TRT custom patch #65: translate the most common Meta rejection into a plain-language
+// fix so "completed but everything failed" is self-explanatory.
+function humanizeMetaError(msg: string): string {
+  const m = (msg || '').toLowerCase()
+  if (m.includes('132001') || m.includes('does not exist in') || m.includes('translation'))
+    return t('campaigns.errTemplateLang', "This template isn't approved in the language it was sent in. Re-sync templates (Settings → the number → Sync), then pick an APPROVED template.")
+  if (m.includes('131008') || m.includes('missing'))
+    return t('campaigns.errMissingVar', 'A template variable was left empty. Edit the campaign, fill every variable, then retry.')
+  if (m.includes('#190') || m.includes('missing permissions') || m.includes('cannot be loaded') || m.includes('does not exist, cannot'))
+    return t('campaigns.errAuth', "The sending number isn't authorized (token/permission error). Re-connect that number in settings.")
+  if (m.includes('invalid parameter'))
+    return t('campaigns.errInvalidParam', "The template variables don't match the template. Check the values you entered.")
+  return msg
+}
+
+// The dominant failure reason across failed recipients (for the summary banner).
+const failureSummary = computed(() => {
+  const failed = recipients.value.filter(r => r.status === 'failed' && r.error_message)
+  if (failed.length === 0) return null
+  const counts = new Map<string, number>()
+  for (const r of failed) {
+    const key = r.error_message || 'Unknown error'
+    counts.set(key, (counts.get(key) || 0) + 1)
+  }
+  let raw = ''
+  let top = 0
+  for (const [k, n] of counts.entries()) {
+    if (n > top) { top = n; raw = k }
+  }
+  return { raw, hint: humanizeMetaError(raw), distinct: counts.size }
+})
+
 // --- Recipients state ---
 const recipients = ref<Recipient[]>([])
 const isLoadingRecipients = ref(false)
@@ -1133,6 +1165,26 @@ onUnmounted(() => {
         <CardTitle class="text-sm font-medium">{{ $t('campaigns.statistics', 'Statistics') }}</CardTitle>
       </CardHeader>
       <CardContent>
+        <!-- TRT custom patch #65: make "completed but failed" self-explanatory -->
+        <div v-if="campaign.failed_count > 0" class="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+          <div class="flex items-start gap-2">
+            <AlertCircle class="h-4 w-4 mt-0.5 shrink-0 text-destructive" />
+            <div class="flex-1 space-y-1">
+              <p class="font-medium text-destructive">
+                {{ $t('campaigns.completedWithErrors', 'Completed with errors') }} —
+                {{ campaign.failed_count }} / {{ campaign.total_recipients }} {{ $t('campaigns.failedLower', 'failed') }}
+              </p>
+              <p v-if="failureSummary" class="text-muted-foreground">{{ failureSummary.hint }}</p>
+              <p v-if="failureSummary && failureSummary.raw !== failureSummary.hint" class="text-[11px] font-mono text-muted-foreground/80 break-words">
+                {{ failureSummary.raw }}
+              </p>
+              <Button v-if="canRetryFailed" size="sm" variant="outline" class="mt-1 h-7" @click="retryFailed">
+                <RefreshCw class="h-3.5 w-3.5 mr-1" />
+                {{ $t('campaigns.retryFailed', 'Retry Failed') }}
+              </Button>
+            </div>
+          </div>
+        </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div class="flex flex-col items-center gap-1 rounded-lg border p-3">
             <Users class="h-4 w-4 text-muted-foreground" />

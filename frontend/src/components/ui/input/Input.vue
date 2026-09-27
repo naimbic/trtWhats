@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<{
-  modelValue?: string | number
+  modelValue?: string | number | null
   type?: string
   placeholder?: string
   disabled?: boolean

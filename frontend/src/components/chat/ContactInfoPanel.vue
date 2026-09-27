@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { getErrorMessage } from '@/lib/api-utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -75,6 +77,7 @@ const emit = defineEmits<{
   tagsUpdated: [tags: string[]]
 }>()
 
+const { t } = useI18n()
 const tagsStore = useTagsStore()
 const authStore = useAuthStore()
 const contactsStore = useContactsStore()

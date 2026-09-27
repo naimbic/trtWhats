@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/internal/queue"
+	"github.com/shridarpatil/whatomate/internal/templateutil"
 	"github.com/shridarpatil/whatomate/internal/utils"
 	"github.com/shridarpatil/whatomate/internal/websocket"
 	"github.com/valyala/fasthttp"
@@ -434,11 +435,77 @@ func (a *App) StartCampaign(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Campaign has no pending recipients", nil, "")
 	}
 
-	// Validate template still exists
+	// TRT custom patch #65: pre-send guardrails. Campaigns were "completing" with
+	// every recipient FAILED because Meta rejected each send — template not
+	// APPROVED, template not on the sending number's WABA, or required variables
+	// left empty. Catch all of that here with a clear message instead of silently
+	// enqueuing a batch that is guaranteed to fail.
 	if campaign.TemplateID != uuid.Nil {
 		var template models.Template
 		if err := a.DB.Where("id = ? AND organization_id = ?", campaign.TemplateID, orgID).First(&template).Error; err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Campaign template no longer exists", nil, "")
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Campaign template no longer exists — pick an approved template.", nil, "")
+		}
+		// 1) Must be APPROVED by Meta (DRAFT/PENDING/REJECTED can't be sent).
+		if !strings.EqualFold(template.Status, string(models.TemplateStatusApproved)) {
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
+				fmt.Sprintf("Template %q is %s, not APPROVED — Meta will reject it. Pick an approved template or wait for approval.", template.Name, template.Status), nil, "")
+		}
+		// 2) Templates are per-WABA: the template must belong to the number the
+		//    campaign sends from, or Meta returns "template does not exist".
+		if !strings.EqualFold(template.WhatsAppAccount, campaign.WhatsAppAccount) {
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
+				fmt.Sprintf("Template %q belongs to number %q but this campaign sends from %q. Choose a template that exists on the sending number.", template.Name, template.WhatsAppAccount, campaign.WhatsAppAccount), nil, "")
+		}
+		// 3) Every required variable must be filled for every pending recipient —
+		//    an empty {{n}} is Meta error 131008. Mirror the worker's resolution
+		//    exactly so we never block a send that would actually succeed.
+		bodyNames := templateutil.ExtParamNames(template.BodyContent)
+		var headerName string
+		if strings.EqualFold(template.HeaderType, "TEXT") {
+			if hn := templateutil.ExtParamNames(template.HeaderContent); len(hn) == 1 {
+				headerName = hn[0]
+			}
+		}
+		if len(bodyNames) > 0 || headerName != "" {
+			missing := 0
+			for _, rc := range recipients {
+				incomplete := false
+				if len(bodyNames) > 0 {
+					vals := templateutil.ResolveParams(template.BodyContent, rc.TemplateParams)
+					if len(vals) < len(bodyNames) {
+						incomplete = true
+					}
+					for _, v := range vals {
+						if strings.TrimSpace(v) == "" {
+							incomplete = true
+						}
+					}
+				}
+				if !incomplete && headerName != "" {
+					hv := rc.HeaderParams[headerName]
+					if hv == nil {
+						hv = rc.TemplateParams[headerName]
+					}
+					if strings.TrimSpace(fmt.Sprintf("%v", hv)) == "" {
+						incomplete = true
+					}
+				}
+				if incomplete {
+					missing++
+				}
+			}
+			if missing > 0 {
+				varList := strings.Join(bodyNames, ", ")
+				if headerName != "" {
+					if varList != "" {
+						varList = headerName + ", " + varList
+					} else {
+						varList = headerName
+					}
+				}
+				return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
+					fmt.Sprintf("%d of %d recipient(s) are missing values for the template variables (%s). Fill every variable before sending.", missing, len(recipients), varList), nil, "")
+			}
 		}
 	}
 

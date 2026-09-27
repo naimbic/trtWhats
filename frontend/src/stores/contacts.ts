@@ -376,7 +376,7 @@ export const useContactsStore = defineStore('contacts', () => {
   async function fetchAccountUnreads() {
     try {
       const res = await contactsService.accountUnreads()
-      const data = res.data?.data || res.data
+      const data = res.data.data
       accountUnreads.value = data.accounts || {}
       accountUnreadTotal.value = data.total || 0
     } catch {

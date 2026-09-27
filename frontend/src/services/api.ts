@@ -187,9 +187,9 @@ export const apiKeysService = {
 export const accountsService = {
   list: () => api.get('/accounts'),
   // TRT custom patch #42: reconcile old number-names left on messages after a rename.
-  orphanedNames: () => api.get<{ orphans: { name: string; count: number }[] }>('/accounts/orphaned-names'),
+  orphanedNames: () => api.get<{ data: { orphans: { name: string; count: number }[] } }>('/accounts/orphaned-names'),
   adoptName: (id: string, fromName: string) =>
-    api.post<{ updated: number; new_name: string }>(`/accounts/${id}/adopt-name`, { from_name: fromName }),
+    api.post<{ data: { updated: number; new_name: string } }>(`/accounts/${id}/adopt-name`, { from_name: fromName }),
   // TRT custom patch #63: Ameex courier city list for the address form.
   ameexCities: (account?: string) =>
     api.get<{ cities: { id: number; name: string }[] }>('/ameex/cities', { params: account ? { account } : {} }),
@@ -202,7 +202,7 @@ export const contactsService = {
   list: (params?: { search?: string; page?: number; limit?: number; tags?: string; from?: string; to?: string; read?: boolean; account?: string }) =>
     api.get('/contacts', { params }),
   // TRT custom patch #41: unread-message counts per WhatsApp number (space).
-  accountUnreads: () => api.get<{ accounts: Record<string, number>; total: number }>('/contacts/account-unreads'),
+  accountUnreads: () => api.get<{ data: { accounts: Record<string, number>; total: number } }>('/contacts/account-unreads'),
   // TRT custom patch #45: one-time backfill of the order/status bubble for
   // contacts already Converted within the last N days.
   backfillOrderFlags: (days = 30) =>

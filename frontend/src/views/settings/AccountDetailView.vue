@@ -333,7 +333,7 @@ async function loadOrphans() {
   if (isNew.value || !canWrite.value) return
   try {
     const res = await accountsService.orphanedNames()
-    orphans.value = (res.data.data || res.data)?.orphans || []
+    orphans.value = res.data.data?.orphans || []
   } catch {
     orphans.value = []
   }
@@ -344,7 +344,7 @@ async function adoptOrphan(name: string) {
   adoptingName.value = name
   try {
     const res = await accountsService.adoptName(account.value.id, name)
-    const updated = (res.data.data || res.data)?.updated ?? 0
+    const updated = res.data.data?.updated ?? 0
     toast.success(t('accounts.reassigned', { count: updated, name: account.value.name }))
     await loadOrphans()
   } catch (e: any) {
