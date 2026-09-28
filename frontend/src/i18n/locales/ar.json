@@ -415,7 +415,7 @@
     "retrying": "جاري إعادة المحاولة",
     "failedTapRetry": "فشل - اضغط لإعادة المحاولة",
     "failedToSend": "فشل الإرسال",
-    "unsupportedMessage": "نوع الرسالة هذا غير مدعوم",
+    "unsupportedMessage": "رسالة غير مدعومة — غالباً رمز تحقق/OTP. واتساب لا يُرسل محتواها إلى أرقام Business API، لذلك لا يمكن عرض الرمز هنا.",
     "photo": "صورة",
     "sticker": "ملصق",
     "message": "رسالة",

@@ -415,7 +415,7 @@
     "retrying": "كنعاودو نجرّبو",
     "failedTapRetry": "فشل - كليكي باش تعاود",
     "failedToSend": "ما تصيفطش",
-    "unsupportedMessage": "هاد نوع الرسالة ماشي مدعوم",
+    "unsupportedMessage": "رسالة ماشي مدعومة — غالباً كود تفعيل/OTP. واتساب ما كيوصلش المحتوى ديالها لأرقام Business API، لهذا الكود ما يمكنش يتشاف هنا.",
     "photo": "صورة",
     "sticker": "ستيكر",
     "message": "رسالة",

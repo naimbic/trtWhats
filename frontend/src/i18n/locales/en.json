@@ -415,7 +415,7 @@
     "retrying": "Retrying",
     "failedTapRetry": "Failed - Tap to retry",
     "failedToSend": "Failed to send",
-    "unsupportedMessage": "This message type is not supported",
+    "unsupportedMessage": "Unsupported message — often a verification/OTP code. WhatsApp doesn't deliver its content to Business API numbers, so the code can't be shown here.",
     "photo": "Photo",
     "sticker": "Sticker",
     "message": "Message",

@@ -415,7 +415,7 @@
     "retrying": "Nouvelle tentative",
     "failedTapRetry": "Échec - Appuyez pour réessayer",
     "failedToSend": "Échec de l'envoi",
-    "unsupportedMessage": "Ce type de message n'est pas pris en charge",
+    "unsupportedMessage": "Message non pris en charge — souvent un code de vérification/OTP. WhatsApp ne transmet pas son contenu aux numéros Business API, le code ne peut donc pas s'afficher ici.",
     "photo": "Photo",
     "sticker": "Autocollant",
     "message": "Message",
