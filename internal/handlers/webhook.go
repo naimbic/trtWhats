@@ -195,6 +195,16 @@ func (a *App) WebhookHandler(r *fastglue.Request) error {
 				raw = raw[:4000]
 			}
 			a.Log.Info("RAW inbound message WITH referral", "from", from, "body", string(raw))
+		} else if msgType == "unsupported" || msgType == "" {
+			// TRT diagnostic (#66): dump the FULL raw payload for messages Meta marks
+			// "unsupported" (e.g. authentication/OTP templates) so we can see whether
+			// the code text is present or Meta strips it. grep logs for: ameex? no —
+			// grep "RAW unsupported inbound".
+			raw := body
+			if len(raw) > 6000 {
+				raw = raw[:6000]
+			}
+			a.Log.Info("RAW unsupported inbound", "from", from, "type", msgType, "body", string(raw))
 		} else {
 			a.Log.Info("RAW inbound message WITHOUT referral", "from", from, "type", msgType)
 		}
