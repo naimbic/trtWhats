@@ -387,14 +387,19 @@ func ameexErr(raw []byte) string {
 
 // ameexLocalPhone converts an E.164/stored number to the local 9+ digit form
 // Ameex expects (Morocco: strip the 212 country code, keep 9 digits).
+// ameexLocalPhone normalizes any Moroccan number to the local 0XXXXXXXXX format
+// Ameex requires (e.g. 212721050753 / +212 7… / 721050753 -> 0721050753).
 func ameexLocalPhone(p string) string {
 	d := digitsOnly(p)
 	d = strings.TrimPrefix(d, "00")
 	if strings.HasPrefix(d, "212") {
 		d = d[3:]
 	}
-	d = strings.TrimPrefix(d, "0")
-	return d
+	d = strings.TrimLeft(d, "0") // drop any leading zero(s); national part only
+	if d == "" {
+		return ""
+	}
+	return "0" + d
 }
 
 // ---- Tracking ---------------------------------------------------------------
