@@ -133,7 +133,16 @@ const ameexHasCity = computed(() =>
   !!String((props.contact as any)?.city || '').trim()
 )
 const ameexHasValue = computed(() => Number(props.contact.conversion_value || convValue.value || 0) > 0)
-const ameexReady = computed(() => ameexHasCity.value && ameexHasValue.value)
+// Ameex requires a delivery address on every parcel.
+const ameexHasAddress = computed(() => !!String((props.contact as any)?.address || '').trim())
+const ameexReady = computed(() => ameexHasCity.value && ameexHasValue.value && ameexHasAddress.value)
+const ameexMissingText = computed(() => {
+  const m: string[] = []
+  if (!ameexHasCity.value) m.push(t('chat.fieldCity', 'delivery city'))
+  if (!ameexHasAddress.value) m.push(t('chat.fieldAddress', 'address'))
+  if (!ameexHasValue.value) m.push(t('chat.fieldValue', 'order value'))
+  return m.join(', ')
+})
 async function sendToAmeex() {
   if (isSendingAmeex.value || !ameexReady.value) return
   isSendingAmeex.value = true
@@ -521,13 +530,7 @@ async function updateContactTags(tags: string[]) {
                 </Button>
                 <p v-if="!ameexReady" class="mt-1 text-[11px] text-amber-500 flex items-start gap-1">
                   <AlertCircle class="h-3 w-3 mt-0.5 shrink-0" />
-                  <span>
-                    {{ !ameexHasCity && !ameexHasValue
-                      ? $t('chat.ameexNeedsBoth', 'Add the delivery city and order value first (via Add contact).')
-                      : !ameexHasCity
-                        ? $t('chat.ameexNeedsCity', 'Add the delivery city first (via Add contact).')
-                        : $t('chat.ameexNeedsValue', 'Add the order value first.') }}
-                  </span>
+                  <span>{{ $t('chat.ameexMissingLabel', 'Add via Add contact') }}: {{ ameexMissingText }}</span>
                 </p>
               </template>
             </div>

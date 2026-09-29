@@ -356,6 +356,14 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 
 	var decoded any
 	_ = json.Unmarshal(raw, &decoded)
+	// Ameex returns HTTP 200 even for validation failures, with api.type="error"
+	// and the reason in api.msg (e.g. "Adresse: est obligatoire"). Surface that
+	// real message instead of a misleading "no code" error.
+	if strings.EqualFold(asString(digAny(decoded, "type")), "error") {
+		msg := asString(digAny(decoded, "msg"))
+		a.Log.Error("ameex create rejected", "msg", msg, "body", string(raw))
+		return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Ameex: "+firstNonEmpty(msg, "parcel rejected"), nil, "")
+	}
 	code := asString(digAny(decoded, "code", "parcel_code", "colis", "tracking", "parcelcode"))
 	if code == "" {
 		a.Log.Error("ameex parcel created but no code in response", "body", string(raw))
