@@ -328,6 +328,9 @@ type WhatsAppAccount struct {
 	AmeexApiID         string `gorm:"size:150" json:"ameex_api_id"`
 	AmeexApiKey        string `gorm:"type:text" json:"-"`
 	AmeexWebhookSecret string `gorm:"type:text" json:"-"`
+	// Optional Ameex "business"/store id, sent on Add Parcel — required when the
+	// live account has more than one business. Empty = account default.
+	AmeexBusinessID string `gorm:"size:50" json:"ameex_business_id"`
 	CreatedByID            *uuid.UUID `gorm:"type:uuid" json:"created_by_id,omitempty"`
 	UpdatedByID            *uuid.UUID `gorm:"type:uuid" json:"updated_by_id,omitempty"`
 

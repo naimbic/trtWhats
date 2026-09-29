@@ -74,6 +74,7 @@ type AccountResponse struct {
 	MetaDefaultValue       float64    `json:"meta_default_value"`
 	AmeexEnabled           bool       `json:"ameex_enabled"`
 	AmeexApiID             string     `json:"ameex_api_id"`
+	AmeexBusinessID        string     `json:"ameex_business_id"`
 	HasAmeexApiKey         bool       `json:"has_ameex_api_key"`
 	HasAmeexWebhookSecret  bool       `json:"has_ameex_webhook_secret"`
 	PhoneNumber            string     `json:"phone_number,omitempty"`
@@ -681,6 +682,7 @@ func accountToResponse(acc models.WhatsAppAccount) AccountResponse {
 		MetaDefaultValue:       acc.MetaDefaultValue,
 		AmeexEnabled:           acc.AmeexEnabled,
 		AmeexApiID:             acc.AmeexApiID,
+		AmeexBusinessID:        acc.AmeexBusinessID,
 		HasAmeexApiKey:         acc.AmeexApiKey != "",
 		HasAmeexWebhookSecret:  acc.AmeexWebhookSecret != "",
 		CreatedByID:            acc.CreatedByID,

@@ -125,6 +125,7 @@ async function saveAmeex() {
     const payload: any = {
       ameex_enabled: form.value.ameex_enabled,
       ameex_api_id: form.value.ameex_api_id,
+      ameex_business_id: form.value.ameex_business_id,
     }
     // Only send secrets when actually changed (not the •••• placeholder).
     if (form.value.ameex_api_key && form.value.ameex_api_key !== AMEEX_MASK) payload.ameex_api_key = form.value.ameex_api_key
@@ -159,6 +160,7 @@ const form = ref({
   meta_capi_enabled: false,
   ameex_enabled: false,
   ameex_api_id: '',
+  ameex_business_id: '',
   ameex_api_key: '',
   ameex_webhook_secret: '',
   meta_dataset_id: '',
@@ -215,6 +217,7 @@ function syncForm() {
     meta_capi_enabled: account.value.meta_capi_enabled ?? false,
     ameex_enabled: (account.value as any).ameex_enabled ?? false,
     ameex_api_id: (account.value as any).ameex_api_id ?? '',
+    ameex_business_id: (account.value as any).ameex_business_id ?? '',
     ameex_api_key: (account.value as any).has_ameex_api_key ? AMEEX_MASK : '',
     ameex_webhook_secret: (account.value as any).has_ameex_webhook_secret ? AMEEX_MASK : '',
     meta_dataset_id: account.value.meta_dataset_id || '',
@@ -644,6 +647,10 @@ onMounted(async () => {
         <div class="space-y-2">
             <Label>{{ $t('accounts.ameexApiId', 'C-Api-Id') }}</Label>
             <Input v-model="form.ameex_api_id" :disabled="!canWrite" placeholder="C-Api-Id" />
+          </div>
+          <div class="space-y-2">
+            <Label>{{ $t('accounts.ameexBusinessId', 'Business ID') }}</Label>
+            <Input v-model="form.ameex_business_id" :disabled="!canWrite" placeholder="ex: 2 — laisser vide si un seul business" />
           </div>
           <div class="space-y-2">
             <Label>{{ $t('accounts.ameexApiKey', 'C-Api-Key') }}</Label>

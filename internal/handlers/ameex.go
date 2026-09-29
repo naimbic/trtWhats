@@ -316,6 +316,11 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 
 	form := url.Values{}
 	form.Set("type", "SIMPLE")
+	// Business/store id — required by live Ameex accounts that have more than one
+	// business; omitted when not configured so single-business accounts are unaffected.
+	if acc.AmeexBusinessID != "" {
+		form.Set("business", acc.AmeexBusinessID)
+	}
 	form.Set("receiver", receiver)
 	form.Set("phone", phone)
 	form.Set("city", strconv.Itoa(cityID))
@@ -332,8 +337,8 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 	form.Set("order_num", orderNum)
 
 	a.Log.Info("ameex: creating parcel", "contact_id", contact.ID, "account", acc.Name,
-		"city_id", cityID, "cod", contact.ConversionValue, "phone", phone,
-		"sandbox", strings.HasPrefix(apiKey, "test_"))
+		"business", acc.AmeexBusinessID, "city_id", cityID, "cod", contact.ConversionValue,
+		"phone", phone, "sandbox", strings.HasPrefix(apiKey, "test_"))
 	raw, status, err := a.ameexRequest(http.MethodPost, "/Delivery/Parcels/Action/Type/Add", apiID, apiKey, form)
 	if err != nil || status >= 400 {
 		a.Log.Error("ameex create parcel failed", "status", status, "err", err, "body", string(raw))
@@ -423,7 +428,7 @@ func (a *App) TrackContactParcel(r *fastglue.Request) error {
 	if err != nil {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
 	}
-	raw, status, err := a.ameexRequest(http.MethodGet, "/Delivery/Parcels/Tracking/ParcelCode/"+url.PathEscape(contact.AmeexParcelCode), apiID, apiKey, nil)
+	raw, status, err := a.ameexRequest(http.MethodGet, "/Delivery/Parcels/Tracking?ParcelCode="+url.QueryEscape(contact.AmeexParcelCode), apiID, apiKey, nil)
 	if err != nil || status >= 400 {
 		return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Ameex tracking failed", nil, "")
 	}
@@ -519,12 +524,14 @@ func (a *App) UpdateAmeexSettings(r *fastglue.Request) error {
 		AmeexApiID         string `json:"ameex_api_id"`
 		AmeexApiKey        string `json:"ameex_api_key"`
 		AmeexWebhookSecret string `json:"ameex_webhook_secret"`
+		AmeexBusinessID    string `json:"ameex_business_id"`
 	}
 	if err := a.decodeRequest(r, &req); err != nil {
 		return nil
 	}
 	account.AmeexEnabled = req.AmeexEnabled
 	account.AmeexApiID = req.AmeexApiID
+	account.AmeexBusinessID = req.AmeexBusinessID
 	if req.AmeexApiKey != "" {
 		enc, e := crypto.Encrypt(req.AmeexApiKey, a.Config.App.EncryptionKey)
 		if e != nil {
