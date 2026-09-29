@@ -83,7 +83,9 @@ func digAny(v any, keys ...string) any {
 				}
 			}
 		}
-		for _, wrap := range []string{"data", "result", "parcel", "colis"} {
+		// Ameex nests the real payload under "api" (and then "data"), e.g.
+		// {"api":{"data":{"code":"BGR..."}}} — descend those wrappers too.
+		for _, wrap := range []string{"api", "data", "result", "parcel", "colis"} {
 			if inner, ok := t[wrap]; ok {
 				if found := digAny(inner, keys...); found != nil {
 					return found
@@ -246,6 +248,13 @@ func (a *App) SendContactToAmeex(r *fastglue.Request) error {
 	}
 	a.Log.Info("ameex: send requested", "contact_id", contact.ID, "city_id", contact.AmeexCityID,
 		"city", contact.City, "cod", contact.ConversionValue)
+
+	// Idempotency: this contact already has a parcel — never create a second one.
+	if contact.AmeexParcelCode != "" {
+		a.Log.Info("ameex: parcel already exists, skipping create", "contact_id", contact.ID,
+			"parcel_code", contact.AmeexParcelCode)
+		return r.SendEnvelope(map[string]any{"parcel_code": contact.AmeexParcelCode, "status": contact.AmeexStatus, "already_sent": true})
+	}
 
 	var req struct {
 		Account  string `json:"account"`
