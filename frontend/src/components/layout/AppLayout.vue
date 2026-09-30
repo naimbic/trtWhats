@@ -10,14 +10,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
+  Truck,
   X
 } from 'lucide-vue-next'
 import { wsService } from '@/services/websocket'
-import { authService } from '@/services/api'
+import { authService, accountsService } from '@/services/api'
 import OrganizationSwitcher from './OrganizationSwitcher.vue'
 import UserMenu from './UserMenu.vue'
 import ActiveCallPanel from '@/components/calling/ActiveCallPanel.vue'
 import { ScrollToTop } from '@/components/shared'
+import AmeexPickupDialog from '@/components/shared/AmeexPickupDialog.vue'
 import { navigationSections, type NavSection } from './navigation'
 
 useI18n() // Enable $t() in template
@@ -29,10 +31,18 @@ const isCollapsed = ref(false)
 const isMobileMenuOpen = ref(false)
 
 // Refresh user data and connect WebSocket on mount
+// TRT #67: show the Ameex pickup action only when this org uses Ameex.
+const ameexEnabled = ref(false)
+const showAmeexPickup = ref(false)
+
 onMounted(() => {
   if (authStore.isAuthenticated) {
     // Fetch fresh permissions in background (non-destructive — interceptor handles 401)
     authStore.refreshUserData()
+
+    accountsService.ameexEnabled()
+      .then(res => { ameexEnabled.value = !!((res.data as any)?.data?.enabled ?? (res.data as any)?.enabled) })
+      .catch(() => { ameexEnabled.value = false })
 
     wsService.connect(async () => {
       try {
@@ -283,9 +293,25 @@ const handleLogout = async () => {
         </template>
       </div>
 
+      <!-- TRT #67: Ameex pickup request — only when Ameex is active for this org -->
+      <div v-if="ameexEnabled" class="px-2 pb-1">
+        <Button
+          variant="outline"
+          size="sm"
+          :class="['w-full gap-2 border-orange-500/40 text-orange-500 hover:bg-orange-500/10', isCollapsed ? 'md:px-0 md:justify-center' : 'justify-start']"
+          :title="$t('accounts.requestPickup', 'Demander un ramassage')"
+          @click="showAmeexPickup = true"
+        >
+          <Truck class="h-4 w-4 shrink-0" />
+          <span :class="isCollapsed ? 'md:hidden' : ''">{{ $t('accounts.requestPickup', 'Demander un ramassage') }}</span>
+        </Button>
+      </div>
+
       <!-- User Menu -->
       <UserMenu :collapsed="isCollapsed" @logout="handleLogout" />
     </aside>
+
+    <AmeexPickupDialog v-model:open="showAmeexPickup" />
 
     <!-- Main content -->
     <main id="main-content" class="flex-1 overflow-hidden pt-12 md:pt-0 bg-[#0a0a0b] light:bg-gray-50" role="main">

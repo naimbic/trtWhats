@@ -18,7 +18,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { IconButton } from '@/components/shared'
@@ -120,62 +119,8 @@ const AMEEX_MASK = '••••••••'
 const ameexWebhookUrl = `${window.location.origin}/api/ameex/webhook`
 const savingAmeex = ref(false)
 
-// TRT #67: Ameex pickup request ("Demande de ramassage"). Mirrors Ameex: pick a
-// registered address (city/phone/address come from it) and add a note.
-interface PickupAddress { id: string; business_id: string; business_name: string; city_id: string; city_name: string; phone: string; address: string }
-const showPickupDialog = ref(false)
-const isRequestingPickup = ref(false)
-const pickupAddresses = ref<PickupAddress[]>([])
-const selectedBusinessId = ref<string>('')
-const pickupNote = ref('')
-// Unique businesses derived from the registered addresses.
-const pickupBusinesses = computed(() => {
-  const seen = new Map<string, string>()
-  for (const a of pickupAddresses.value) {
-    if (a.business_id && !seen.has(a.business_id)) seen.set(a.business_id, a.business_name || a.business_id)
-  }
-  return Array.from(seen, ([id, name]) => ({ id, name }))
-})
-// The address registered for the chosen business (auto-fetched from Ameex).
-const selectedPickup = computed(() => pickupAddresses.value.find(a => a.business_id === selectedBusinessId.value) || null)
-async function openPickupDialog() {
-  selectedBusinessId.value = ''
-  pickupNote.value = ''
-  pickupAddresses.value = []
-  showPickupDialog.value = true
-  try {
-    const res = await accountsService.ameexPickupAddresses(account.value!.id)
-    pickupAddresses.value = (res.data as any)?.data?.addresses || (res.data as any)?.addresses || []
-    if (pickupBusinesses.value.length === 1) selectedBusinessId.value = pickupBusinesses.value[0].id
-  } catch (e) {
-    toast.error(getErrorMessage(e, t('accounts.pickupAddrFailed', 'Impossible de charger les adresses de ramassage')))
-  }
-}
-async function requestPickup() {
-  if (!account.value?.id) return
-  const addr = selectedPickup.value
-  if (!addr) {
-    toast.error(t('accounts.pickupPickBiz', 'Choisissez un business'))
-    return
-  }
-  isRequestingPickup.value = true
-  try {
-    const res = await accountsService.ameexPickup(account.value.id, {
-      business: addr.business_id || undefined,
-      city_id: Number(addr.city_id) || undefined,
-      address: addr.address || undefined,
-      phone: addr.phone || undefined,
-      note: pickupNote.value.trim() || undefined,
-    })
-    const d = (res.data as any)?.data || res.data
-    toast.success(d?.msg || t('accounts.pickupRequested', 'Ramassage demandé'))
-    showPickupDialog.value = false
-  } catch (e) {
-    toast.error(getErrorMessage(e, t('accounts.pickupFailed', 'Échec de la demande de ramassage')))
-  } finally {
-    isRequestingPickup.value = false
-  }
-}
+// TRT #67: the Ameex pickup request lives in the sidebar (AmeexPickupDialog), not
+// here — moved out of settings so it's reachable from anywhere.
 async function saveAmeex() {
   if (!account.value?.id) return
   savingAmeex.value = true
@@ -721,73 +666,13 @@ onMounted(async () => {
             <p class="text-xs text-muted-foreground">{{ $t('accounts.ameexWebhookUrl', 'URL webhook à configurer chez Ameex :') }} <code class="text-[11px]">{{ ameexWebhookUrl }}</code></p>
           </div>
         <div v-if="canWrite" class="flex justify-end pt-1">
-          <div class="flex items-center gap-2">
-            <Button size="sm" :disabled="savingAmeex" @click="saveAmeex">
-              <Loader2 v-if="savingAmeex" class="h-4 w-4 mr-2 animate-spin" />
-              {{ $t('accounts.saveAmeex', 'Enregistrer Ameex') }}
-            </Button>
-            <Button
-              v-if="canWrite && form.ameex_enabled && (account as any)?.has_ameex_api_key"
-              size="sm"
-              variant="outline"
-              @click="openPickupDialog"
-            >
-              {{ $t('accounts.requestPickup', 'Demander un ramassage') }}
-            </Button>
-          </div>
+          <Button size="sm" :disabled="savingAmeex" @click="saveAmeex">
+            <Loader2 v-if="savingAmeex" class="h-4 w-4 mr-2 animate-spin" />
+            {{ $t('accounts.saveAmeex', 'Enregistrer Ameex') }}
+          </Button>
         </div>
       </CardContent>
     </Card>
-
-    <!-- TRT #67: Ameex pickup request dialog -->
-    <Dialog v-model:open="showPickupDialog">
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{{ $t('accounts.requestPickup', 'Demander un ramassage') }}</DialogTitle>
-          <DialogDescription>
-            {{ $t('accounts.pickupDesc', 'Ameex viendra récupérer les colis à cette adresse.') }}
-          </DialogDescription>
-        </DialogHeader>
-        <div class="space-y-3 py-2">
-          <div class="space-y-1.5">
-            <Label class="text-xs">Business</Label>
-            <select
-              :value="selectedBusinessId"
-              @change="selectedBusinessId = ($event.target as HTMLSelectElement).value"
-              class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
-            >
-              <option value="" disabled>{{ $t('accounts.pickupPickBiz', 'Choisissez un business') }}</option>
-              <option v-for="b in pickupBusinesses" :key="b.id" :value="b.id">{{ b.name }}</option>
-            </select>
-            <p v-if="pickupBusinesses.length === 0" class="text-[11px] text-muted-foreground">
-              {{ $t('accounts.pickupNoAddr', 'Aucune adresse enregistrée dans Ameex. Ajoutez-en une dans le tableau de bord Ameex.') }}
-            </p>
-          </div>
-          <!-- Address auto-fetched from Ameex for the chosen business -->
-          <div v-if="selectedPickup" class="rounded-md bg-muted/50 px-3 py-2 text-[12px] space-y-0.5">
-            <div><span class="text-muted-foreground">{{ $t('accounts.pickupCity', 'Ville') }}:</span> {{ selectedPickup.city_name || '—' }}</div>
-            <div><span class="text-muted-foreground">{{ $t('accounts.pickupPhone', 'Téléphone') }}:</span> {{ selectedPickup.phone || '—' }}</div>
-            <div><span class="text-muted-foreground">{{ $t('accounts.pickupAddress', 'Adresse') }}:</span> {{ selectedPickup.address || '—' }}</div>
-          </div>
-          <div class="space-y-1.5">
-            <Label class="text-xs">{{ $t('accounts.pickupNote', 'Note / heure de ramassage') }}</Label>
-            <textarea
-              v-model="pickupNote"
-              rows="2"
-              class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
-              :placeholder="$t('accounts.pickupNotePlaceholder', 'ex: ramassage à 15h — 5 colis prêts')"
-            ></textarea>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="showPickupDialog = false">{{ $t('common.cancel', 'Annuler') }}</Button>
-          <Button :disabled="isRequestingPickup" @click="requestPickup">
-            <Loader2 v-if="isRequestingPickup" class="h-4 w-4 mr-2 animate-spin" />
-            {{ $t('accounts.requestPickup', 'Demander un ramassage') }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
 
     <!-- Webhook Config Card -->
     <Card v-if="!isNew">
