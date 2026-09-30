@@ -678,13 +678,22 @@ func (a *App) GetAmeexPickupAddresses(r *fastglue.Request) error {
 			cityID = asString(c["id"])
 			cityName = asString(c["name"])
 		}
+		bizID, bizName := "", ""
+		if fd, ok := m["for_data"].(map[string]any); ok {
+			bizID = asString(fd["id"])
+			bizName = asString(fd["name"])
+		}
+		if bizID == "" {
+			bizID = asString(m["for_id"])
+		}
 		out = append(out, map[string]any{
-			"id":        asString(m["id"]),
-			"name":      asString(digAny(m, "name")),
-			"city_id":   cityID,
-			"city_name": cityName,
-			"phone":     asString(m["phone"]),
-			"address":   asString(m["address"]),
+			"id":            asString(m["id"]),
+			"business_id":   bizID,
+			"business_name": bizName,
+			"city_id":       cityID,
+			"city_name":     cityName,
+			"phone":         asString(m["phone"]),
+			"address":       asString(m["address"]),
 		})
 	}
 	return r.SendEnvelope(map[string]any{"addresses": out})

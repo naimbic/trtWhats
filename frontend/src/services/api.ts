@@ -203,7 +203,7 @@ export const accountsService = {
     api.post<{ ok: boolean; ref?: string; msg?: string }>(`/accounts/${id}/ameex/pickup`, data),
   // TRT #67: registered pickup addresses ("Adresses enregistrées").
   ameexPickupAddresses: (id: string) =>
-    api.get<{ addresses: { id: string; name: string; city_id: string; city_name: string; phone: string; address: string }[] }>(`/accounts/${id}/ameex/pickup-addresses`),
+    api.get<{ addresses: { id: string; business_id: string; business_name: string; city_id: string; city_name: string; phone: string; address: string }[] }>(`/accounts/${id}/ameex/pickup-addresses`),
 }
 
 export const contactsService = {
