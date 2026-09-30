@@ -33,7 +33,7 @@ import { getTagColorClass } from '@/lib/constants'
 import { useTagsStore } from '@/stores/tags'
 import { useAuthStore } from '@/stores/auth'
 import { useContactsStore } from '@/stores/contacts'
-import { contactsService, type Tag } from '@/services/api'
+import { contactsService, accountsService, type Tag } from '@/services/api'
 import { toast } from 'vue-sonner'
 import type { Contact } from '@/stores/contacts'
 
@@ -158,6 +158,17 @@ async function sendToAmeex() {
     isSendingAmeex.value = false
   }
 }
+
+// TRT #67: only show Ameex features when this org actually uses Ameex.
+const ameexEnabled = ref(false)
+onMounted(async () => {
+  try {
+    const res = await accountsService.ameexEnabled()
+    ameexEnabled.value = !!((res.data as any)?.data?.enabled ?? (res.data as any)?.enabled)
+  } catch {
+    ameexEnabled.value = false
+  }
+})
 
 // TRT #63: pull the latest delivery status from Ameex on demand (until the
 // production webhook is enabled to push updates automatically).
@@ -528,8 +539,8 @@ async function updateContactTags(tags: string[]) {
             <p v-else class="text-[11px] text-muted-foreground">
               {{ $t('chat.convLocked', 'Already sent — value is locked to avoid duplicate conversions.') }}
             </p>
-            <!-- Send to Ameex (TRT patch #63) -->
-            <div class="pt-1 border-t border-border/60">
+            <!-- Send to Ameex (TRT patch #63) — only when the org uses Ameex (#67) -->
+            <div v-if="ameexEnabled || ameexParcelCode" class="pt-1 border-t border-border/60">
               <div v-if="ameexParcelCode" class="rounded-md bg-muted/50 px-2 py-1.5 text-[11px] flex items-center gap-1">
                 <span class="font-medium">Ameex:</span> {{ ameexStatusName || ameexStatus || 'CREATED' }}
                 <span class="text-muted-foreground truncate">· {{ ameexParcelCode }}</span>

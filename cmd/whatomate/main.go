@@ -642,7 +642,9 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.PUT("/api/contacts/{id}/conversion", app.SetContactConversion)
 	g.GET("/api/accounts/{id}/ameex/cities", app.GetAmeexCities)      // TRT #63
 	g.GET("/api/ameex/cities", app.GetAmeexCities)                    // TRT #63 (default number)
+	g.GET("/api/ameex/enabled", app.AmeexEnabledForOrg)              // TRT #67 (hide UI when off)
 	g.PUT("/api/accounts/{id}/ameex", app.UpdateAmeexSettings)       // TRT #63 (Ameex-only save)
+	g.POST("/api/accounts/{id}/ameex/pickup", app.RequestAmeexPickup) // TRT #67 (pickup request)
 	g.POST("/api/contacts/{id}/ameex/send", app.SendContactToAmeex)  // TRT #63
 	g.GET("/api/contacts/{id}/ameex/tracking", app.TrackContactParcel) // TRT #63
 	g.GET("/api/contacts/{id}/session-data", app.GetContactSessionData)

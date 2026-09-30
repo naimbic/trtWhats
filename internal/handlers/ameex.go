@@ -623,3 +623,89 @@ func (a *App) UpdateAmeexSettings(r *fastglue.Request) error {
 	}
 	return r.SendEnvelope(accountToResponse(*account))
 }
+
+// ---- Pickup request + org enabled flag --------------------------------------
+
+// AmeexEnabledForOrg reports whether this org has at least one Ameex-enabled
+// number, so the frontend can hide Ameex features for clients that don't use it.
+// GET /api/ameex/enabled
+func (a *App) AmeexEnabledForOrg(r *fastglue.Request) error {
+	orgID, _, err := a.getOrgAndUserID(r)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+	}
+	var count int64
+	a.DB.Model(&models.WhatsAppAccount{}).
+		Where("organization_id = ? AND ameex_enabled = ?", orgID, true).Count(&count)
+	return r.SendEnvelope(map[string]any{"enabled": count > 0})
+}
+
+// RequestAmeexPickup creates an Ameex pickup request ("Demande de ramassage") so
+// the courier comes to collect the day's parcels from the business address.
+// POST /api/accounts/{id}/ameex/pickup   body: { business?, city_id?, address, phone, note }
+func (a *App) RequestAmeexPickup(r *fastglue.Request) error {
+	orgID, _, err := a.requireAuth(r, models.ResourceAccounts, models.ActionWrite)
+	if err != nil {
+		return nil
+	}
+	id, err := parsePathUUID(r, "id", "account")
+	if err != nil {
+		return nil
+	}
+	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	if err != nil {
+		return nil
+	}
+	apiID, apiKey, err := a.ameexCreds(account)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+	}
+	var req struct {
+		Business string `json:"business"`
+		CityID   int    `json:"city_id"`
+		Address  string `json:"address"`
+		Phone    string `json:"phone"`
+		Note     string `json:"note"`
+	}
+	_ = a.decodeRequest(r, &req)
+
+	business := firstNonEmpty(req.Business, account.AmeexBusinessID)
+	if business == "" {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Business ID is required for a pickup request", nil, "")
+	}
+	form := url.Values{}
+	form.Set("mdl_business", business)
+	form.Set("mdl_type", "PARCEL_M")
+	if req.CityID > 0 {
+		form.Set("mdl_city", strconv.Itoa(req.CityID))
+	}
+	if req.Address != "" {
+		form.Set("p_address", req.Address)
+	}
+	if p := ameexLocalPhone(req.Phone); p != "" {
+		form.Set("p_phone", p)
+	}
+	if req.Note != "" {
+		form.Set("p_note", req.Note)
+	}
+	a.Log.Info("ameex: pickup request", "account", account.Name, "business", business, "city_id", req.CityID,
+		"sandbox", strings.HasPrefix(apiKey, "test_"))
+	raw, status, err := a.ameexRequest(http.MethodPost, "/Delivery/PickupRequests/Action/Type/Add", apiID, apiKey, form)
+	if err != nil || status >= 400 {
+		a.Log.Error("ameex pickup failed", "status", status, "err", err, "body", string(raw))
+		return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Ameex: "+ameexErr(raw), nil, "")
+	}
+	var decoded any
+	_ = json.Unmarshal(raw, &decoded)
+	if strings.EqualFold(asString(digAny(decoded, "type")), "error") {
+		msg := asString(digAny(decoded, "msg"))
+		a.Log.Error("ameex pickup rejected", "msg", msg, "body", string(raw))
+		return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Ameex: "+firstNonEmpty(msg, "pickup rejected"), nil, "")
+	}
+	a.Log.Info("ameex: pickup created", "account", account.Name, "business", business)
+	return r.SendEnvelope(map[string]any{
+		"ok":  true,
+		"ref": asString(digAny(decoded, "ref", "code", "id")),
+		"msg": firstNonEmpty(asString(digAny(decoded, "msg")), "Pickup requested"),
+	})
+}

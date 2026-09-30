@@ -194,8 +194,13 @@ export const accountsService = {
   ameexCities: (account?: string) =>
     api.get<{ cities: { id: number; name: string }[] }>('/ameex/cities', { params: account ? { account } : {} }),
   // TRT custom patch #63: save ONLY the Ameex settings for a number.
-  updateAmeex: (id: string, data: { ameex_enabled: boolean; ameex_api_id: string; ameex_api_key?: string; ameex_webhook_secret?: string }) =>
-    api.put(`/accounts/${id}/ameex`, data)
+  updateAmeex: (id: string, data: { ameex_enabled: boolean; ameex_api_id: string; ameex_business_id?: string; ameex_api_key?: string; ameex_webhook_secret?: string }) =>
+    api.put(`/accounts/${id}/ameex`, data),
+  // TRT #67: is Ameex enabled for this org (to hide UI when off)?
+  ameexEnabled: () => api.get<{ enabled: boolean }>('/ameex/enabled'),
+  // TRT #67: request an Ameex pickup ("Demande de ramassage").
+  ameexPickup: (id: string, data: { business?: string; city_id?: number; address?: string; phone?: string; note?: string }) =>
+    api.post<{ ok: boolean; ref?: string; msg?: string }>(`/accounts/${id}/ameex/pickup`, data),
 }
 
 export const contactsService = {

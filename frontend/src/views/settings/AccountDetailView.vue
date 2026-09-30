@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { IconButton } from '@/components/shared'
@@ -118,6 +119,42 @@ const canDelete = computed(() => authStore.hasPermission('accounts', 'delete'))
 const AMEEX_MASK = '••••••••'
 const ameexWebhookUrl = `${window.location.origin}/api/ameex/webhook`
 const savingAmeex = ref(false)
+
+// TRT #67: Ameex pickup request ("Demande de ramassage").
+const showPickupDialog = ref(false)
+const isRequestingPickup = ref(false)
+const pickupCities = ref<{ id: number; name: string }[]>([])
+const pickupForm = ref<{ city_id: number | null; address: string; phone: string; note: string }>({
+  city_id: null, address: '', phone: '', note: '',
+})
+async function openPickupDialog() {
+  pickupForm.value = { city_id: null, address: '', phone: '', note: '' }
+  showPickupDialog.value = true
+  pickupCities.value = []
+  try {
+    const res = await accountsService.ameexCities(account.value?.name || undefined)
+    pickupCities.value = (res.data as any)?.data?.cities || (res.data as any)?.cities || []
+  } catch { /* free-text fallback */ }
+}
+async function requestPickup() {
+  if (!account.value?.id) return
+  isRequestingPickup.value = true
+  try {
+    const res = await accountsService.ameexPickup(account.value.id, {
+      city_id: pickupForm.value.city_id ?? undefined,
+      address: pickupForm.value.address.trim() || undefined,
+      phone: pickupForm.value.phone.trim() || undefined,
+      note: pickupForm.value.note.trim() || undefined,
+    })
+    const d = (res.data as any)?.data || res.data
+    toast.success(d?.msg || t('accounts.pickupRequested', 'Ramassage demandé'))
+    showPickupDialog.value = false
+  } catch (e) {
+    toast.error(getErrorMessage(e, t('accounts.pickupFailed', 'Échec de la demande de ramassage')))
+  } finally {
+    isRequestingPickup.value = false
+  }
+}
 async function saveAmeex() {
   if (!account.value?.id) return
   savingAmeex.value = true
@@ -663,13 +700,78 @@ onMounted(async () => {
             <p class="text-xs text-muted-foreground">{{ $t('accounts.ameexWebhookUrl', 'URL webhook à configurer chez Ameex :') }} <code class="text-[11px]">{{ ameexWebhookUrl }}</code></p>
           </div>
         <div v-if="canWrite" class="flex justify-end pt-1">
-          <Button size="sm" :disabled="savingAmeex" @click="saveAmeex">
-            <Loader2 v-if="savingAmeex" class="h-4 w-4 mr-2 animate-spin" />
-            {{ $t('accounts.saveAmeex', 'Enregistrer Ameex') }}
-          </Button>
+          <div class="flex items-center gap-2">
+            <Button size="sm" :disabled="savingAmeex" @click="saveAmeex">
+              <Loader2 v-if="savingAmeex" class="h-4 w-4 mr-2 animate-spin" />
+              {{ $t('accounts.saveAmeex', 'Enregistrer Ameex') }}
+            </Button>
+            <Button
+              v-if="canWrite && form.ameex_enabled && (account as any)?.has_ameex_api_key"
+              size="sm"
+              variant="outline"
+              @click="openPickupDialog"
+            >
+              {{ $t('accounts.requestPickup', 'Demander un ramassage') }}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
+
+    <!-- TRT #67: Ameex pickup request dialog -->
+    <Dialog v-model:open="showPickupDialog">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{{ $t('accounts.requestPickup', 'Demander un ramassage') }}</DialogTitle>
+          <DialogDescription>
+            {{ $t('accounts.pickupDesc', 'Ameex viendra récupérer les colis à cette adresse.') }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="space-y-3 py-2">
+          <div class="space-y-1.5">
+            <Label class="text-xs">Business ID</Label>
+            <Input :model-value="form.ameex_business_id" disabled placeholder="—" />
+          </div>
+          <div class="space-y-1.5">
+            <Label class="text-xs">{{ $t('accounts.pickupCity', 'Ville') }}</Label>
+            <select
+              v-if="pickupCities.length > 0"
+              :value="pickupForm.city_id ?? ''"
+              @change="pickupForm.city_id = Number(($event.target as HTMLSelectElement).value) || null"
+              class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+            >
+              <option value="">{{ $t('accounts.pickupCityPlaceholder', 'Choisir la ville') }}</option>
+              <option v-for="c in pickupCities" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+            <Input v-else v-model="pickupForm.city_id" placeholder="City ID" />
+          </div>
+          <div class="space-y-1.5">
+            <Label class="text-xs">{{ $t('accounts.pickupAddress', 'Adresse') }}</Label>
+            <Input v-model="pickupForm.address" :placeholder="$t('accounts.pickupAddress', 'Adresse')" />
+          </div>
+          <div class="space-y-1.5">
+            <Label class="text-xs">{{ $t('accounts.pickupPhone', 'Téléphone') }}</Label>
+            <Input v-model="pickupForm.phone" placeholder="06xxxxxxxx" />
+          </div>
+          <div class="space-y-1.5">
+            <Label class="text-xs">{{ $t('accounts.pickupNote', 'Note') }}</Label>
+            <textarea
+              v-model="pickupForm.note"
+              rows="2"
+              class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
+              :placeholder="$t('accounts.pickupNotePlaceholder', 'ex: 5 colis prêts')"
+            ></textarea>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="showPickupDialog = false">{{ $t('common.cancel', 'Annuler') }}</Button>
+          <Button :disabled="isRequestingPickup" @click="requestPickup">
+            <Loader2 v-if="isRequestingPickup" class="h-4 w-4 mr-2 animate-spin" />
+            {{ $t('accounts.requestPickup', 'Demander un ramassage') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Webhook Config Card -->
     <Card v-if="!isNew">
