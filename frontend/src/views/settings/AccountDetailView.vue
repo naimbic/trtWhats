@@ -120,31 +120,42 @@ const AMEEX_MASK = '••••••••'
 const ameexWebhookUrl = `${window.location.origin}/api/ameex/webhook`
 const savingAmeex = ref(false)
 
-// TRT #67: Ameex pickup request ("Demande de ramassage").
+// TRT #67: Ameex pickup request ("Demande de ramassage"). Mirrors Ameex: pick a
+// registered address (city/phone/address come from it) and add a note.
+interface PickupAddress { id: string; name: string; city_id: string; city_name: string; phone: string; address: string }
 const showPickupDialog = ref(false)
 const isRequestingPickup = ref(false)
-const pickupCities = ref<{ id: number; name: string }[]>([])
-const pickupForm = ref<{ city_id: number | null; address: string; phone: string; note: string }>({
-  city_id: null, address: '', phone: '', note: '',
-})
+const pickupAddresses = ref<PickupAddress[]>([])
+const selectedPickupId = ref<string>('')
+const pickupNote = ref('')
+const selectedPickup = computed(() => pickupAddresses.value.find(a => a.id === selectedPickupId.value) || null)
 async function openPickupDialog() {
-  pickupForm.value = { city_id: null, address: '', phone: '', note: '' }
+  selectedPickupId.value = ''
+  pickupNote.value = ''
+  pickupAddresses.value = []
   showPickupDialog.value = true
-  pickupCities.value = []
   try {
-    const res = await accountsService.ameexCities(account.value?.name || undefined)
-    pickupCities.value = (res.data as any)?.data?.cities || (res.data as any)?.cities || []
-  } catch { /* free-text fallback */ }
+    const res = await accountsService.ameexPickupAddresses(account.value!.id)
+    pickupAddresses.value = (res.data as any)?.data?.addresses || (res.data as any)?.addresses || []
+    if (pickupAddresses.value.length === 1) selectedPickupId.value = pickupAddresses.value[0].id
+  } catch (e) {
+    toast.error(getErrorMessage(e, t('accounts.pickupAddrFailed', 'Impossible de charger les adresses de ramassage')))
+  }
 }
 async function requestPickup() {
   if (!account.value?.id) return
+  const addr = selectedPickup.value
+  if (!addr) {
+    toast.error(t('accounts.pickupPickAddr', 'Choisissez une adresse de ramassage'))
+    return
+  }
   isRequestingPickup.value = true
   try {
     const res = await accountsService.ameexPickup(account.value.id, {
-      city_id: pickupForm.value.city_id ?? undefined,
-      address: pickupForm.value.address.trim() || undefined,
-      phone: pickupForm.value.phone.trim() || undefined,
-      note: pickupForm.value.note.trim() || undefined,
+      city_id: Number(addr.city_id) || undefined,
+      address: addr.address || undefined,
+      phone: addr.phone || undefined,
+      note: pickupNote.value.trim() || undefined,
     })
     const d = (res.data as any)?.data || res.data
     toast.success(d?.msg || t('accounts.pickupRequested', 'Ramassage demandé'))
@@ -729,34 +740,34 @@ onMounted(async () => {
         </DialogHeader>
         <div class="space-y-3 py-2">
           <div class="space-y-1.5">
-            <Label class="text-xs">Business ID</Label>
+            <Label class="text-xs">Business</Label>
             <Input :model-value="form.ameex_business_id" disabled placeholder="—" />
           </div>
           <div class="space-y-1.5">
-            <Label class="text-xs">{{ $t('accounts.pickupCity', 'Ville') }}</Label>
+            <Label class="text-xs">{{ $t('accounts.pickupSavedAddress', 'Adresse enregistrée') }}</Label>
             <select
-              v-if="pickupCities.length > 0"
-              :value="pickupForm.city_id ?? ''"
-              @change="pickupForm.city_id = Number(($event.target as HTMLSelectElement).value) || null"
+              :value="selectedPickupId"
+              @change="selectedPickupId = ($event.target as HTMLSelectElement).value"
               class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
             >
-              <option value="">{{ $t('accounts.pickupCityPlaceholder', 'Choisir la ville') }}</option>
-              <option v-for="c in pickupCities" :key="c.id" :value="c.id">{{ c.name }}</option>
+              <option value="" disabled>{{ $t('accounts.pickupPickAddr', 'Choisissez une adresse de ramassage') }}</option>
+              <option v-for="a in pickupAddresses" :key="a.id" :value="a.id">
+                {{ a.city_name }}{{ a.phone ? ' — ' + a.phone : '' }}{{ a.address ? ' — ' + a.address : '' }}
+              </option>
             </select>
-            <Input v-else v-model="pickupForm.city_id" placeholder="City ID" />
+            <p v-if="pickupAddresses.length === 0" class="text-[11px] text-muted-foreground">
+              {{ $t('accounts.pickupNoAddr', 'Aucune adresse enregistrée dans Ameex. Ajoutez-en une dans le tableau de bord Ameex.') }}
+            </p>
           </div>
-          <div class="space-y-1.5">
-            <Label class="text-xs">{{ $t('accounts.pickupAddress', 'Adresse') }}</Label>
-            <Input v-model="pickupForm.address" :placeholder="$t('accounts.pickupAddress', 'Adresse')" />
-          </div>
-          <div class="space-y-1.5">
-            <Label class="text-xs">{{ $t('accounts.pickupPhone', 'Téléphone') }}</Label>
-            <Input v-model="pickupForm.phone" placeholder="06xxxxxxxx" />
+          <div v-if="selectedPickup" class="rounded-md bg-muted/50 px-3 py-2 text-[12px] space-y-0.5">
+            <div><span class="text-muted-foreground">{{ $t('accounts.pickupCity', 'Ville') }}:</span> {{ selectedPickup.city_name }}</div>
+            <div><span class="text-muted-foreground">{{ $t('accounts.pickupPhone', 'Téléphone') }}:</span> {{ selectedPickup.phone || '—' }}</div>
+            <div><span class="text-muted-foreground">{{ $t('accounts.pickupAddress', 'Adresse') }}:</span> {{ selectedPickup.address || '—' }}</div>
           </div>
           <div class="space-y-1.5">
             <Label class="text-xs">{{ $t('accounts.pickupNote', 'Note') }}</Label>
             <textarea
-              v-model="pickupForm.note"
+              v-model="pickupNote"
               rows="2"
               class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
               :placeholder="$t('accounts.pickupNotePlaceholder', 'ex: 5 colis prêts')"

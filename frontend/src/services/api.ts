@@ -201,6 +201,9 @@ export const accountsService = {
   // TRT #67: request an Ameex pickup ("Demande de ramassage").
   ameexPickup: (id: string, data: { business?: string; city_id?: number; address?: string; phone?: string; note?: string }) =>
     api.post<{ ok: boolean; ref?: string; msg?: string }>(`/accounts/${id}/ameex/pickup`, data),
+  // TRT #67: registered pickup addresses ("Adresses enregistrées").
+  ameexPickupAddresses: (id: string) =>
+    api.get<{ addresses: { id: string; name: string; city_id: string; city_name: string; phone: string; address: string }[] }>(`/accounts/${id}/ameex/pickup-addresses`),
 }
 
 export const contactsService = {

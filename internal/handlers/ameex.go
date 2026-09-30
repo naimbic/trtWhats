@@ -640,6 +640,56 @@ func (a *App) AmeexEnabledForOrg(r *fastglue.Request) error {
 	return r.SendEnvelope(map[string]any{"enabled": count > 0})
 }
 
+// GetAmeexPickupAddresses lists the account's registered pickup addresses so the
+// pickup dialog can offer them (matching Ameex's "Adresses enregistrées").
+// GET /api/accounts/{id}/ameex/pickup-addresses
+func (a *App) GetAmeexPickupAddresses(r *fastglue.Request) error {
+	orgID, _, err := a.requireAuth(r, models.ResourceAccounts, models.ActionRead)
+	if err != nil {
+		return nil
+	}
+	id, err := parsePathUUID(r, "id", "account")
+	if err != nil {
+		return nil
+	}
+	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	if err != nil {
+		return nil
+	}
+	apiID, apiKey, err := a.ameexCreds(account)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+	}
+	raw, status, err := a.ameexRequest(http.MethodGet, "/Delivery/PickupRequests", apiID, apiKey, nil)
+	if err != nil || status >= 400 {
+		return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Ameex pickup addresses request failed", nil, "")
+	}
+	var decoded any
+	_ = json.Unmarshal(raw, &decoded)
+	arr, _ := digAny(decoded, "addresses").([]any)
+	out := make([]map[string]any, 0, len(arr))
+	for _, it := range arr {
+		m, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		cityID, cityName := "", ""
+		if c, ok := m["city"].(map[string]any); ok {
+			cityID = asString(c["id"])
+			cityName = asString(c["name"])
+		}
+		out = append(out, map[string]any{
+			"id":        asString(m["id"]),
+			"name":      asString(digAny(m, "name")),
+			"city_id":   cityID,
+			"city_name": cityName,
+			"phone":     asString(m["phone"]),
+			"address":   asString(m["address"]),
+		})
+	}
+	return r.SendEnvelope(map[string]any{"addresses": out})
+}
+
 // RequestAmeexPickup creates an Ameex pickup request ("Demande de ramassage") so
 // the courier comes to collect the day's parcels from the business address.
 // POST /api/accounts/{id}/ameex/pickup   body: { business?, city_id?, address, phone, note }
