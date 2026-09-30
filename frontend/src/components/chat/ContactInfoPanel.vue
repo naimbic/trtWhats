@@ -25,7 +25,7 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
-import { X, ChevronDown, Phone, User, Plus, Check, Tags, Loader2, AlertCircle } from 'lucide-vue-next'
+import { X, ChevronDown, Phone, User, Plus, Check, Tags, Loader2, AlertCircle, RefreshCw } from 'lucide-vue-next'
 import { TagBadge } from '@/components/ui/tag-badge'
 import MetadataSection from '@/components/chat/MetadataSection.vue'
 import { getInitials, getAvatarGradient, formatLabel } from '@/lib/utils'
@@ -156,6 +156,25 @@ async function sendToAmeex() {
     toast.error(getErrorMessage(e, t('chat.ameexFailed', 'Ameex send failed')))
   } finally {
     isSendingAmeex.value = false
+  }
+}
+
+// TRT #63: pull the latest delivery status from Ameex on demand (until the
+// production webhook is enabled to push updates automatically).
+const isTrackingAmeex = ref(false)
+async function refreshAmeexStatus() {
+  if (isTrackingAmeex.value) return
+  isTrackingAmeex.value = true
+  try {
+    const res = await contactsService.ameexTracking(props.contact.id)
+    const data = (res.data as any)?.data || res.data
+    if (data?.status) (props.contact as any).ameex_status = data.status
+    if (data?.status_name) (props.contact as any).ameex_status_name = data.status_name
+    toast.success((data?.status_name || data?.status || t('chat.ameexUpdated', 'Status updated')))
+  } catch (e) {
+    toast.error(getErrorMessage(e, t('chat.ameexTrackFailed', 'Could not fetch Ameex status')))
+  } finally {
+    isTrackingAmeex.value = false
   }
 }
 
@@ -511,9 +530,19 @@ async function updateContactTags(tags: string[]) {
             </p>
             <!-- Send to Ameex (TRT patch #63) -->
             <div class="pt-1 border-t border-border/60">
-              <div v-if="ameexParcelCode" class="rounded-md bg-muted/50 px-2 py-1.5 text-[11px]">
+              <div v-if="ameexParcelCode" class="rounded-md bg-muted/50 px-2 py-1.5 text-[11px] flex items-center gap-1">
                 <span class="font-medium">Ameex:</span> {{ ameexStatusName || ameexStatus || 'CREATED' }}
-                <span class="text-muted-foreground">· {{ ameexParcelCode }}</span>
+                <span class="text-muted-foreground truncate">· {{ ameexParcelCode }}</span>
+                <button
+                  type="button"
+                  class="ml-auto shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  :disabled="isTrackingAmeex"
+                  :title="$t('chat.ameexRefresh', 'Refresh delivery status')"
+                  @click="refreshAmeexStatus"
+                >
+                  <Loader2 v-if="isTrackingAmeex" class="h-3.5 w-3.5 animate-spin" />
+                  <RefreshCw v-else class="h-3.5 w-3.5" />
+                </button>
               </div>
               <template v-else>
                 <Button

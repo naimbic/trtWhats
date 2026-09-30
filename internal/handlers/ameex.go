@@ -456,7 +456,56 @@ func (a *App) TrackContactParcel(r *fastglue.Request) error {
 	}
 	var decoded any
 	_ = json.Unmarshal(raw, &decoded)
-	return r.SendEnvelope(map[string]any{"tracking": decoded, "parcel_code": contact.AmeexParcelCode})
+
+	// Pull the latest status from api.tracking[] (newest by "time") and persist it,
+	// so the contact's pill reflects live status even before the webhook is enabled.
+	statut, statutName := latestAmeexTracking(decoded)
+	if statut != "" {
+		updates := map[string]any{"ameex_status": statut}
+		if statutName != "" {
+			updates["ameex_status_name"] = statutName
+		}
+		if e := a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).Updates(updates).Error; e != nil {
+			a.Log.Error("ameex: failed to persist tracked status", "err", e)
+		}
+		contact.AmeexStatus = statut
+		if statutName != "" {
+			contact.AmeexStatusName = statutName
+		}
+	}
+	return r.SendEnvelope(map[string]any{
+		"tracking":    decoded,
+		"parcel_code": contact.AmeexParcelCode,
+		"status":      contact.AmeexStatus,
+		"status_name": contact.AmeexStatusName,
+	})
+}
+
+// latestAmeexTracking returns the most recent statut/name from an Ameex tracking
+// response (api.tracking[] is a list of events with a unix "time").
+func latestAmeexTracking(decoded any) (statut, name string) {
+	arr, ok := digAny(decoded, "tracking").([]any)
+	if !ok {
+		return "", ""
+	}
+	var best int64 = -1
+	for _, it := range arr {
+		m, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		ts, _ := strconv.ParseInt(asString(m["time"]), 10, 64)
+		if ts >= best {
+			best = ts
+			if s := asString(m["statut"]); s != "" {
+				statut = s
+			}
+			if n := asString(m["statut_name"]); n != "" {
+				name = n
+			}
+		}
+	}
+	return statut, name
 }
 
 // ---- Webhook (public, HMAC-verified) ---------------------------------------
