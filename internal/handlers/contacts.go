@@ -38,6 +38,7 @@ type ContactResponse struct {
 	UnreadCount        int        `json:"unread_count"`
 	AssignedUserID     *uuid.UUID `json:"assigned_user_id,omitempty"`
 	WhatsAppAccount    string     `json:"whatsapp_account,omitempty"`
+	Channel            string     `json:"channel,omitempty"` // TRT #68: whatsapp | instagram
 	LastInboundAt      *time.Time `json:"last_inbound_at,omitempty"`
 	ServiceWindowOpen  bool       `json:"service_window_open"`
 	MarketingOptOut    bool       `json:"marketing_opt_out"`
@@ -241,6 +242,7 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 			UnreadCount:        int(unreadCount),
 			AssignedUserID:     c.AssignedUserID,
 			WhatsAppAccount:    c.WhatsAppAccount,
+			Channel:            c.Channel,
 			LastInboundAt:      c.LastInboundAt,
 			ServiceWindowOpen:  serviceWindowOpen,
 			MarketingOptOut:    c.MarketingOptOut,
@@ -717,6 +719,28 @@ func (a *App) SendMessage(r *fastglue.Request) error {
 	query = a.scopeAssignedContact(query, userID, orgID)
 	if err := query.First(&contact).Error; err != nil {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+	}
+
+	// TRT #68: Instagram contacts go through the Instagram sender, not WhatsApp.
+	if contact.Channel == models.ChannelInstagram {
+		if req.Type != "" && req.Type != models.MessageTypeText {
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Only text replies are supported on Instagram for now", nil, "")
+		}
+		msg, serr := a.sendInstagramReply(&contact, req.Content.Body, &userID)
+		if serr != nil {
+			return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Instagram: "+serr.Error(), nil, "")
+		}
+		return r.SendEnvelope(MessageResponse{
+			ID:              msg.ID,
+			ContactID:       msg.ContactID,
+			Direction:       msg.Direction,
+			MessageType:     msg.MessageType,
+			Content:         map[string]string{"body": msg.Content},
+			Status:          msg.Status,
+			WhatsAppAccount: msg.WhatsAppAccount,
+			CreatedAt:       msg.CreatedAt,
+			UpdatedAt:       msg.UpdatedAt,
+		})
 	}
 
 	// Get WhatsApp account - prefer request-specified account over contact default
@@ -2052,6 +2076,7 @@ func (a *App) buildContactResponse(contact *models.Contact, orgID uuid.UUID) Con
 		UnreadCount:        int(unreadCount),
 		AssignedUserID:     contact.AssignedUserID,
 		WhatsAppAccount:    contact.WhatsAppAccount,
+		Channel:            contact.Channel,
 		LastInboundAt:      contact.LastInboundAt,
 		ServiceWindowOpen:  serviceWindowOpen,
 		MarketingOptOut:    contact.MarketingOptOut,

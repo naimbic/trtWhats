@@ -504,6 +504,8 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.GET("/api/webhook", app.WebhookVerify)
 	g.POST("/api/webhook", app.WebhookHandler)
 	g.POST("/api/ameex/webhook", app.AmeexWebhook) // TRT #63: Ameex status webhook (public, HMAC-verified)
+	g.GET("/api/instagram/webhook", app.InstagramWebhookVerify)  // TRT #68: IG webhook verify (public)
+	g.POST("/api/instagram/webhook", app.InstagramWebhook)       // TRT #68: IG inbound (public, HMAC-verified)
 
 	// WebSocket route (auth via message-based flow after upgrade)
 	g.GET("/ws", app.WebSocketHandler)
@@ -520,7 +522,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 		if path == "/health" || path == "/ready" ||
 			path == "/api/auth/login" || path == "/api/auth/register" || path == "/api/auth/refresh" ||
 			path == "/api/auth/logout" || path == "/api/webhook" || path == "/ws" ||
-			path == "/api/ameex/webhook" {
+			path == "/api/ameex/webhook" || path == "/api/instagram/webhook" {
 			return r
 		}
 		// TRT custom patch #24: public order-photo links (unguessable UUID filenames)
@@ -643,6 +645,11 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.GET("/api/accounts/{id}/ameex/cities", app.GetAmeexCities)      // TRT #63
 	g.GET("/api/ameex/cities", app.GetAmeexCities)                    // TRT #63 (default number)
 	g.GET("/api/ameex/enabled", app.AmeexEnabledForOrg)              // TRT #67 (hide UI when off)
+	// TRT #68: Instagram account management
+	g.GET("/api/instagram/accounts", app.ListInstagramAccounts)
+	g.POST("/api/instagram/accounts", app.CreateInstagramAccount)
+	g.PUT("/api/instagram/accounts/{id}", app.UpdateInstagramAccount)
+	g.DELETE("/api/instagram/accounts/{id}", app.DeleteInstagramAccount)
 	g.PUT("/api/accounts/{id}/ameex", app.UpdateAmeexSettings)       // TRT #63 (Ameex-only save)
 	g.GET("/api/accounts/{id}/ameex/pickup-addresses", app.GetAmeexPickupAddresses) // TRT #67
 	g.POST("/api/accounts/{id}/ameex/pickup", app.RequestAmeexPickup) // TRT #67 (pickup request)

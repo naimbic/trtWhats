@@ -361,6 +361,33 @@ func (a *WhatsAppAccount) DecryptSecrets(encryptionKey string) {
 	crypto.DecryptFields(encryptionKey, &a.AccessToken, &a.AppSecret, &a.Pin, &a.MetaAccessToken)
 }
 
+// InstagramAccount is a connected Instagram (Messenger Platform) inbox. TRT #68.
+// AccessToken/AppSecret are encrypted and never serialized (json:"-").
+type InstagramAccount struct {
+	BaseModel
+	OrganizationID     uuid.UUID `gorm:"type:uuid;index;not null" json:"organization_id"`
+	Name               string    `gorm:"size:100;uniqueIndex:idx_ig_org_name;not null" json:"name"` // reference label, unique per org
+	IGUserID           string    `gorm:"size:100;index" json:"ig_user_id"`                          // Instagram professional account id (recipient of inbound)
+	PageID             string    `gorm:"size:100" json:"page_id"`                                   // linked Facebook Page id
+	Username           string    `gorm:"size:255" json:"username"`
+	APIVersion         string    `gorm:"size:10;default:'v21.0'" json:"api_version"`
+	AccessToken        string    `gorm:"type:text" json:"-"` // Page/IG access token (encrypted)
+	AppSecret          string    `gorm:"type:text" json:"-"` // for webhook signature (encrypted)
+	WebhookVerifyToken string    `gorm:"size:255" json:"webhook_verify_token"`
+	IsActive           bool      `gorm:"default:true" json:"is_active"`
+
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
+}
+
+func (InstagramAccount) TableName() string {
+	return "instagram_accounts"
+}
+
+// DecryptSecrets decrypts the access token and app secret in place.
+func (a *InstagramAccount) DecryptSecrets(encryptionKey string) {
+	crypto.DecryptFields(encryptionKey, &a.AccessToken, &a.AppSecret)
+}
+
 // Contact represents a WhatsApp contact/profile
 type Contact struct {
 	BaseModel
@@ -368,6 +395,10 @@ type Contact struct {
 	PhoneNumber        string     `gorm:"size:50;not null" json:"phone_number"`
 	ProfileName        string     `gorm:"size:255" json:"profile_name"`
 	WhatsAppAccount    string     `gorm:"size:100;index" json:"whatsapp_account"` // References WhatsAppAccount.Name
+	// TRT patch #68: multi-channel. Channel = whatsapp (default) | instagram.
+	// For Instagram, ExternalID holds the IGSID (phone_number is empty).
+	Channel    string `gorm:"size:20;default:'whatsapp';index" json:"channel"`
+	ExternalID string `gorm:"size:100;index" json:"external_id,omitempty"`
 	AssignedUserID     *uuid.UUID `gorm:"type:uuid;index" json:"assigned_user_id,omitempty"`
 	LastMessageAt      *time.Time `json:"last_message_at,omitempty"`
 	LastMessagePreview string     `gorm:"type:text" json:"last_message_preview"`
@@ -429,7 +460,8 @@ func (Contact) TableName() string {
 type Message struct {
 	BaseModel
 	OrganizationID    uuid.UUID     `gorm:"type:uuid;index;not null" json:"organization_id"`
-	WhatsAppAccount   string        `gorm:"size:100;index;not null" json:"whatsapp_account"` // References WhatsAppAccount.Name
+	WhatsAppAccount   string        `gorm:"size:100;index;not null" json:"whatsapp_account"` // References WhatsAppAccount.Name (or InstagramAccount.Name)
+	Channel           string        `gorm:"size:20;default:'whatsapp';index" json:"channel"` // TRT #68: whatsapp | instagram
 	ContactID         uuid.UUID     `gorm:"type:uuid;index;not null" json:"contact_id"`
 	WhatsAppMessageID string        `gorm:"column:whats_app_message_id;size:255;index" json:"whatsapp_message_id"`
 	ConversationID    string        `gorm:"size:255;index" json:"conversation_id"`

@@ -25,6 +25,12 @@ const (
 	DirectionOutgoing Direction = "outgoing"
 )
 
+// Channel is the messaging platform a contact/message belongs to. TRT patch #68.
+const (
+	ChannelWhatsApp  = "whatsapp"
+	ChannelInstagram = "instagram"
+)
+
 // MessageType represents the type of WhatsApp message
 type MessageType string
 

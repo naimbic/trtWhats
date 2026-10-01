@@ -68,6 +68,7 @@ func GetMigrationModels() []MigrationModel {
 		{"Webhook", &models.Webhook{}},
 		{"CustomAction", &models.CustomAction{}},
 		{"WhatsAppAccount", &models.WhatsAppAccount{}},
+		{"InstagramAccount", &models.InstagramAccount{}}, // TRT #68
 		{"Contact", &models.Contact{}},
 		{"Tag", &models.Tag{}},
 		{"Message", &models.Message{}},
