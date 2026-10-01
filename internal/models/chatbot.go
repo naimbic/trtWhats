@@ -42,6 +42,17 @@ type ClientInactivityConfig struct {
 	AutoCloseMessage string `gorm:"column:client_auto_close_message;type:text" json:"client_auto_close_message"`  // Message when closing due to client inactivity
 }
 
+// ReengagementConfig — TRT patch #69: auto re-engagement nudge near the 24h window
+// close. Sends once per window to untagged, silent conversations so the customer
+// is prompted to reply (which reopens the window). WhatsApp + Instagram.
+type ReengagementConfig struct {
+	Enabled bool   `gorm:"column:reengage_enabled;default:false" json:"reengage_enabled"`
+	Hours   int    `gorm:"column:reengage_hours;default:23" json:"reengage_hours"` // hours of silence before nudging (must be < 24)
+	Message string `gorm:"column:reengage_message;type:text" json:"reengage_message"`
+	Button1 string `gorm:"column:reengage_button1;size:40" json:"reengage_button1"`
+	Button2 string `gorm:"column:reengage_button2;size:40" json:"reengage_button2"`
+}
+
 // AIConfig holds AI provider settings
 type AIConfig struct {
 	Enabled        bool       `gorm:"column:ai_enabled;default:false" json:"ai_enabled"`
@@ -99,6 +110,7 @@ type ChatbotSettings struct {
 	AgentAssignment  AgentAssignmentConfig  `gorm:"embedded"`
 	SLA              SLAConfig              `gorm:"embedded"`
 	ClientInactivity ClientInactivityConfig `gorm:"embedded"`
+	Reengagement     ReengagementConfig     `gorm:"embedded"`
 	AI               AIConfig               `gorm:"embedded"`
 
 	// Session settings

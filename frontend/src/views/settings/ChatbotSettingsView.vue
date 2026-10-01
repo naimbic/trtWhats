@@ -168,7 +168,13 @@ const slaSettings = ref({
   client_reminder_minutes: 30,
   client_reminder_message: '',
   client_auto_close_minutes: 60,
-  client_auto_close_message: ''
+  client_auto_close_message: '',
+  // TRT #69: 24h-window re-engagement nudge
+  reengage_enabled: false,
+  reengage_hours: 23,
+  reengage_message: '',
+  reengage_button1: '',
+  reengage_button2: ''
 })
 
 const isClientReminderEnabled = ref(false)
@@ -261,7 +267,12 @@ onMounted(async () => {
         client_reminder_minutes: chatbotData.settings.client_reminder_minutes || 30,
         client_reminder_message: chatbotData.settings.client_reminder_message || '',
         client_auto_close_minutes: chatbotData.settings.client_auto_close_minutes || 60,
-        client_auto_close_message: chatbotData.settings.client_auto_close_message || ''
+        client_auto_close_message: chatbotData.settings.client_auto_close_message || '',
+        reengage_enabled: chatbotData.settings.reengage_enabled === true,
+        reengage_hours: chatbotData.settings.reengage_hours || 23,
+        reengage_message: chatbotData.settings.reengage_message || '',
+        reengage_button1: chatbotData.settings.reengage_button1 || '',
+        reengage_button2: chatbotData.settings.reengage_button2 || ''
       }
     }
   } catch (error) {
@@ -376,7 +387,12 @@ async function saveSLASettings() {
       client_reminder_minutes: slaSettings.value.client_reminder_minutes,
       client_reminder_message: slaSettings.value.client_reminder_message,
       client_auto_close_minutes: slaSettings.value.client_auto_close_minutes,
-      client_auto_close_message: slaSettings.value.client_auto_close_message
+      client_auto_close_message: slaSettings.value.client_auto_close_message,
+      reengage_enabled: slaSettings.value.reengage_enabled,
+      reengage_hours: slaSettings.value.reengage_hours,
+      reengage_message: slaSettings.value.reengage_message,
+      reengage_button1: slaSettings.value.reengage_button1,
+      reengage_button2: slaSettings.value.reengage_button2
     })
     toast.success(t('chatbotSettings.slaSettingsSaved'))
     refreshActivityLog(slaLogKey)
@@ -868,6 +884,44 @@ function removeEscalationUser(userId: string) {
                       />
                     </div>
                   </div>
+                </div>
+
+                <!-- TRT #69: 24h-window re-engagement nudge -->
+                <div class="rounded-lg border border-border/60 p-4 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <Label class="text-sm font-medium">{{ $t('chatbotSettings.reengageTitle', 'Relance avant 24h') }}</Label>
+                      <p class="text-xs text-muted-foreground">{{ $t('chatbotSettings.reengageDesc', 'Envoie un message aux conversations sans tag restées sans réponse ~23h, pour inviter le client à répondre (ce qui rouvre la fenêtre de 24h). WhatsApp + Instagram.') }}</p>
+                    </div>
+                    <Switch :checked="slaSettings.reengage_enabled" @update:checked="slaSettings.reengage_enabled = $event" />
+                  </div>
+                  <template v-if="slaSettings.reengage_enabled">
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="space-y-2">
+                        <Label>{{ $t('chatbotSettings.reengageHours', 'Heures avant relance') }}</Label>
+                        <Input v-model.number="slaSettings.reengage_hours" type="number" min="1" max="23" />
+                      </div>
+                    </div>
+                    <div class="space-y-2">
+                      <Label>{{ $t('chatbotSettings.reengageMessage', 'Message') }}</Label>
+                      <Textarea
+                        v-model="slaSettings.reengage_message"
+                        :placeholder="'Bonjour 👋 Êtes-vous toujours intéressé(e) ? Répondez ou appelez-nous.'"
+                        :rows="2"
+                      />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="space-y-2">
+                        <Label>{{ $t('chatbotSettings.reengageButton1', 'Bouton 1 (WhatsApp)') }}</Label>
+                        <Input v-model="slaSettings.reengage_button1" placeholder="Oui, intéressé(e)" maxlength="20" />
+                      </div>
+                      <div class="space-y-2">
+                        <Label>{{ $t('chatbotSettings.reengageButton2', 'Bouton 2 (WhatsApp)') }}</Label>
+                        <Input v-model="slaSettings.reengage_button2" placeholder="Rappelez-moi" maxlength="20" />
+                      </div>
+                    </div>
+                    <p class="text-[11px] text-muted-foreground">{{ $t('chatbotSettings.reengageNote', 'Envoyé une seule fois par fenêtre, uniquement aux conversations sans tag des 30 derniers jours. Les boutons sont WhatsApp uniquement ; sur Instagram seul le texte est envoyé.') }}</p>
+                  </template>
                 </div>
 
                 <div class="flex justify-end pt-2">

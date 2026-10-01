@@ -46,6 +46,12 @@ type ChatbotSettingsResponse struct {
 	ClientReminderMessage  string `json:"client_reminder_message"`
 	ClientAutoCloseMinutes int    `json:"client_auto_close_minutes"`
 	ClientAutoCloseMessage string `json:"client_auto_close_message"`
+	// TRT #69: re-engagement nudge
+	ReengageEnabled bool   `json:"reengage_enabled"`
+	ReengageHours   int    `json:"reengage_hours"`
+	ReengageMessage string `json:"reengage_message"`
+	ReengageButton1 string `json:"reengage_button1"`
+	ReengageButton2 string `json:"reengage_button2"`
 }
 
 // ChatbotStatsResponse represents chatbot statistics
@@ -191,6 +197,11 @@ func (a *App) GetChatbotSettings(r *fastglue.Request) error {
 		ClientReminderMessage:  settings.ClientInactivity.ReminderMessage,
 		ClientAutoCloseMinutes: settings.ClientInactivity.AutoCloseMinutes,
 		ClientAutoCloseMessage: settings.ClientInactivity.AutoCloseMessage,
+		ReengageEnabled:        settings.Reengagement.Enabled,
+		ReengageHours:          settings.Reengagement.Hours,
+		ReengageMessage:        settings.Reengagement.Message,
+		ReengageButton1:        settings.Reengagement.Button1,
+		ReengageButton2:        settings.Reengagement.Button2,
 	}
 
 	return r.SendEnvelope(map[string]any{
@@ -305,6 +316,12 @@ func (a *App) UpdateChatbotSettings(r *fastglue.Request) error {
 		ClientReminderMessage  *string `json:"client_reminder_message"`
 		ClientAutoCloseMinutes *int    `json:"client_auto_close_minutes"`
 		ClientAutoCloseMessage *string `json:"client_auto_close_message"`
+		// TRT #69: 24h-window re-engagement nudge
+		ReengageEnabled *bool   `json:"reengage_enabled"`
+		ReengageHours   *int    `json:"reengage_hours"`
+		ReengageMessage *string `json:"reengage_message"`
+		ReengageButton1 *string `json:"reengage_button1"`
+		ReengageButton2 *string `json:"reengage_button2"`
 	}
 
 	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
@@ -347,7 +364,9 @@ func (a *App) UpdateChatbotSettings(r *fastglue.Request) error {
 		req.SLAWarningMessage != nil || req.SLAEscalationNotifyIDs != nil ||
 		req.ClientReminderEnabled != nil || req.ClientReminderMinutes != nil ||
 		req.ClientReminderMessage != nil || req.ClientAutoCloseMinutes != nil ||
-		req.ClientAutoCloseMessage != nil
+		req.ClientAutoCloseMessage != nil ||
+		req.ReengageEnabled != nil || req.ReengageHours != nil || req.ReengageMessage != nil ||
+		req.ReengageButton1 != nil || req.ReengageButton2 != nil
 	aiTouched := req.AIEnabled != nil || req.AIProvider != nil || req.AIAPIKey != nil ||
 		req.AIModel != nil || req.AIMaxTokens != nil || req.AISystemPrompt != nil
 
@@ -468,6 +487,23 @@ func (a *App) UpdateChatbotSettings(r *fastglue.Request) error {
 	}
 	if req.ClientAutoCloseMessage != nil {
 		settings.ClientInactivity.AutoCloseMessage = *req.ClientAutoCloseMessage
+	}
+
+	// TRT #69: re-engagement nudge
+	if req.ReengageEnabled != nil {
+		settings.Reengagement.Enabled = *req.ReengageEnabled
+	}
+	if req.ReengageHours != nil {
+		settings.Reengagement.Hours = *req.ReengageHours
+	}
+	if req.ReengageMessage != nil {
+		settings.Reengagement.Message = *req.ReengageMessage
+	}
+	if req.ReengageButton1 != nil {
+		settings.Reengagement.Button1 = *req.ReengageButton1
+	}
+	if req.ReengageButton2 != nil {
+		settings.Reengagement.Button2 = *req.ReengageButton2
 	}
 
 	if err := a.DB.Save(&settings).Error; err != nil {

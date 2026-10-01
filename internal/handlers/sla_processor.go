@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/internal/websocket"
+	"github.com/shridarpatil/whatomate/pkg/whatsapp"
 )
 
 // SLAProcessor handles periodic SLA checks and escalations
@@ -42,6 +43,7 @@ func (p *SLAProcessor) Start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			p.processStaleTransfers()
+			p.processReengagement()
 		}
 	}
 }
@@ -155,6 +157,106 @@ func (p *SLAProcessor) sendDeferredFallbacks(orgID uuid.UUID, settings models.Ch
 		p.app.DB.Model(&models.Contact{}).Where("id = ?", c.ID).Update("fallback_pending_at", nil)
 		p.app.Log.Info("Sent deferred media fallback after client went quiet", "contact", c.ID)
 	}
+}
+
+// processReengagement — TRT patch #69: send a one-time nudge near the 24h window
+// close to untagged, silent conversations (WhatsApp + Instagram), prompting the
+// customer to reply (which reopens the window). Runs independently of SLA.
+func (p *SLAProcessor) processReengagement() {
+	var settingsList []models.ChatbotSettings
+	if err := p.app.DB.Where("reengage_enabled = ?", true).Find(&settingsList).Error; err != nil {
+		p.app.Log.Error("reengagement: load settings failed", "error", err)
+		return
+	}
+	seen := make(map[uuid.UUID]bool)
+	now := time.Now()
+	for i := range settingsList {
+		s := settingsList[i]
+		if seen[s.OrganizationID] {
+			continue // one pass per org even if multiple settings rows are enabled
+		}
+		seen[s.OrganizationID] = true
+		p.reengageOrg(s, now)
+	}
+}
+
+func (p *SLAProcessor) reengageOrg(settings models.ChatbotSettings, now time.Time) {
+	hours := settings.Reengagement.Hours
+	if hours <= 0 || hours >= 24 {
+		hours = 23
+	}
+	silentSince := now.Add(-time.Duration(hours) * time.Hour) // last_inbound_at <= this
+	windowOpen := now.Add(-24 * time.Hour)                    // last_inbound_at > this (still inside 24h)
+	within30d := now.Add(-30 * 24 * time.Hour)
+
+	var contacts []models.Contact
+	if err := p.app.DB.Where(
+		"organization_id = ? AND last_inbound_at IS NOT NULL "+
+			"AND last_inbound_at <= ? AND last_inbound_at > ? AND last_inbound_at > ? "+
+			"AND coalesce(jsonb_array_length(tags), 0) = 0 "+
+			"AND (window_nudge_sent_at IS NULL OR window_nudge_sent_at < last_inbound_at)",
+		settings.OrganizationID, silentSince, windowOpen, within30d,
+	).Limit(200).Find(&contacts).Error; err != nil {
+		p.app.Log.Error("reengagement query failed", "error", err, "org", settings.OrganizationID)
+		return
+	}
+
+	msg := settings.Reengagement.Message
+	if msg == "" {
+		msg = "Bonjour 👋 Êtes-vous toujours intéressé(e) ? Répondez à ce message ou appelez-nous."
+	}
+	sent := 0
+	for i := range contacts {
+		c := &contacts[i]
+		// Don't interrupt a live agent handoff.
+		if p.app.hasActiveAgentTransfer(settings.OrganizationID, c.ID) {
+			continue
+		}
+		var err error
+		if c.Channel == models.ChannelInstagram {
+			_, err = p.app.sendInstagramReply(c, msg, nil)
+		} else {
+			err = p.sendReengageWhatsApp(c, settings, msg)
+		}
+		if err != nil {
+			p.app.Log.Error("reengagement send failed", "error", err, "contact", c.ID, "channel", c.Channel)
+			continue
+		}
+		p.app.DB.Model(&models.Contact{}).Where("id = ?", c.ID).Update("window_nudge_sent_at", now)
+		sent++
+	}
+	if sent > 0 {
+		p.app.Log.Info("Re-engagement nudges sent", "org", settings.OrganizationID, "count", sent)
+	}
+}
+
+// sendReengageWhatsApp sends the nudge as quick-reply buttons (falls back to text).
+func (p *SLAProcessor) sendReengageWhatsApp(c *models.Contact, settings models.ChatbotSettings, msg string) error {
+	account, err := p.app.resolveWhatsAppAccount(settings.OrganizationID, c.WhatsAppAccount)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var buttons []whatsapp.Button
+	if settings.Reengagement.Button1 != "" {
+		buttons = append(buttons, whatsapp.Button{ID: "reengage_yes", Title: settings.Reengagement.Button1})
+	}
+	if settings.Reengagement.Button2 != "" {
+		buttons = append(buttons, whatsapp.Button{ID: "reengage_call", Title: settings.Reengagement.Button2})
+	}
+	req := OutgoingMessageRequest{Account: account, Contact: c, Content: msg}
+	if len(buttons) > 0 {
+		req.Type = models.MessageTypeInteractive
+		req.InteractiveType = "button"
+		req.BodyText = msg
+		req.Buttons = buttons
+	} else {
+		req.Type = models.MessageTypeText
+	}
+	_, err = p.app.SendOutgoingMessage(ctx, req, SLASendOptions())
+	return err
 }
 
 // tagLostContacts adds the "Lost" tag to contacts whose last inbound message is

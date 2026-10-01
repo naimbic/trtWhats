@@ -399,6 +399,9 @@ type Contact struct {
 	// For Instagram, ExternalID holds the IGSID (phone_number is empty).
 	Channel    string `gorm:"size:20;default:'whatsapp';index" json:"channel"`
 	ExternalID string `gorm:"size:100;index" json:"external_id,omitempty"`
+	// TRT patch #69: when the 23h re-engagement nudge was last sent (re-arms when a
+	// newer last_inbound_at arrives, so it fires at most once per 24h window).
+	WindowNudgeSentAt *time.Time `json:"-"`
 	AssignedUserID     *uuid.UUID `gorm:"type:uuid;index" json:"assigned_user_id,omitempty"`
 	LastMessageAt      *time.Time `json:"last_message_at,omitempty"`
 	LastMessagePreview string     `gorm:"type:text" json:"last_message_preview"`
