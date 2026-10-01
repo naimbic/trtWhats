@@ -108,7 +108,7 @@ import { useNotesStore } from '@/stores/notes'
 import { useHeaderMedia } from '@/composables/useHeaderMedia'
 import { CreateContactDialog } from '@/components/shared'
 import HeaderMediaUpload from '@/components/shared/HeaderMediaUpload.vue'
-import { Info } from 'lucide-vue-next'
+import { Info, Instagram } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -2335,12 +2335,23 @@ async function sendAudioBlob(blob: Blob) {
             :style="rowTint(contact.id)"
             @click="handleContactClick(contact)"
           >
-            <Avatar class="h-9 w-9 ring-2 ring-white/[0.1] light:ring-gray-200">
-              <AvatarImage :src="contact.avatar_url" />
-              <AvatarFallback :class="'text-xs bg-gradient-to-br text-white ' + getAvatarGradient(contact.name || contact.phone_number)">
-                {{ getInitials(contact.name || contact.phone_number) }}
-              </AvatarFallback>
-            </Avatar>
+            <div class="relative shrink-0">
+              <Avatar class="h-9 w-9 ring-2 ring-white/[0.1] light:ring-gray-200">
+                <AvatarImage :src="contact.avatar_url" />
+                <AvatarFallback :class="'text-xs bg-gradient-to-br text-white ' + getAvatarGradient(contact.name || contact.phone_number)">
+                  {{ getInitials(contact.name || contact.phone_number) }}
+                </AvatarFallback>
+              </Avatar>
+              <!-- TRT #68: Instagram channel badge -->
+              <span
+                v-if="(contact as any).channel === 'instagram'"
+                class="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full flex items-center justify-center ring-2 ring-[#111b21] light:ring-white"
+                style="background: linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)"
+                title="Instagram"
+              >
+                <Instagram class="h-2.5 w-2.5 text-white" />
+              </span>
+            </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-2">
                 <p
@@ -2355,7 +2366,7 @@ async function sendAudioBlob(blob: Blob) {
               </div>
               <div class="flex items-center justify-between gap-2">
                 <p class="flex-1 min-w-0 text-xs text-white/50 light:text-gray-500 truncate">
-                  {{ contact.phone_number }}
+                  {{ contact.phone_number || ((contact as any).channel === 'instagram' ? 'Instagram' : '') }}
                 </p>
                 <div class="flex-shrink-0 flex items-center gap-1">
                   <!-- TRT custom patch #44/#45: status bubble coloured by the

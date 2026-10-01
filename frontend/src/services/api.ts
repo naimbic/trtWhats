@@ -206,6 +206,26 @@ export const accountsService = {
     api.get<{ addresses: { id: string; business_id: string; business_name: string; city_id: string; city_name: string; phone: string; address: string }[] }>(`/accounts/${id}/ameex/pickup-addresses`),
 }
 
+// TRT #68: Instagram accounts
+export interface InstagramAccount {
+  id: string
+  name: string
+  ig_user_id: string
+  page_id: string
+  username: string
+  api_version: string
+  webhook_verify_token: string
+  is_active: boolean
+  has_access_token: boolean
+  has_app_secret: boolean
+}
+export const instagramService = {
+  list: () => api.get<{ accounts: InstagramAccount[] }>('/instagram/accounts'),
+  create: (data: Record<string, any>) => api.post('/instagram/accounts', data),
+  update: (id: string, data: Record<string, any>) => api.put(`/instagram/accounts/${id}`, data),
+  remove: (id: string) => api.delete(`/instagram/accounts/${id}`),
+}
+
 export const contactsService = {
   list: (params?: { search?: string; page?: number; limit?: number; tags?: string; from?: string; to?: string; read?: boolean; account?: string }) =>
     api.get('/contacts', { params }),

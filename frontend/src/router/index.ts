@@ -183,6 +183,12 @@ const router = createRouter({
           meta: { permission: 'accounts' }
         },
         {
+          path: 'settings/instagram',
+          name: 'instagram-settings',
+          component: () => import('@/views/settings/InstagramSettingsView.vue'),
+          meta: { permission: 'accounts' }
+        },
+        {
           path: 'settings/canned-responses',
           name: 'canned-responses',
           component: () => import('@/views/settings/CannedResponsesView.vue'),

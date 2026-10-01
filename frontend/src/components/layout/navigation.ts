@@ -1,4 +1,5 @@
 import {
+  Instagram,
   LayoutDashboard,
   MessageSquare,
   Bot,
@@ -142,6 +143,7 @@ export const navigationSections: NavSection[] = [
           { name: 'nav.general', path: '/settings', icon: Settings, permission: 'settings.general' },
           { name: 'nav.chatbot', path: '/settings/chatbot', icon: Bot, permission: 'settings.chatbot' },
           { name: 'nav.accounts', path: '/settings/accounts', icon: Users, permission: 'accounts' },
+          { name: 'nav.instagram', path: '/settings/instagram', icon: Instagram, permission: 'accounts' },
           { name: 'nav.contacts', path: '/settings/contacts', icon: Contact, permission: 'contacts' },
           { name: 'nav.cannedResponses', path: '/settings/canned-responses', icon: MessageSquareText, permission: 'canned_responses' },
           { name: 'nav.tags', path: '/settings/tags', icon: Tags, permission: 'tags' },
