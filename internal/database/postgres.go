@@ -250,7 +250,12 @@ func getIndexes() []string {
 		`CREATE INDEX IF NOT EXISTS idx_agent_transfers_agent_active ON agent_transfers(agent_id, status) WHERE status = 'active'`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_transfers_team ON agent_transfers(team_id, status) WHERE team_id IS NOT NULL`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_accounts_org_phone ON whatsapp_accounts(organization_id, phone_id)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_templates_account_name_lang ON templates(whats_app_account, name, language)`,
+		// TRT #70: the unique template index must ignore soft-deleted rows, else a
+		// soft-deleted template blocks re-creating one with the same name+language
+		// ("Failed to create template"). Drop the old non-partial index and use a
+		// partial one scoped to live rows.
+		`DROP INDEX IF EXISTS idx_templates_account_name_lang`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_templates_acc_name_lang_active ON templates(whats_app_account, name, language) WHERE deleted_at IS NULL`,
 		`CREATE INDEX IF NOT EXISTS idx_keyword_rules_account ON keyword_rules(whats_app_account, is_enabled, priority DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_chatbot_flows_account ON chatbot_flows(whats_app_account, is_enabled)`,
 		`CREATE INDEX IF NOT EXISTS idx_ai_contexts_account ON ai_contexts(whats_app_account, is_enabled, priority DESC)`,
