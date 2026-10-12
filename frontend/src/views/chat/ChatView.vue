@@ -187,6 +187,25 @@ const messageInput = ref('')
 const messagesEndRef = ref<HTMLElement | null>(null)
 const messageInputRef = ref<HTMLTextAreaElement | null>(null)
 const isSending = ref(false)
+// TRT #71: brief cooldown after each send so a reply can't go out in the same
+// second (prevents accidental double-sends / rapid fire).
+const SEND_COOLDOWN_MS = 3500
+const isCoolingDown = ref(false)
+let cooldownTimer: ReturnType<typeof setTimeout> | null = null
+function startSendCooldown() {
+  isCoolingDown.value = true
+  if (cooldownTimer) clearTimeout(cooldownTimer)
+  cooldownTimer = setTimeout(() => { isCoolingDown.value = false }, SEND_COOLDOWN_MS)
+}
+// TRT #71: has the current ad-sourced contact's 72h free-messaging window expired?
+const adFreeWindowExpired = computed(() => {
+  const md = (contactsStore.currentContact as any)?.metadata
+  const clid = md?.ctwa_clid
+  const seen = md?.ctwa_last_seen || md?.ctwa_first_seen
+  if (!clid || !seen) return false
+  const end = Date.parse(seen) + 72 * 3600 * 1000
+  return !isNaN(end) && Date.now() > end
+})
 const isAssignDialogOpen = ref(false)
 const isTransferring = ref(false)
 const isResuming = ref(false)
@@ -927,6 +946,7 @@ function handleContactClick(contact: Contact) {
 
 async function sendMessage() {
   if (!messageInput.value.trim() || !contactsStore.currentContact) return
+  if (isSending.value || isCoolingDown.value) return // TRT #71: block same-second / double sends
   // TRT custom patch #53: the 24h window is closed — free-text will be rejected
   // by WhatsApp. Nudge the agent to a template instead of failing the send.
   if (isServiceWindowExpired.value) {
@@ -934,8 +954,13 @@ async function sendMessage() {
     openTemplatePicker()
     return
   }
+  // TRT #71: ad-sourced contact past its 72h free window — warn that it's billed.
+  if (adFreeWindowExpired.value) {
+    toast.warning(t('chat.freeWindowBilledWarning', 'Fenêtre gratuite (pub) expirée — ce message sera facturé.'))
+  }
 
   isSending.value = true
+  startSendCooldown()
   try {
     await contactsStore.sendMessage(
       contactsStore.currentContact.id,
@@ -3114,7 +3139,7 @@ async function sendAudioBlob(blob: Blob) {
                 @keydown.enter.exact.prevent="sendMessage"
                 @input="autoResizeTextarea"
               />
-              <button type="submit" class="w-9 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 light:bg-emerald-500 light:hover:bg-emerald-600 flex items-center justify-center transition-colors disabled:opacity-50" :disabled="!messageInput.trim() || isSending || isServiceWindowExpired" :title="isServiceWindowExpired ? $t('chat.serviceWindowExpired') : ''">
+              <button type="submit" class="w-9 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 light:bg-emerald-500 light:hover:bg-emerald-600 flex items-center justify-center transition-colors disabled:opacity-50" :disabled="!messageInput.trim() || isSending || isCoolingDown || isServiceWindowExpired" :title="isServiceWindowExpired ? $t('chat.serviceWindowExpired') : ''">
                 <Send class="w-4 h-4 text-white" />
               </button>
             </template>

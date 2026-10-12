@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getErrorMessage } from '@/lib/api-utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -114,6 +114,40 @@ const isConverted = computed(() => {
 const hasAdClickId = computed(() => {
   const md = props.contact.metadata as Record<string, any> | undefined
   return !!(md && typeof md.ctwa_clid === 'string' && md.ctwa_clid)
+})
+
+// TRT #71: Click-to-WhatsApp 72h free-entry window. A CTWA ad click opens a 72h
+// window during which messaging is FREE; after it, messages are billed. Anchored
+// on the most recent ad click (ctwa_last_seen).
+const FREE_WINDOW_MS = 72 * 60 * 60 * 1000
+const nowTs = ref(Date.now())
+let nowTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { nowTimer = setInterval(() => { nowTs.value = Date.now() }, 30000) })
+onUnmounted(() => { if (nowTimer) clearInterval(nowTimer) })
+const ctwaLastSeenMs = computed(() => {
+  const md = props.contact.metadata as Record<string, any> | undefined
+  const s = md?.ctwa_last_seen || md?.ctwa_first_seen
+  const t = s ? Date.parse(s) : NaN
+  return isNaN(t) ? 0 : t
+})
+const freeWindowEndMs = computed(() => ctwaLastSeenMs.value ? ctwaLastSeenMs.value + FREE_WINDOW_MS : 0)
+const freeWindowRemainingMs = computed(() => freeWindowEndMs.value ? freeWindowEndMs.value - nowTs.value : 0)
+const freeWindowExpired = computed(() => hasAdClickId.value && freeWindowEndMs.value > 0 && freeWindowRemainingMs.value <= 0)
+const freeWindowDotColor = computed(() => {
+  const h = freeWindowRemainingMs.value / 3600000
+  if (h <= 0) return '#ef4444'   // expired — red
+  if (h < 6) return '#f59e0b'    // <6h — amber
+  if (h < 24) return '#eab308'   // <24h — yellow
+  return '#22c55e'               // plenty — green
+})
+const freeWindowLabel = computed(() => {
+  if (!hasAdClickId.value || !freeWindowEndMs.value) return ''
+  const ms = freeWindowRemainingMs.value
+  if (ms <= 0) return t('chat.freeWindowExpired', 'Fenêtre gratuite expirée — envoi facturé')
+  const totalMin = Math.floor(ms / 60000)
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return `${h}h ${m}m ` + t('chat.freeLeftSuffix', 'restantes (gratuit)')
 })
 const convQuantity = ref<number | string>(props.contact.conversion_quantity ?? 0)
 const convValue = ref<number | string>(props.contact.conversion_value ?? 0)
@@ -435,6 +469,21 @@ async function updateContactTags(tags: string[]) {
             <Phone class="h-3 w-3" />
             <span>{{ contact.phone_number }}</span>
           </div>
+
+          <!-- TRT #71: Click-to-WhatsApp 72h free-window status -->
+          <div
+            v-if="hasAdClickId"
+            class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-medium"
+            :class="freeWindowExpired ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'"
+            :title="$t('chat.fromCtwaAd', 'From a Click-to-WhatsApp ad')"
+          >
+            <span
+              class="h-2 w-2 rounded-full shrink-0"
+              :class="{ 'free-window-glow': !freeWindowExpired }"
+              :style="{ backgroundColor: freeWindowDotColor, '--glow-color': freeWindowDotColor }"
+            />
+            <span>📣 {{ freeWindowLabel }}</span>
+          </div>
         </div>
 
         <!-- Tags Section (always shown) -->
@@ -700,3 +749,14 @@ async function updateContactTags(tags: string[]) {
     </ScrollArea>
   </div>
 </template>
+
+<style scoped>
+/* TRT #71: glowing dot for the Click-to-WhatsApp 72h free window */
+.free-window-glow {
+  animation: free-window-pulse 1.6s ease-in-out infinite;
+}
+@keyframes free-window-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow-color, #22c55e); opacity: 1; }
+  50% { box-shadow: 0 0 6px 2px var(--glow-color, #22c55e); opacity: 0.7; }
+}
+</style>
