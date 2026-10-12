@@ -281,6 +281,10 @@ func getIndexes() []string {
 		// GIN index for JSONB tag filtering
 		`CREATE INDEX IF NOT EXISTS idx_contacts_tags ON contacts USING GIN (tags)`,
 		// User organizations
+		// TRT #72: remove the legacy non-partial unique index (it counted
+		// soft-deleted memberships and blocked re-adding a removed member); the
+		// partial one below is the real constraint.
+		`DROP INDEX IF EXISTS idx_user_org`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_user_org_unique ON user_organizations(user_id, organization_id) WHERE deleted_at IS NULL`,
 		// Conversation notes
 		`CREATE INDEX IF NOT EXISTS idx_conversation_notes_contact ON conversation_notes(organization_id, contact_id, created_at DESC)`,
