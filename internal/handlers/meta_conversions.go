@@ -65,6 +65,9 @@ func (a *App) captureCTWAReferral(contact *models.Contact, msg IncomingTextMessa
 		a.Log.Error("captureCTWAReferral: failed to persist", "error", err, "contact", contact.ID)
 		return
 	}
+	// TRT #71: mark the contact as in the 72h free window (removes the "past" tag
+	// if a prior window had expired).
+	a.applyAdWaitingTag(contact)
 	a.Log.Info("Captured CTWA referral", "contact", contact.ID, "source_id", msg.Referral.SourceID)
 }
 

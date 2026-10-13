@@ -44,6 +44,7 @@ func (p *SLAProcessor) Start(ctx context.Context) {
 		case <-ticker.C:
 			p.processStaleTransfers()
 			p.processReengagement()
+			p.processAdWindowTags(time.Now())
 		}
 	}
 }

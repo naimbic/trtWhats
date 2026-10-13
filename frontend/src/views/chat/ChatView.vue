@@ -130,6 +130,10 @@ const canWriteContacts = authStore.hasPermission('contacts', 'write')
 // tags show a coloured dot. Colour follows the tag's own colour (purple for
 // "En attente du reste", etc.).
 const CONVERTED_TAG = 'تم البيع - Converti'
+// TRT #71: auto-managed 72h ad-window tags — represented by the glowing dot, so
+// don't also render them as a status bubble.
+const AD_WAIT_TAG = 'Pub 72h ⏳'
+const AD_PAST_TAG = 'Pub +72h ⌛'
 const TAG_SOLID: Record<string, string> = {
   blue: '#3b82f6', red: '#ef4444', green: '#22c55e',
   yellow: '#eab308', orange: '#f97316', purple: '#a855f7', gray: '#6b7280'
@@ -154,6 +158,7 @@ function statusBubble(contact: any): { bg: string; label: string; cart: boolean 
     // tag is applied if the tag list hadn't loaded yet, only after another tag
     // op refetched the tags. Other tags still need their configured colour.
     if (name === CONVERTED_TAG) return { bg: '#f97316', label: name, cart: true }
+    if (name === AD_WAIT_TAG || name === AD_PAST_TAG) continue // shown as the glowing dot
     const tag = tagsStore.getTagByName(name)
     if (tag) {
       return { bg: TAG_SOLID[tag.color || 'gray'] || TAG_SOLID.gray, label: name, cart: false }
@@ -166,6 +171,34 @@ const statusBubbles = computed(() => {
   for (const c of contactsStore.sortedContacts) {
     const b = statusBubble(c)
     if (b) m[c.id] = b
+  }
+  return m
+})
+
+// TRT #71: 72h Click-to-WhatsApp free-window dot shown on contact rows (next to
+// the unread bubble). Green → yellow (<24h) → amber (<6h) → red (expired).
+const adWinTick = ref(Date.now())
+let adWinTimer: ReturnType<typeof setInterval> | null = setInterval(() => { adWinTick.value = Date.now() }, 60000)
+function adWindowDot(contact: any): { color: string; glow: boolean; title: string } | null {
+  const md = contact?.metadata
+  const clid = md?.ctwa_clid
+  const seen = md?.ctwa_last_seen || md?.ctwa_first_seen
+  if (!clid || !seen) return null
+  const end = Date.parse(seen) + 72 * 3600 * 1000
+  if (isNaN(end)) return null
+  const remaining = end - adWinTick.value
+  if (remaining <= 0) return { color: '#ef4444', glow: false, title: 'Fenêtre 72h (pub) expirée — envoi facturé' }
+  const h = remaining / 3600000
+  const color = h < 6 ? '#f59e0b' : h < 24 ? '#eab308' : '#22c55e'
+  const hh = Math.floor(remaining / 3600000)
+  const mm = Math.floor((remaining % 3600000) / 60000)
+  return { color, glow: true, title: `Pub — ${hh}h ${mm}m restantes (gratuit)` }
+}
+const adWindowDots = computed(() => {
+  const m: Record<string, { color: string; glow: boolean; title: string }> = {}
+  for (const c of contactsStore.sortedContacts) {
+    const d = adWindowDot(c)
+    if (d) m[c.id] = d
   }
   return m
 })
@@ -2394,6 +2427,14 @@ async function sendAudioBlob(blob: Blob) {
                   {{ contact.phone_number || ((contact as any).channel === 'instagram' ? 'Instagram' : '') }}
                 </p>
                 <div class="flex-shrink-0 flex items-center gap-1">
+                  <!-- TRT #71: Click-to-WhatsApp 72h free-window dot -->
+                  <span
+                    v-if="adWindowDots[contact.id]"
+                    class="h-2.5 w-2.5 rounded-full shrink-0"
+                    :class="{ 'free-window-glow': adWindowDots[contact.id].glow }"
+                    :style="{ backgroundColor: adWindowDots[contact.id].color, '--glow-color': adWindowDots[contact.id].color }"
+                    :title="adWindowDots[contact.id].title"
+                  />
                   <!-- TRT custom patch #44/#45: status bubble coloured by the
                        contact's tag (cart icon for the Converted "order" tag, a
                        coloured dot otherwise); clears when a real agent replies. -->
@@ -3472,5 +3513,14 @@ async function sendAudioBlob(blob: Blob) {
 .sticky-date-enter-from,
 .sticky-date-leave-to {
   opacity: 0;
+}
+
+/* TRT #71: glowing dot for the Click-to-WhatsApp 72h free window */
+.free-window-glow {
+  animation: free-window-pulse 1.6s ease-in-out infinite;
+}
+@keyframes free-window-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow-color, #22c55e); opacity: 1; }
+  50% { box-shadow: 0 0 6px 2px var(--glow-color, #22c55e); opacity: 0.65; }
 }
 </style>
