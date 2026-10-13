@@ -39,15 +39,58 @@ func (a *App) captureCTWAReferral(contact *models.Contact, msg IncomingTextMessa
 			"source_url", msg.Referral.SourceURL,
 			"has_ctwa_clid", msg.Referral.CtwaClid != "")
 	}
-	if msg.Referral == nil || msg.Referral.CtwaClid == "" {
+	if msg.Referral == nil {
 		return
 	}
+	now := time.Now().UTC().Format(time.RFC3339)
 	meta := contact.Metadata
 	if meta == nil {
 		meta = models.JSONB{}
 	}
+
+	// TRT #72: a referral WITHOUT a ctwa_clid is an *organic* Facebook/Instagram
+	// entry point (the native "Send WhatsApp message" button on a post/page), not
+	// a paid Click-to-WhatsApp ad. There is no free 72h window here (replies are
+	// billed), but Meta still tells us where the customer came from — so capture
+	// the source instead of discarding it, so the contact shows "Facebook post" /
+	// "Instagram post" rather than an unknown (billed) session.
+	if msg.Referral.CtwaClid == "" {
+		if msg.Referral.SourceType == "" && msg.Referral.SourceURL == "" {
+			return // genuinely no source info (plain wa.me / typed number / QR)
+		}
+		if _, ok := meta["referral_first_seen"]; !ok {
+			meta["referral_first_seen"] = now
+		}
+		meta["referral_last_seen"] = now
+		if msg.Referral.SourceType != "" {
+			meta["referral_source_type"] = msg.Referral.SourceType
+		}
+		if msg.Referral.SourceID != "" {
+			meta["referral_source_id"] = msg.Referral.SourceID
+		}
+		if msg.Referral.SourceURL != "" {
+			meta["referral_source_url"] = msg.Referral.SourceURL
+		}
+		if msg.Referral.Headline != "" {
+			meta["referral_headline"] = msg.Referral.Headline
+		}
+		if ch := referralChannelFromURL(msg.Referral.SourceURL); ch != "" {
+			meta["referral_channel"] = ch
+		}
+		contact.Metadata = meta
+		if err := a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).
+			Update("metadata", meta).Error; err != nil {
+			a.Log.Error("captureCTWAReferral: failed to persist organic referral", "error", err, "contact", contact.ID)
+			return
+		}
+		a.Log.Info("Captured organic referral (no ad click id)",
+			"contact", contact.ID, "source_type", msg.Referral.SourceType,
+			"channel", meta["referral_channel"])
+		return
+	}
+
 	if _, ok := meta["ctwa_first_seen"]; !ok {
-		meta["ctwa_first_seen"] = time.Now().UTC().Format(time.RFC3339)
+		meta["ctwa_first_seen"] = now
 	}
 	// Keep the most recent ad click — it's the most relevant for the
 	// attribution window if the customer clicked more than one ad.
@@ -58,7 +101,7 @@ func (a *App) captureCTWAReferral(contact *models.Contact, msg IncomingTextMessa
 	if msg.Referral.SourceType != "" {
 		meta["ctwa_source_type"] = msg.Referral.SourceType
 	}
-	meta["ctwa_last_seen"] = time.Now().UTC().Format(time.RFC3339)
+	meta["ctwa_last_seen"] = now
 	contact.Metadata = meta
 	if err := a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).
 		Update("metadata", meta).Error; err != nil {
@@ -69,6 +112,22 @@ func (a *App) captureCTWAReferral(contact *models.Contact, msg IncomingTextMessa
 	// if a prior window had expired).
 	a.applyAdWaitingTag(contact)
 	a.Log.Info("Captured CTWA referral", "contact", contact.ID, "source_id", msg.Referral.SourceID)
+}
+
+// referralChannelFromURL derives the originating network ("facebook" |
+// "instagram") from a referral's source_url. Organic post/page referrals carry
+// the fb.me / facebook.com / instagram.com URL the customer came from; Meta only
+// labels source_type as "post"/"page", so the URL is how we tell FB from IG.
+func referralChannelFromURL(sourceURL string) string {
+	u := strings.ToLower(sourceURL)
+	switch {
+	case strings.Contains(u, "instagram.com") || strings.Contains(u, "ig.me"):
+		return "instagram"
+	case strings.Contains(u, "facebook.com") || strings.Contains(u, "fb.com") || strings.Contains(u, "fb.me") || strings.Contains(u, "fb.watch"):
+		return "facebook"
+	default:
+		return ""
+	}
 }
 
 // orderValueFromFlow tries to read an order value from the submitted order-form

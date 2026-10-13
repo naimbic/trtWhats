@@ -116,6 +116,18 @@ const hasAdClickId = computed(() => {
   return !!(md && typeof md.ctwa_clid === 'string' && md.ctwa_clid)
 })
 
+// TRT #72: organic Facebook/Instagram referral (post/page "Send WhatsApp" button,
+// no ad click id). No free window (billed), but we know where they came from.
+const referralSource = computed<{ icon: string; label: string } | null>(() => {
+  const md = props.contact.metadata as Record<string, any> | undefined
+  if (!md || md.ctwa_clid) return null
+  const ch = md.referral_channel
+  if (ch === 'instagram') return { icon: '📷', label: 'Instagram (publication)' }
+  if (ch === 'facebook') return { icon: '📘', label: 'Facebook (publication)' }
+  if (md.referral_source_type) return { icon: '📣', label: 'Publication Facebook/Instagram' }
+  return null
+})
+
 // TRT #71: Click-to-WhatsApp 72h free-entry window. A CTWA ad click opens a 72h
 // window during which messaging is FREE; after it, messages are billed. Anchored
 // on the most recent ad click (ctwa_last_seen).
@@ -483,6 +495,14 @@ async function updateContactTags(tags: string[]) {
               :style="{ backgroundColor: freeWindowDotColor, '--glow-color': freeWindowDotColor }"
             />
             <span>📣 {{ freeWindowLabel }}</span>
+          </div>
+          <!-- TRT #72: organic FB/IG post source (billed, but origin known) -->
+          <div
+            v-else-if="referralSource"
+            class="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            :title="$t('chat.organicPostBilled', 'Publication Facebook/Instagram (organique) — pas de fenêtre gratuite, envoi facturé')"
+          >
+            <span>{{ referralSource.icon }} {{ referralSource.label }}</span>
           </div>
           <div
             v-else

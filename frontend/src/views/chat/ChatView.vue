@@ -179,14 +179,22 @@ const statusBubbles = computed(() => {
 // the unread bubble). Green → yellow (<24h) → amber (<6h) → red (expired).
 const adWinTick = ref(Date.now())
 let adWinTimer: ReturnType<typeof setInterval> | null = setInterval(() => { adWinTick.value = Date.now() }, 60000)
-type AdDot = { kind: 'free' | 'expired' | 'paid'; color: string; glow: boolean; title: string }
+type AdDot = { kind: 'free' | 'expired' | 'paid'; color: string; glow: boolean; title: string; label?: string }
 function adWindowDot(contact: any): AdDot {
   const md = contact?.metadata
   const clid = md?.ctwa_clid
   const seen = md?.ctwa_last_seen || md?.ctwa_first_seen
   const end = clid && seen ? Date.parse(seen) + 72 * 3600 * 1000 : NaN
-  // Not from an ad → no free entry window; messaging is billed ($).
-  if (isNaN(end)) return { kind: 'paid', color: '#ef4444', glow: false, title: 'Hors pub — pas de fenêtre gratuite (envoi facturé)' }
+  // Not from an ad → no free entry window; messaging is billed ($). TRT #72: if
+  // Meta sent an organic referral (FB/IG post "Send WhatsApp" button, no ad click
+  // id), show where they came from instead of a bare $.
+  if (isNaN(end)) {
+    const ch = md?.referral_channel
+    if (ch === 'instagram') return { kind: 'paid', color: '#ef4444', glow: false, label: '📷', title: 'Instagram (publication) — envoi facturé' }
+    if (ch === 'facebook') return { kind: 'paid', color: '#ef4444', glow: false, label: '📘', title: 'Facebook (publication) — envoi facturé' }
+    if (md?.referral_source_type) return { kind: 'paid', color: '#ef4444', glow: false, label: '📣', title: 'Publication Facebook/Instagram — envoi facturé' }
+    return { kind: 'paid', color: '#ef4444', glow: false, label: '$', title: 'Hors pub — pas de fenêtre gratuite (envoi facturé)' }
+  }
   const remaining = end - adWinTick.value
   if (remaining <= 0) return { kind: 'expired', color: '#ef4444', glow: false, title: 'Fenêtre 72h (pub) expirée — envoi facturé' }
   const h = remaining / 3600000
@@ -2433,7 +2441,7 @@ async function sendAudioBlob(blob: Blob) {
                     v-if="adWindowDots[contact.id] && adWindowDots[contact.id].kind === 'paid'"
                     class="h-3 w-3 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold leading-none text-red-500 bg-red-500/15"
                     :title="adWindowDots[contact.id].title"
-                  >$</span>
+                  >{{ adWindowDots[contact.id].label || '$' }}</span>
                   <span
                     v-else-if="adWindowDots[contact.id]"
                     class="h-2.5 w-2.5 rounded-full shrink-0"
