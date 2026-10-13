@@ -70,6 +70,7 @@ const isRefreshing = ref(false)
 const error = ref<string | null>(null)
 const accounts = ref<MetaAnalyticsAccount[]>([])
 const selectedAccountId = ref<string>('all')
+let initialLoad = true // gates the account watcher during mount-time validation
 const accountComboboxOpen = ref(false)
 const activeTab = ref<MetaAnalyticsType>('analytics')
 const analyticsData = ref<MetaAnalyticsResponse[]>([])
@@ -121,6 +122,15 @@ const fetchAccounts = async () => {
     const response = await metaAnalyticsService.getAccounts()
     const data = (response.data as any).data || response.data
     accounts.value = data.accounts || []
+    // The selected account id is persisted globally (localStorage), so a value
+    // saved while viewing ANOTHER space would otherwise be replayed here and sent
+    // to the server, which looks it up in THIS space's org -> "Account not found".
+    // Only keep it if it actually belongs to this space; otherwise fall back to All.
+    if (selectedAccountId.value !== 'all' &&
+        !accounts.value.some(a => a.id === selectedAccountId.value)) {
+      selectedAccountId.value = 'all'
+      localStorage.setItem('meta_insights_account_id', 'all')
+    }
   } catch (error) {
     console.error('Failed to load accounts:', error)
   }
@@ -202,6 +212,7 @@ watch(selectedGranularity, () => {
 })
 
 watch(selectedAccountId, () => {
+  if (initialLoad) return // mount-time validation reset shouldn't double-fetch
   saveOtherPreferences()
   fetchAnalytics()
 })
@@ -211,8 +222,11 @@ watch(activeTab, () => {
   fetchAnalytics()
 })
 
-onMounted(() => {
-  fetchAccounts()
+onMounted(async () => {
+  // Load + validate the account selection against THIS space before querying,
+  // so a stale cross-space id never reaches the server (avoids "Account not found").
+  await fetchAccounts()
+  initialLoad = false
   fetchAnalytics()
 })
 
