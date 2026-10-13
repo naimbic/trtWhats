@@ -470,7 +470,7 @@ async function updateContactTags(tags: string[]) {
             <span>{{ contact.phone_number }}</span>
           </div>
 
-          <!-- TRT #71: Click-to-WhatsApp 72h free-window status -->
+          <!-- TRT #71: Click-to-WhatsApp 72h free-window status (ad) / billed ($) -->
           <div
             v-if="hasAdClickId"
             class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-medium"
@@ -483,6 +483,14 @@ async function updateContactTags(tags: string[]) {
               :style="{ backgroundColor: freeWindowDotColor, '--glow-color': freeWindowDotColor }"
             />
             <span>📣 {{ freeWindowLabel }}</span>
+          </div>
+          <div
+            v-else
+            class="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium bg-red-500/10 text-red-500"
+            :title="$t('chat.noAdBilled', 'Hors pub — pas de fenêtre gratuite, envoi facturé')"
+          >
+            <span class="h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-bold bg-red-500/20">$</span>
+            <span>{{ $t('chat.noAdBilledShort', 'Hors pub — facturé') }}</span>
           </div>
         </div>
 

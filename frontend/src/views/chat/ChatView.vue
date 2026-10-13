@@ -179,26 +179,26 @@ const statusBubbles = computed(() => {
 // the unread bubble). Green → yellow (<24h) → amber (<6h) → red (expired).
 const adWinTick = ref(Date.now())
 let adWinTimer: ReturnType<typeof setInterval> | null = setInterval(() => { adWinTick.value = Date.now() }, 60000)
-function adWindowDot(contact: any): { color: string; glow: boolean; title: string } | null {
+type AdDot = { kind: 'free' | 'expired' | 'paid'; color: string; glow: boolean; title: string }
+function adWindowDot(contact: any): AdDot {
   const md = contact?.metadata
   const clid = md?.ctwa_clid
   const seen = md?.ctwa_last_seen || md?.ctwa_first_seen
-  if (!clid || !seen) return null
-  const end = Date.parse(seen) + 72 * 3600 * 1000
-  if (isNaN(end)) return null
+  const end = clid && seen ? Date.parse(seen) + 72 * 3600 * 1000 : NaN
+  // Not from an ad → no free entry window; messaging is billed ($).
+  if (isNaN(end)) return { kind: 'paid', color: '#ef4444', glow: false, title: 'Hors pub — pas de fenêtre gratuite (envoi facturé)' }
   const remaining = end - adWinTick.value
-  if (remaining <= 0) return { color: '#ef4444', glow: false, title: 'Fenêtre 72h (pub) expirée — envoi facturé' }
+  if (remaining <= 0) return { kind: 'expired', color: '#ef4444', glow: false, title: 'Fenêtre 72h (pub) expirée — envoi facturé' }
   const h = remaining / 3600000
   const color = h < 6 ? '#f59e0b' : h < 24 ? '#eab308' : '#22c55e'
   const hh = Math.floor(remaining / 3600000)
   const mm = Math.floor((remaining % 3600000) / 60000)
-  return { color, glow: true, title: `Pub — ${hh}h ${mm}m restantes (gratuit)` }
+  return { kind: 'free', color, glow: true, title: `Pub — ${hh}h ${mm}m restantes (gratuit)` }
 }
 const adWindowDots = computed(() => {
-  const m: Record<string, { color: string; glow: boolean; title: string }> = {}
+  const m: Record<string, AdDot> = {}
   for (const c of contactsStore.sortedContacts) {
-    const d = adWindowDot(c)
-    if (d) m[c.id] = d
+    m[c.id] = adWindowDot(c)
   }
   return m
 })
@@ -2427,9 +2427,15 @@ async function sendAudioBlob(blob: Blob) {
                   {{ contact.phone_number || ((contact as any).channel === 'instagram' ? 'Instagram' : '') }}
                 </p>
                 <div class="flex-shrink-0 flex items-center gap-1">
-                  <!-- TRT #71: Click-to-WhatsApp 72h free-window dot -->
+                  <!-- TRT #71: Click-to-WhatsApp window indicator — glowing dot for
+                       the free 72h ad window, a red $ for non-ad (billed) sessions -->
                   <span
-                    v-if="adWindowDots[contact.id]"
+                    v-if="adWindowDots[contact.id] && adWindowDots[contact.id].kind === 'paid'"
+                    class="h-3 w-3 rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold leading-none text-red-500 bg-red-500/15"
+                    :title="adWindowDots[contact.id].title"
+                  >$</span>
+                  <span
+                    v-else-if="adWindowDots[contact.id]"
                     class="h-2.5 w-2.5 rounded-full shrink-0"
                     :class="{ 'free-window-glow': adWindowDots[contact.id].glow }"
                     :style="{ backgroundColor: adWindowDots[contact.id].color, '--glow-color': adWindowDots[contact.id].color }"
