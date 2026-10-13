@@ -206,6 +206,12 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	// later orders. No-op when the message carries no ad referral.
 	a.captureCTWAReferral(contact, msg)
 
+	// TRT #73: detect the lead's source from a tracked wa.me/QR link's prefilled
+	// text (e.g. "جيت من انستغرام") on the first message — the only signal for
+	// organic channels Meta gives no referral for (Instagram bio via biolinks.ma,
+	// website button, printed flyer). No-op when a source is already known.
+	a.captureChannelSource(contact, messageText, isNewContact)
+
 	// TRT custom patch #24: for an order-form submission, download any attached
 	// PhotoPicker media, save it, and inject a public URL (modele_image_url) so the
 	// webhook can forward a viewable link to the Sheet. No-op when there's no media.

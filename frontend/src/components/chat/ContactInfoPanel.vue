@@ -125,6 +125,12 @@ const referralSource = computed<{ icon: string; label: string } | null>(() => {
   if (ch === 'instagram') return { icon: '📷', label: 'Instagram (publication)' }
   if (ch === 'facebook') return { icon: '📘', label: 'Facebook (publication)' }
   if (md.referral_source_type) return { icon: '📣', label: 'Publication Facebook/Instagram' }
+  // TRT #73: source detected from a tracked wa.me/QR link's prefilled text.
+  const src = md.source
+  if (typeof src === 'string' && src) {
+    const icons: Record<string, string> = { Instagram: '📷', Facebook: '📘', TikTok: '🎵', 'Site web': '🌐', Flyer: '📄' }
+    return { icon: icons[src] || '🔗', label: src }
+  }
   return null
 })
 

@@ -179,6 +179,10 @@ const statusBubbles = computed(() => {
 // the unread bubble). Green → yellow (<24h) → amber (<6h) → red (expired).
 const adWinTick = ref(Date.now())
 let adWinTimer: ReturnType<typeof setInterval> | null = setInterval(() => { adWinTick.value = Date.now() }, 60000)
+// TRT #73: emoji per tracked-link traffic source (contact.metadata.source).
+const SOURCE_ICONS: Record<string, string> = {
+  Instagram: '📷', Facebook: '📘', TikTok: '🎵', 'Site web': '🌐', Flyer: '📄',
+}
 type AdDot = { kind: 'free' | 'expired' | 'paid'; color: string; glow: boolean; title: string; label?: string }
 function adWindowDot(contact: any): AdDot {
   const md = contact?.metadata
@@ -193,6 +197,12 @@ function adWindowDot(contact: any): AdDot {
     if (ch === 'instagram') return { kind: 'paid', color: '#ef4444', glow: false, label: '📷', title: 'Instagram (publication) — envoi facturé' }
     if (ch === 'facebook') return { kind: 'paid', color: '#ef4444', glow: false, label: '📘', title: 'Facebook (publication) — envoi facturé' }
     if (md?.referral_source_type) return { kind: 'paid', color: '#ef4444', glow: false, label: '📣', title: 'Publication Facebook/Instagram — envoi facturé' }
+    // TRT #73: source detected from a tracked wa.me/QR link's prefilled text.
+    const src = md?.source
+    if (typeof src === 'string' && src) {
+      const icon = SOURCE_ICONS[src] || '🔗'
+      return { kind: 'paid', color: '#ef4444', glow: false, label: icon, title: `${src} (lien suivi) — envoi facturé` }
+    }
     return { kind: 'paid', color: '#ef4444', glow: false, label: '$', title: 'Hors pub — pas de fenêtre gratuite (envoi facturé)' }
   }
   const remaining = end - adWinTick.value
