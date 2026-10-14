@@ -644,6 +644,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.PUT("/api/contacts/{id}/conversion", app.SetContactConversion)
 	g.GET("/api/accounts/{id}/ameex/cities", app.GetAmeexCities)      // TRT #63
 	g.GET("/api/ameex/cities", app.GetAmeexCities)                    // TRT #63 (default number)
+	g.GET("/api/ameex/parcels", app.AmeexParcelsReport)              // read-only parcel report for dashboards
 	g.GET("/api/ameex/enabled", app.AmeexEnabledForOrg)              // TRT #67 (hide UI when off)
 	// TRT #68: Instagram account management
 	g.GET("/api/instagram/accounts", app.ListInstagramAccounts)
