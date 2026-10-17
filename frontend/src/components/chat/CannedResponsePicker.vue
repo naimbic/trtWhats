@@ -155,7 +155,7 @@ function selectResponse(response: CannedResponse) {
                   /{{ response.shortcut }}
                 </span>
               </div>
-              <p class="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+              <p class="bidi-text text-xs text-muted-foreground mt-0.5 line-clamp-2">
                 {{ response.content }}
               </p>
             </button>

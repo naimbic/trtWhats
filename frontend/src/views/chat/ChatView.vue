@@ -3299,7 +3299,7 @@ async function sendAudioBlob(blob: Blob) {
             <label class="text-xs font-medium text-muted-foreground">{{ $t('chat.preview') }}</label>
             <div class="chat-bubble chat-bubble-outgoing ml-auto" style="max-width: 100%;">
               <img v-if="templateHeaderPreview" :src="templateHeaderPreview" class="rounded-lg mb-2 max-h-40 w-full object-cover" />
-              <span class="whitespace-pre-wrap break-words text-sm">{{ templatePreview }}</span>
+              <span class="whitespace-pre-wrap break-words bidi-text text-sm">{{ templatePreview }}</span>
               <div
                 v-if="selectedTemplate?.buttons?.length"
                 class="interactive-buttons mt-2 -mx-2 -mb-1.5 border-t"
@@ -3350,7 +3350,7 @@ async function sendAudioBlob(blob: Blob) {
           <div v-if="cannedPreview || cannedPreviewButtons.length" class="space-y-1">
             <label class="text-xs font-medium text-muted-foreground">{{ $t('chat.preview') }}</label>
             <div id="canned-response-preview" class="chat-bubble chat-bubble-outgoing ml-auto" style="max-width: 100%;">
-              <span v-if="cannedPreview" class="whitespace-pre-wrap break-words text-sm">{{ cannedPreview }}</span>
+              <span v-if="cannedPreview" class="whitespace-pre-wrap break-words bidi-text text-sm">{{ cannedPreview }}</span>
               <PreviewButtonGroup
                 v-if="cannedPreviewButtons.length"
                 :buttons="cannedPreviewButtons"

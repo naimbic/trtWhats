@@ -155,7 +155,7 @@ function selectTemplate(tpl: any) {
                 <span class="font-medium text-sm">{{ tpl.display_name || tpl.name }}</span>
                 <span class="text-xs text-muted-foreground">{{ tpl.language || '' }}</span>
               </div>
-              <p class="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+              <p class="bidi-text text-xs text-muted-foreground mt-0.5 line-clamp-2">
                 {{ getBodyContent(tpl) }}
               </p>
             </button>
