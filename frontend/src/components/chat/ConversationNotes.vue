@@ -264,7 +264,7 @@ function formatNoteTime(dateStr: string) {
                       <span class="text-[10px] text-white/30 light:text-gray-400">{{ formatNoteTime(note.created_at) }}</span>
                     </div>
                   </div>
-                  <p class="text-[13px] text-white/60 light:text-gray-600 leading-relaxed whitespace-pre-wrap break-words">{{ note.content }}</p>
+                  <p class="text-[13px] text-white/60 light:text-gray-600 leading-relaxed whitespace-pre-wrap break-words bidi-text">{{ note.content }}</p>
                 </div>
               </div>
             </template>

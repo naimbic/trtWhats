@@ -735,3 +735,11 @@
 .avatar-status-pulse::after {
   animation: badge-pulse 2s ease-in-out infinite;
 }
+
+/* Per-paragraph text direction: Arabic/Hebrew render RTL, Latin LTR, mixed
+   text resolves correctly, regardless of the UI locale. */
+.bidi-text {
+  display: block;
+  unicode-bidi: plaintext;
+  text-align: start;
+}
