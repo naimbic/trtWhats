@@ -250,7 +250,14 @@ export const contactsService = {
   sendToAmeex: (id: string, data?: { account?: string; product?: string; comment?: string; order_num?: string }) =>
     api.post<{ parcel_code: string; status: string }>(`/contacts/${id}/ameex/send`, data || {}),
   ameexTracking: (id: string) => api.get(`/contacts/${id}/ameex/tracking`),
-  markRead: (id: string) => api.post(`/contacts/${encodeURIComponent(id)}/mark-read`)
+  markRead: (id: string) => api.post(`/contacts/${encodeURIComponent(id)}/mark-read`),
+  // TRT #74: admin-only session moderation.
+  setVisibility: (id: string, adminOnly: boolean) =>
+    api.put<{ admin_only: boolean; message: string }>(`/contacts/${id}/visibility`, { admin_only: adminOnly }),
+  clearConversation: (id: string) =>
+    api.delete<{ messages_deleted: number }>(`/contacts/${id}/conversation`),
+  deleteSession: (id: string) =>
+    api.delete<{ messages_deleted: number }>(`/contacts/${id}/session`)
 }
 
 // Generic Import/Export Service
@@ -315,6 +322,8 @@ export const dataService = {
 export const messagesService = {
   list: (contactId: string, params?: { page?: number; limit?: number; before_id?: string; account?: string }) =>
     api.get(`/contacts/${contactId}/messages`, { params }),
+  // TRT #74: admin-only soft-delete of a single message.
+  remove: (messageId: string) => api.delete(`/messages/${messageId}`),
   send: (
     contactId: string,
     data: {

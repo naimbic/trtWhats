@@ -2445,6 +2445,12 @@ async function sendAudioBlob(blob: Blob) {
                   {{ contact.phone_number || ((contact as any).channel === 'instagram' ? 'Instagram' : '') }}
                 </p>
                 <div class="flex-shrink-0 flex items-center gap-1">
+                  <!-- TRT #74: hidden-session marker (admins only see hidden rows) -->
+                  <span
+                    v-if="authStore.isAdmin && (contact as any).admin_only"
+                    class="text-[11px] leading-none"
+                    :title="$t('chat.sessionHiddenBadge', 'Hidden — admins only')"
+                  >🙈</span>
                   <!-- TRT #71: Click-to-WhatsApp window indicator — glowing dot for
                        the free 72h ad window, a red $ for non-ad (billed) sessions -->
                   <span

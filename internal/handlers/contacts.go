@@ -53,6 +53,7 @@ type ContactResponse struct {
 	AmeexStatusName      string     `json:"ameex_status_name"`
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
 	OrderPending         bool       `json:"order_pending"` // TRT #44: orange "order to process" bubble
+	AdminOnly            bool       `json:"admin_only"`    // TRT #74: hidden session (admins only)
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
@@ -256,6 +257,7 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 			AmeexStatusName:      c.AmeexStatusName,
 			MetaConversionSentAt: c.MetaConversionSentAt,
 			OrderPending:         c.OrderPending,
+			AdminOnly:            c.AdminOnly,
 			CreatedAt:          c.CreatedAt,
 			UpdatedAt:          c.UpdatedAt,
 		}
@@ -290,6 +292,11 @@ func (a *App) AccountUnreadCounts(r *fastglue.Request) error {
 		Joins("JOIN contacts c ON c.id = messages.contact_id AND c.deleted_at IS NULL").
 		Where("messages.organization_id = ? AND messages.direction = ? AND messages.status <> ?",
 			orgID, models.DirectionIncoming, models.MessageStatusRead)
+
+	// TRT #74: admin-only (hidden) sessions never count toward unreads for non-admins.
+	if !a.isOrgAdmin(userID, orgID) {
+		q = q.Where("c.admin_only IS NOT TRUE")
+	}
 
 	// Agents without contacts:read only count their own assigned / transferred chats.
 	if !a.HasPermission(userID, models.ResourceContacts, models.ActionRead, orgID) {
@@ -332,6 +339,11 @@ func (a *App) AccountUnreadCounts(r *fastglue.Request) error {
 // via an active transfer counts even when assigned_user_id is unset (which it
 // is unless the AssignToSameAgent setting is on).
 func (a *App) scopeAssignedContact(query *gorm.DB, userID, orgID uuid.UUID) *gorm.DB {
+	// TRT #74: admin-only (hidden) sessions are visible to org admins only —
+	// filtered out for everyone else (agents AND managers).
+	if !a.isOrgAdmin(userID, orgID) {
+		query = query.Where("admin_only IS NOT TRUE")
+	}
 	if a.HasPermission(userID, models.ResourceContacts, models.ActionRead, orgID) {
 		return query
 	}
@@ -2090,6 +2102,7 @@ func (a *App) buildContactResponse(contact *models.Contact, orgID uuid.UUID) Con
 		AmeexStatusName:      contact.AmeexStatusName,
 		MetaConversionSentAt: contact.MetaConversionSentAt,
 		OrderPending:         contact.OrderPending,
+		AdminOnly:            contact.AdminOnly,
 		CreatedAt:          contact.CreatedAt,
 		UpdatedAt:          contact.UpdatedAt,
 	}

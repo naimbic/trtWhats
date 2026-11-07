@@ -642,6 +642,10 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.PUT("/api/contacts/{id}/assign", app.AssignContact)
 	g.PUT("/api/contacts/{id}/tags", app.UpdateContactTags)
 	g.PUT("/api/contacts/{id}/conversion", app.SetContactConversion)
+	// TRT #74: admin-only session moderation (hide / clear / delete)
+	g.PUT("/api/contacts/{id}/visibility", app.SetContactVisibility)
+	g.DELETE("/api/contacts/{id}/conversation", app.ClearConversation)
+	g.DELETE("/api/contacts/{id}/session", app.DeleteSession)
 	g.GET("/api/accounts/{id}/ameex/cities", app.GetAmeexCities)      // TRT #63
 	g.GET("/api/ameex/cities", app.GetAmeexCities)                    // TRT #63 (default number)
 	g.GET("/api/ameex/parcels", app.AmeexParcelsReport)              // read-only parcel report for dashboards
@@ -679,6 +683,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.POST("/api/messages/template", app.SendTemplateMessage)
 	g.POST("/api/messages/media", app.SendMediaMessage)
 	g.PUT("/api/messages/{id}/read", app.MarkMessageRead)
+	g.DELETE("/api/messages/{id}", app.DeleteMessage) // TRT #74: admin-only delete
 
 	// Conversation Notes
 	g.GET("/api/contacts/{id}/notes", app.ListConversationNotes)

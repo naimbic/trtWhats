@@ -34,6 +34,7 @@ export interface Contact {
   conversion_value?: number
   meta_conversion_sent_at?: string
   order_pending?: boolean
+  admin_only?: boolean // TRT #74: hidden session (admins only)
   created_at: string
   updated_at: string
 }
@@ -493,6 +494,23 @@ export const useContactsStore = defineStore('contacts', () => {
     if (contact) contact.order_pending = pending
   }
 
+  // TRT #74: drop a contact from the list locally (after an admin deletes the
+  // session), and clear it as the open conversation if it was selected.
+  function removeContactLocal(contactId: string) {
+    contacts.value = contacts.value.filter(c => c.id !== contactId)
+    if (currentContact.value?.id === contactId) {
+      currentContact.value = null
+      messages.value = []
+    }
+  }
+
+  // TRT #74: reflect a hidden-session toggle locally.
+  function setAdminOnlyLocal(contactId: string, adminOnly: boolean) {
+    const contact = contacts.value.find(c => c.id === contactId)
+    if (contact) contact.admin_only = adminOnly
+    if (currentContact.value?.id === contactId) currentContact.value.admin_only = adminOnly
+  }
+
   // Debounce server-side search so each keystroke doesn't fire a request.
   let searchDebounceHandle: ReturnType<typeof setTimeout> | null = null
   watch(searchQuery, (query) => {
@@ -549,6 +567,8 @@ export const useContactsStore = defineStore('contacts', () => {
     updateContactTags,
     applyRealtimeContactUpdate,
     markContactReadLocal,
+    removeContactLocal,
+    setAdminOnlyLocal,
     markOrderPendingLocal
   }
 })

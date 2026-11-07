@@ -103,6 +103,59 @@ const isResizing = ref(false)
 // can be granted the Tags permission to apply Converted/Lost/Waiting.
 const canEditTags = computed(() => authStore.hasPermission('tags', 'write'))
 
+// TRT #74: admin-only moderation (hide / clear / delete sessions).
+const isAdmin = computed(() => authStore.isAdmin)
+const isHidden = computed(() => !!props.contact.admin_only)
+const adminBusy = ref(false)
+
+async function toggleHidden() {
+  if (adminBusy.value) return
+  adminBusy.value = true
+  const next = !isHidden.value
+  try {
+    await contactsService.setVisibility(props.contact.id, next)
+    contactsStore.setAdminOnlyLocal(props.contact.id, next)
+    toast.success(next
+      ? t('chat.sessionHidden', 'Session hidden — visible to admins only')
+      : t('chat.sessionVisible', 'Session visible to all agents'))
+  } catch (e: any) {
+    toast.error(getErrorMessage(e, t('chat.visibilityFailed', 'Failed to update visibility')))
+  } finally {
+    adminBusy.value = false
+  }
+}
+
+async function clearConversation() {
+  if (adminBusy.value) return
+  if (!window.confirm(t('chat.confirmClearConversation', 'Delete all messages in this conversation? The contact stays in the list. An admin can restore it.'))) return
+  adminBusy.value = true
+  try {
+    await contactsService.clearConversation(props.contact.id)
+    if (contactsStore.currentContact?.id === props.contact.id) contactsStore.messages = []
+    toast.success(t('chat.conversationCleared', 'Conversation cleared'))
+  } catch (e: any) {
+    toast.error(getErrorMessage(e, t('chat.deleteFailed', 'Delete failed')))
+  } finally {
+    adminBusy.value = false
+  }
+}
+
+async function deleteSession() {
+  if (adminBusy.value) return
+  if (!window.confirm(t('chat.confirmDeleteSession', 'Delete this whole session (the contact AND all its messages)? An admin can restore it.'))) return
+  adminBusy.value = true
+  try {
+    await contactsService.deleteSession(props.contact.id)
+    contactsStore.removeContactLocal(props.contact.id)
+    toast.success(t('chat.sessionDeleted', 'Session deleted'))
+    emit('close')
+  } catch (e: any) {
+    toast.error(getErrorMessage(e, t('chat.deleteFailed', 'Delete failed')))
+  } finally {
+    adminBusy.value = false
+  }
+}
+
 // TRT custom patch #36: order quantity + conversion value (sent to Meta).
 const CONVERTED_TAG = 'تم البيع - Converti'
 const isConverted = computed(() => {
@@ -779,6 +832,47 @@ async function updateContactTags(tags: string[]) {
             </div>
           </div>
         </template>
+
+        <!-- TRT #74: Admin-only session moderation -->
+        <div v-if="isAdmin" class="mt-6 border-t border-border pt-4">
+          <p class="px-1 mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {{ $t('chat.adminZone', 'Admin') }}
+          </p>
+          <div class="space-y-2">
+            <button
+              type="button"
+              :disabled="adminBusy"
+              class="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium bg-muted/60 hover:bg-muted transition disabled:opacity-50"
+              @click="toggleHidden"
+            >
+              <span>{{ isHidden ? '👁️' : '🙈' }}</span>
+              <span>{{ isHidden
+                ? $t('chat.showToEveryone', 'Show to agents & managers')
+                : $t('chat.hideFromAgents', 'Hide from agents & managers') }}</span>
+            </button>
+            <button
+              type="button"
+              :disabled="adminBusy"
+              class="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition disabled:opacity-50"
+              @click="clearConversation"
+            >
+              <span>🧹</span>
+              <span>{{ $t('chat.clearConversation', 'Clear conversation (keep contact)') }}</span>
+            </button>
+            <button
+              type="button"
+              :disabled="adminBusy"
+              class="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 transition disabled:opacity-50"
+              @click="deleteSession"
+            >
+              <span>🗑️</span>
+              <span>{{ $t('chat.deleteSession', 'Delete session (contact + messages)') }}</span>
+            </button>
+            <p class="px-1 text-[11px] text-muted-foreground">
+              {{ $t('chat.adminDeleteNote', 'Recoverable — items are hidden, not erased. Admins only.') }}
+            </p>
+          </div>
+        </div>
       </div>
     </ScrollArea>
   </div>

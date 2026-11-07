@@ -191,7 +191,12 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.some(p => p.resource === resource && p.action === action)
   }
 
+  // TRT #74: admin-exclusive actions (hide/delete sessions). True only for the
+  // org "admin" role or a super admin — NOT manager, NOT agent.
+  const isAdmin = computed(() => !!user.value?.is_super_admin || userRole.value === 'admin')
+
   return {
+    isAdmin,
     user,
     breakStartedAt,
     isAuthenticated,

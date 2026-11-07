@@ -453,6 +453,11 @@ type Contact struct {
 	FallbackPendingAt *time.Time `gorm:"index" json:"-"`
 	FallbackAccount   string     `gorm:"size:100" json:"-"`
 
+	// TRT patch #74: admin-only (hidden) session. When true, this contact and its
+	// conversation are visible ONLY to org admins — hidden from agents and managers
+	// in the chat list, single-contact, messages and search endpoints.
+	AdminOnly bool `gorm:"default:false;index" json:"admin_only"`
+
 	// Relations
 	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
 	AssignedUser *User         `gorm:"foreignKey:AssignedUserID" json:"assigned_user,omitempty"`
