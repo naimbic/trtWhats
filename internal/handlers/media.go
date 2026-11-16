@@ -29,6 +29,62 @@ func (a *App) ensureMediaDir(subdir string) error {
 	return os.MkdirAll(path, 0755)
 }
 
+// savePublicMedia stores bytes in the public flow-media dir and returns both a
+// relative path (served in-app by ServeMedia, for the agent's own view) and the
+// absolute public URL (served WITHOUT auth at {PublicURL}/media/flow/{name}, for
+// Meta to fetch). TRT #76: outbound Instagram/Messenger attachments are sent to
+// Meta by URL (unlike WhatsApp, where we upload the bytes directly). Filenames are
+// unguessable UUIDs, matching the patch #24 public order-photo scheme.
+func (a *App) savePublicMedia(data []byte, mimeType, filename string) (relPath, publicURL string, err error) {
+	if e := a.ensureMediaDir("flow-media"); e != nil {
+		return "", "", fmt.Errorf("failed to create media directory: %w", e)
+	}
+	ext := getExtensionFromMimeType(mimeType)
+	if ext == "" {
+		if i := strings.LastIndex(filename, "."); i >= 0 {
+			ext = filename[i:]
+		} else {
+			ext = ".bin"
+		}
+	}
+	name := uuid.New().String() + ext
+	full := filepath.Join(a.getMediaStoragePath(), "flow-media", name)
+	if e := os.WriteFile(full, data, 0644); e != nil {
+		return "", "", fmt.Errorf("failed to save media file: %w", e)
+	}
+	base := strings.TrimRight(a.Config.App.PublicURL, "/")
+	return filepath.Join("flow-media", name), base + "/media/flow/" + name, nil
+}
+
+// attachmentTypeFromMime maps a MIME type to the Messenger Platform attachment
+// type ("image" | "video" | "audio" | "file") used by Instagram and Messenger.
+func attachmentTypeFromMime(mimeType string) string {
+	switch {
+	case strings.HasPrefix(mimeType, "image/"):
+		return "image"
+	case strings.HasPrefix(mimeType, "video/"):
+		return "video"
+	case strings.HasPrefix(mimeType, "audio/"):
+		return "audio"
+	default:
+		return "file"
+	}
+}
+
+// messageTypeFromMime maps a MIME type to our stored message type.
+func messageTypeFromMime(mimeType string) models.MessageType {
+	switch {
+	case strings.HasPrefix(mimeType, "image/"):
+		return models.MessageTypeImage
+	case strings.HasPrefix(mimeType, "video/"):
+		return models.MessageTypeVideo
+	case strings.HasPrefix(mimeType, "audio/"):
+		return models.MessageTypeAudio
+	default:
+		return models.MessageTypeDocument
+	}
+}
+
 // getExtensionFromMimeType returns file extension based on mime type
 func getExtensionFromMimeType(mimeType string) string {
 	switch {

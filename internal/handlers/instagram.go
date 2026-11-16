@@ -76,6 +76,45 @@ func (a *App) igSendText(acc *models.InstagramAccount, igsid, text string) (stri
 	return "", nil
 }
 
+// igSendAttachment sends a media attachment (by public URL) to an IGSID. TRT #76.
+func (a *App) igSendAttachment(acc *models.InstagramAccount, igsid, attType, mediaURL string) (string, error) {
+	token, err := a.igToken(acc)
+	if err != nil {
+		return "", err
+	}
+	payload := map[string]any{
+		"recipient": map[string]any{"id": igsid},
+		"message": map[string]any{
+			"attachment": map[string]any{
+				"type":    attType,
+				"payload": map[string]any{"url": mediaURL, "is_reusable": true},
+			},
+		},
+	}
+	body, _ := json.Marshal(payload)
+	url := fmt.Sprintf("%s/%s/%s/messages?access_token=%s", igGraphBase, igAPIVersion(acc), acc.IGUserID, token)
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(string(body)))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := a.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("instagram media send failed (%d): %s", resp.StatusCode, string(raw))
+	}
+	var decoded map[string]any
+	_ = json.Unmarshal(raw, &decoded)
+	if mid, ok := decoded["message_id"].(string); ok {
+		return mid, nil
+	}
+	return "", nil
+}
+
 // ---- Webhook ----------------------------------------------------------------
 
 // InstagramWebhookVerify handles the GET verification handshake. Meta sends
@@ -331,6 +370,59 @@ func (a *App) sendInstagramReply(contact *models.Contact, text string, sentByUse
 		preview = preview[:97] + "..."
 	}
 	a.DB.Model(contact).Updates(map[string]any{"last_message_at": now, "last_message_preview": preview, "is_read": true})
+	a.broadcastNewMessage(contact.OrganizationID, msg, contact)
+	return msg, nil
+}
+
+// sendInstagramMediaReply sends an agent's media (image/video/audio/file) reply to
+// an IG contact by public URL and records it. TRT #76. Any caption is sent as a
+// follow-up text message (IG attachments carry no caption field).
+func (a *App) sendInstagramMediaReply(contact *models.Contact, relPath, publicURL, mimeType, caption string, sentByUserID *uuid.UUID) (*models.Message, error) {
+	var acc models.InstagramAccount
+	q := a.DB.Where("organization_id = ?", contact.OrganizationID)
+	if contact.WhatsAppAccount != "" {
+		q = q.Where("name = ?", contact.WhatsAppAccount)
+	}
+	if err := q.First(&acc).Error; err != nil {
+		if err := a.DB.Where("organization_id = ? AND is_active = ?", contact.OrganizationID, true).First(&acc).Error; err != nil {
+			return nil, fmt.Errorf("no Instagram account for this contact")
+		}
+	}
+
+	msgType := messageTypeFromMime(mimeType)
+	msg := &models.Message{
+		BaseModel:       models.BaseModel{ID: uuid.New()},
+		OrganizationID:  contact.OrganizationID,
+		WhatsAppAccount: acc.Name,
+		Channel:         models.ChannelInstagram,
+		ContactID:       contact.ID,
+		Direction:       models.DirectionOutgoing,
+		MessageType:     msgType,
+		Content:         caption,
+		MediaURL:        relPath,
+		MediaMimeType:   mimeType,
+		Status:          models.MessageStatusPending,
+		SentByUserID:    sentByUserID,
+	}
+	if err := a.DB.Create(msg).Error; err != nil {
+		return nil, err
+	}
+
+	mid, err := a.igSendAttachment(&acc, contact.ExternalID, attachmentTypeFromMime(mimeType), publicURL)
+	now := time.Now()
+	if err != nil {
+		a.DB.Model(msg).Updates(map[string]any{"status": models.MessageStatusFailed, "error_message": err.Error()})
+		return nil, err
+	}
+	a.DB.Model(msg).Updates(map[string]any{"status": models.MessageStatusSent, "whats_app_message_id": mid})
+	msg.Status = models.MessageStatusSent
+	msg.WhatsAppMessageID = mid
+
+	if strings.TrimSpace(caption) != "" {
+		_, _ = a.igSendText(&acc, contact.ExternalID, caption)
+	}
+
+	a.DB.Model(contact).Updates(map[string]any{"last_message_at": now, "last_message_preview": "[" + string(msgType) + "]", "is_read": true})
 	a.broadcastNewMessage(contact.OrganizationID, msg, contact)
 	return msg, nil
 }

@@ -1123,6 +1123,40 @@ func (a *App) SendMediaMessage(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
 	}
 
+	// TRT #76: Instagram / Messenger media replies. These channels fetch the media
+	// by a public URL (not a Meta media upload), so host the file publicly and send
+	// it as an attachment via the Instagram/Messenger sender instead of WhatsApp.
+	if contact.Channel == models.ChannelInstagram || contact.Channel == models.ChannelMessenger {
+		relPath, publicURL, perr := a.savePublicMedia(fileData, mimeType, fileHeader.Filename)
+		if perr != nil {
+			a.Log.Error("Failed to save public media", "error", perr)
+			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save media", nil, "")
+		}
+		var message *models.Message
+		var serr error
+		if contact.Channel == models.ChannelInstagram {
+			message, serr = a.sendInstagramMediaReply(&contact, relPath, publicURL, mimeType, caption, &userID)
+		} else {
+			message, serr = a.sendMessengerMediaReply(&contact, relPath, publicURL, mimeType, caption, &userID)
+		}
+		if serr != nil {
+			return r.SendErrorEnvelope(fasthttp.StatusBadGateway, serr.Error(), nil, "")
+		}
+		return r.SendEnvelope(MessageResponse{
+			ID:              message.ID,
+			ContactID:       message.ContactID,
+			Direction:       message.Direction,
+			MessageType:     message.MessageType,
+			Content:         map[string]string{"body": message.Content},
+			MediaURL:        message.MediaURL,
+			MediaMimeType:   message.MediaMimeType,
+			Status:          message.Status,
+			WhatsAppAccount: message.WhatsAppAccount,
+			CreatedAt:       message.CreatedAt,
+			UpdatedAt:       message.UpdatedAt,
+		})
+	}
+
 	// Get WhatsApp account - prefer form-specified account over contact default
 	mediaAccountName := contact.WhatsAppAccount
 	if formWhatsAppAccount != "" {
