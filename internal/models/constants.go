@@ -29,6 +29,7 @@ const (
 const (
 	ChannelWhatsApp  = "whatsapp"
 	ChannelInstagram = "instagram"
+	ChannelMessenger = "messenger" // TRT #75: Facebook Messenger (Page DMs)
 )
 
 // MessageType represents the type of WhatsApp message

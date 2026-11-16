@@ -226,6 +226,25 @@ export const instagramService = {
   remove: (id: string) => api.delete(`/instagram/accounts/${id}`),
 }
 
+// TRT #75: Facebook Messenger accounts
+export interface MessengerAccount {
+  id: string
+  name: string
+  page_id: string
+  page_name: string
+  api_version: string
+  webhook_verify_token: string
+  is_active: boolean
+  has_access_token: boolean
+  has_app_secret: boolean
+}
+export const messengerService = {
+  list: () => api.get<{ accounts: MessengerAccount[] }>('/messenger/accounts'),
+  create: (data: Record<string, any>) => api.post('/messenger/accounts', data),
+  update: (id: string, data: Record<string, any>) => api.put(`/messenger/accounts/${id}`, data),
+  remove: (id: string) => api.delete(`/messenger/accounts/${id}`),
+}
+
 export const contactsService = {
   list: (params?: { search?: string; page?: number; limit?: number; tags?: string; from?: string; to?: string; read?: boolean; account?: string }) =>
     api.get('/contacts', { params }),

@@ -189,6 +189,12 @@ const router = createRouter({
           meta: { permission: 'accounts' }
         },
         {
+          path: 'settings/messenger',
+          name: 'messenger-settings',
+          component: () => import('@/views/settings/MessengerSettingsView.vue'),
+          meta: { permission: 'accounts' }
+        },
+        {
           path: 'settings/canned-responses',
           name: 'canned-responses',
           component: () => import('@/views/settings/CannedResponsesView.vue'),

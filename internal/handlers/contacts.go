@@ -755,6 +755,28 @@ func (a *App) SendMessage(r *fastglue.Request) error {
 		})
 	}
 
+	// TRT #75: Facebook Messenger contacts go through the Messenger sender.
+	if contact.Channel == models.ChannelMessenger {
+		if req.Type != "" && req.Type != models.MessageTypeText {
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Only text replies are supported on Messenger for now", nil, "")
+		}
+		msg, serr := a.sendMessengerReply(&contact, req.Content.Body, &userID)
+		if serr != nil {
+			return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Messenger: "+serr.Error(), nil, "")
+		}
+		return r.SendEnvelope(MessageResponse{
+			ID:              msg.ID,
+			ContactID:       msg.ContactID,
+			Direction:       msg.Direction,
+			MessageType:     msg.MessageType,
+			Content:         map[string]string{"body": msg.Content},
+			Status:          msg.Status,
+			WhatsAppAccount: msg.WhatsAppAccount,
+			CreatedAt:       msg.CreatedAt,
+			UpdatedAt:       msg.UpdatedAt,
+		})
+	}
+
 	// Get WhatsApp account - prefer request-specified account over contact default
 	accountName := contact.WhatsAppAccount
 	if req.WhatsAppAccount != "" {

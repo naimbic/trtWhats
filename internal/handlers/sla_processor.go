@@ -216,6 +216,8 @@ func (p *SLAProcessor) reengageOrg(settings models.ChatbotSettings, now time.Tim
 		var err error
 		if c.Channel == models.ChannelInstagram {
 			_, err = p.app.sendInstagramReply(c, msg, nil)
+		} else if c.Channel == models.ChannelMessenger {
+			_, err = p.app.sendMessengerReply(c, msg, nil)
 		} else {
 			err = p.sendReengageWhatsApp(c, settings, msg)
 		}

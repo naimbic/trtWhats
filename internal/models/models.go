@@ -392,6 +392,34 @@ func (a *InstagramAccount) DecryptSecrets(encryptionKey string) {
 	crypto.DecryptFields(encryptionKey, &a.AccessToken, &a.AppSecret)
 }
 
+// MessengerAccount is a connected Facebook Page for Messenger DMs. TRT patch #75.
+// Mirrors InstagramAccount — same Meta Messenger Platform, keyed by the Page id
+// (inbound entry.id / recipient.id). Sends via POST /{page_id}/messages with the
+// Page access token.
+type MessengerAccount struct {
+	BaseModel
+	OrganizationID     uuid.UUID `gorm:"type:uuid;index;not null" json:"organization_id"`
+	Name               string    `gorm:"size:100;uniqueIndex:idx_fb_org_name;not null" json:"name"` // reference label, unique per org
+	PageID             string    `gorm:"size:100;index" json:"page_id"`                             // Facebook Page id (recipient of inbound)
+	PageName           string    `gorm:"size:255" json:"page_name"`
+	APIVersion         string    `gorm:"size:10;default:'v21.0'" json:"api_version"`
+	AccessToken        string    `gorm:"type:text" json:"-"` // Page access token (encrypted)
+	AppSecret          string    `gorm:"type:text" json:"-"` // for webhook signature (encrypted)
+	WebhookVerifyToken string    `gorm:"size:255" json:"webhook_verify_token"`
+	IsActive           bool      `gorm:"default:true" json:"is_active"`
+
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
+}
+
+func (MessengerAccount) TableName() string {
+	return "messenger_accounts"
+}
+
+// DecryptSecrets decrypts the access token and app secret in place.
+func (a *MessengerAccount) DecryptSecrets(encryptionKey string) {
+	crypto.DecryptFields(encryptionKey, &a.AccessToken, &a.AppSecret)
+}
+
 // Contact represents a WhatsApp contact/profile
 type Contact struct {
 	BaseModel

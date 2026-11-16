@@ -506,6 +506,8 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.POST("/api/ameex/webhook", app.AmeexWebhook) // TRT #63: Ameex status webhook (public, HMAC-verified)
 	g.GET("/api/instagram/webhook", app.InstagramWebhookVerify)  // TRT #68: IG webhook verify (public)
 	g.POST("/api/instagram/webhook", app.InstagramWebhook)       // TRT #68: IG inbound (public, HMAC-verified)
+	g.GET("/api/messenger/webhook", app.MessengerWebhookVerify)  // TRT #75: Messenger webhook verify (public)
+	g.POST("/api/messenger/webhook", app.MessengerWebhook)       // TRT #75: Messenger inbound (public, HMAC-verified)
 
 	// WebSocket route (auth via message-based flow after upgrade)
 	g.GET("/ws", app.WebSocketHandler)
@@ -522,7 +524,8 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 		if path == "/health" || path == "/ready" ||
 			path == "/api/auth/login" || path == "/api/auth/register" || path == "/api/auth/refresh" ||
 			path == "/api/auth/logout" || path == "/api/webhook" || path == "/ws" ||
-			path == "/api/ameex/webhook" || path == "/api/instagram/webhook" {
+			path == "/api/ameex/webhook" || path == "/api/instagram/webhook" ||
+			path == "/api/messenger/webhook" {
 			return r
 		}
 		// TRT custom patch #24: public order-photo links (unguessable UUID filenames)
@@ -655,6 +658,11 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.POST("/api/instagram/accounts", app.CreateInstagramAccount)
 	g.PUT("/api/instagram/accounts/{id}", app.UpdateInstagramAccount)
 	g.DELETE("/api/instagram/accounts/{id}", app.DeleteInstagramAccount)
+	// TRT #75: Facebook Messenger account management
+	g.GET("/api/messenger/accounts", app.ListMessengerAccounts)
+	g.POST("/api/messenger/accounts", app.CreateMessengerAccount)
+	g.PUT("/api/messenger/accounts/{id}", app.UpdateMessengerAccount)
+	g.DELETE("/api/messenger/accounts/{id}", app.DeleteMessengerAccount)
 	g.PUT("/api/accounts/{id}/ameex", app.UpdateAmeexSettings)       // TRT #63 (Ameex-only save)
 	g.GET("/api/accounts/{id}/ameex/pickup-addresses", app.GetAmeexPickupAddresses) // TRT #67
 	g.POST("/api/accounts/{id}/ameex/pickup", app.RequestAmeexPickup) // TRT #67 (pickup request)

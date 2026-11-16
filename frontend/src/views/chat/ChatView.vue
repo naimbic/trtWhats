@@ -108,7 +108,7 @@ import { useNotesStore } from '@/stores/notes'
 import { useHeaderMedia } from '@/composables/useHeaderMedia'
 import { CreateContactDialog } from '@/components/shared'
 import HeaderMediaUpload from '@/components/shared/HeaderMediaUpload.vue'
-import { Info, Instagram } from 'lucide-vue-next'
+import { Info, Instagram, MessageCircle } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -2427,6 +2427,15 @@ async function sendAudioBlob(blob: Blob) {
               >
                 <Instagram class="h-2.5 w-2.5 text-white" />
               </span>
+              <!-- TRT #75: Messenger channel badge -->
+              <span
+                v-else-if="(contact as any).channel === 'messenger'"
+                class="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full flex items-center justify-center ring-2 ring-[#111b21] light:ring-white"
+                style="background: linear-gradient(45deg,#00B2FF,#006AFF)"
+                title="Messenger"
+              >
+                <MessageCircle class="h-2.5 w-2.5 text-white" />
+              </span>
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-2">
@@ -2442,7 +2451,7 @@ async function sendAudioBlob(blob: Blob) {
               </div>
               <div class="flex items-center justify-between gap-2">
                 <p class="flex-1 min-w-0 text-xs text-white/50 light:text-gray-500 truncate">
-                  {{ contact.phone_number || ((contact as any).channel === 'instagram' ? 'Instagram' : '') }}
+                  {{ contact.phone_number || ((contact as any).channel === 'instagram' ? 'Instagram' : (contact as any).channel === 'messenger' ? 'Messenger' : '') }}
                 </p>
                 <div class="flex-shrink-0 flex items-center gap-1">
                   <!-- TRT #74: hidden-session marker (admins only see hidden rows) -->
