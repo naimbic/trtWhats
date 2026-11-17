@@ -190,6 +190,11 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 		query = query.Where("EXISTS (SELECT 1 FROM messages m WHERE m.contact_id = contacts.id AND m.whats_app_account = ? AND m.deleted_at IS NULL)", accountParam)
 	}
 
+	// TRT #86: filter the inbox by platform/channel (whatsapp | instagram | messenger).
+	if ch := string(r.RequestCtx.QueryArgs().Peek("channel")); ch == models.ChannelWhatsApp || ch == models.ChannelInstagram || ch == models.ChannelMessenger {
+		query = query.Where("contacts.channel = ?", ch)
+	}
+
 	// Order by last message time (most recent first)
 	query = query.Order("last_message_at DESC NULLS LAST, created_at DESC")
 

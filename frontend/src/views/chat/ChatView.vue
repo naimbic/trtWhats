@@ -2400,6 +2400,28 @@ async function sendAudioBlob(blob: Blob) {
         </button>
       </div>
 
+      <!-- TRT #86: platform / channel filter -->
+      <div class="flex items-center gap-1.5 px-3 pb-2 overflow-x-auto no-scrollbar">
+        <button
+          v-for="opt in [
+            { v: null, l: $t('chat.allPlatforms', 'All') },
+            { v: 'whatsapp', l: '🟢 WhatsApp' },
+            { v: 'instagram', l: '📷 Instagram' },
+            { v: 'messenger', l: '💬 Messenger' },
+          ]"
+          :key="opt.l"
+          :class="[
+            'inline-flex items-center rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors',
+            contactsStore.channelFilter === opt.v
+              ? 'bg-emerald-600 text-white'
+              : 'bg-white/[0.06] text-white/70 hover:text-white hover:bg-white/[0.1] light:bg-gray-100 light:text-gray-600 light:hover:bg-gray-200'
+          ]"
+          @click="contactsStore.applyChannelFilter(opt.v)"
+        >
+          {{ opt.l }}
+        </button>
+      </div>
+
       <!-- TRT custom patch #64: result count when a filter (tag/search/date) is active -->
       <div
         v-if="contactsStore.selectedTags.length > 0 || contactsStore.searchQuery || dateRangePreset !== 'all'"

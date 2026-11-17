@@ -467,6 +467,7 @@ func (a *App) sendInstagramReply(contact *models.Contact, text string, sentByUse
 	}
 	a.DB.Model(contact).Updates(map[string]any{"last_message_at": now, "last_message_preview": preview, "is_read": true})
 	a.broadcastNewMessage(contact.OrganizationID, msg, contact)
+	a.clearUnhandledOnAgentReply(contact.OrganizationID, contact, sentByUserID)
 	return msg, nil
 }
 
@@ -520,6 +521,7 @@ func (a *App) sendInstagramMediaReply(contact *models.Contact, relPath, publicUR
 
 	a.DB.Model(contact).Updates(map[string]any{"last_message_at": now, "last_message_preview": "[" + string(msgType) + "]", "is_read": true})
 	a.broadcastNewMessage(contact.OrganizationID, msg, contact)
+	a.clearUnhandledOnAgentReply(contact.OrganizationID, contact, sentByUserID)
 	return msg, nil
 }
 
@@ -705,6 +707,7 @@ func (a *App) SendInstagramCommentReply(r *fastglue.Request) error {
 		_ = a.DB.Create(&out).Error
 		if contact.ID != uuid.Nil {
 			a.broadcastNewMessage(orgID, &out, &contact)
+			a.clearUnhandledOnAgentReply(orgID, &contact, &userID)
 		}
 		return r.SendEnvelope(map[string]any{"ok": true, "mode": "public", "id": newID})
 	}
@@ -731,6 +734,7 @@ func (a *App) SendInstagramCommentReply(r *fastglue.Request) error {
 	if contact.ID != uuid.Nil {
 		a.DB.Model(&contact).Updates(map[string]any{"last_message_at": time.Now(), "last_message_preview": req.Text, "is_read": true})
 		a.broadcastNewMessage(orgID, &out, &contact)
+		a.clearUnhandledOnAgentReply(orgID, &contact, &userID)
 	}
 	return r.SendEnvelope(map[string]any{"ok": true, "mode": "dm", "id": mid})
 }

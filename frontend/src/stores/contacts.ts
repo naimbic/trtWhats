@@ -110,6 +110,7 @@ export const useContactsStore = defineStore('contacts', () => {
   // Separate from accountFilter (which is the in-session account context that
   // clearMessages() resets on every contact switch).
   const inboxAccountFilter = ref<string | null>(null)
+  const channelFilter = ref<string | null>(null) // TRT #86: platform filter (whatsapp|instagram|messenger)
   const accountUnreads = ref<Record<string, number>>({})
   const accountUnreadTotal = ref(0)
 
@@ -151,6 +152,7 @@ export const useContactsStore = defineStore('contacts', () => {
         to: dateTo.value || undefined,
         read: readFilter.value === null ? undefined : readFilter.value === 'read',
         account: inboxAccountFilter.value || undefined,
+        channel: channelFilter.value || undefined,
         ...params
       })
       if (seq !== fetchContactsSeq) return // superseded by a newer fetch
@@ -412,6 +414,12 @@ export const useContactsStore = defineStore('contacts', () => {
     await fetchContacts()
   }
 
+  // TRT #86: filter the inbox by platform/channel (null = All).
+  async function applyChannelFilter(channel: string | null) {
+    channelFilter.value = channel
+    await fetchContacts()
+  }
+
   function clearMessages() {
     messages.value = []
     hasMoreMessages.value = false
@@ -576,6 +584,8 @@ export const useContactsStore = defineStore('contacts', () => {
     clearMessages,
     setAccountFilter,
     inboxAccountFilter,
+    channelFilter,
+    applyChannelFilter,
     accountUnreads,
     accountUnreadTotal,
     fetchAccountUnreads,

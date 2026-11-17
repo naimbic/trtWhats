@@ -330,6 +330,21 @@ func fbVerifySignature(header string, body []byte, secret string) bool {
 	return hmac.Equal([]byte(expected), []byte(parts[1]))
 }
 
+// clearUnhandledOnAgentReply marks an Instagram/Messenger chat "handled" when a
+// human agent replies — clears the orange order-pending/"not answered" bubble and
+// broadcasts contact_read, mirroring the WhatsApp send path (messages.go). Bot /
+// auto replies pass nil and never clear it. TRT #85.
+func (a *App) clearUnhandledOnAgentReply(orgID uuid.UUID, contact *models.Contact, sentByUserID *uuid.UUID) {
+	if sentByUserID == nil || contact == nil {
+		return
+	}
+	a.DB.Model(&models.Contact{}).
+		Where("id = ? AND order_pending = ?", contact.ID, true).
+		Update("order_pending", false)
+	contact.OrderPending = false
+	a.broadcastContactRead(orgID, contact.ID)
+}
+
 // sendMessengerReply sends an agent's text reply to a Messenger contact and
 // records it. Used by SendMessage when contact.Channel == messenger.
 func (a *App) sendMessengerReply(contact *models.Contact, text string, sentByUserID *uuid.UUID) (*models.Message, error) {
@@ -376,6 +391,7 @@ func (a *App) sendMessengerReply(contact *models.Contact, text string, sentByUse
 	}
 	a.DB.Model(contact).Updates(map[string]any{"last_message_at": now, "last_message_preview": preview, "is_read": true})
 	a.broadcastNewMessage(contact.OrganizationID, msg, contact)
+	a.clearUnhandledOnAgentReply(contact.OrganizationID, contact, sentByUserID)
 	return msg, nil
 }
 
@@ -428,6 +444,7 @@ func (a *App) sendMessengerMediaReply(contact *models.Contact, relPath, publicUR
 
 	a.DB.Model(contact).Updates(map[string]any{"last_message_at": now, "last_message_preview": "[" + string(msgType) + "]", "is_read": true})
 	a.broadcastNewMessage(contact.OrganizationID, msg, contact)
+	a.clearUnhandledOnAgentReply(contact.OrganizationID, contact, sentByUserID)
 	return msg, nil
 }
 
