@@ -321,6 +321,7 @@ export const useContactsStore = defineStore('contacts', () => {
     replyingTo.value = null
   }
 
+  let newContactRefreshHandle: ReturnType<typeof setTimeout> | null = null
   function addMessage(message: Message) {
     // Update contact metadata regardless of account filter
     const contact = contacts.value.find(c => c.id === message.contact_id)
@@ -333,6 +334,17 @@ export const useContactsStore = defineStore('contacts', () => {
         contact.last_inbound_at = message.created_at
         contact.service_window_open = true
       }
+    } else {
+      // TRT #80: a message for a contact that isn't in the list yet = a brand-new
+      // conversation (e.g. the first WhatsApp/Instagram/Messenger message from this
+      // person). The WebSocket payload doesn't carry enough to build the row, so pull
+      // the list so the new chat appears live instead of only after a manual refresh.
+      // Debounced so a burst of first messages triggers a single refresh.
+      if (newContactRefreshHandle) clearTimeout(newContactRefreshHandle)
+      newContactRefreshHandle = setTimeout(() => {
+        const search = normalizeContactSearch(searchQuery.value) || undefined
+        fetchContacts({ search })
+      }, 500)
     }
     // Also update currentContact if it matches
     if (currentContact.value && currentContact.value.id === message.contact_id && message.direction === 'incoming') {
