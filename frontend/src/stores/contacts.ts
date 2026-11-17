@@ -352,6 +352,14 @@ export const useContactsStore = defineStore('contacts', () => {
       currentContact.value.service_window_open = true
     }
 
+    // TRT #81: only append to the open conversation's message list when the message
+    // belongs to it. (addMessage is now called for every incoming message to keep the
+    // contact list live, so without this guard a message for another chat would leak
+    // into the currently open thread.)
+    if (currentContact.value?.id !== message.contact_id) {
+      return
+    }
+
     // Skip adding to messages array if account filter is active and doesn't match
     if (accountFilter.value && message.whatsapp_account && message.whatsapp_account !== accountFilter.value) {
       return

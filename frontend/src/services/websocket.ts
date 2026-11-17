@@ -331,29 +331,31 @@ class WebSocketService {
     const currentContact = store.currentContact
     const isViewingThisContact = currentContact && payload.contact_id === currentContact.id
 
-    if (isViewingThisContact) {
-      // Add message to the store
-      store.addMessage({
-        id: payload.id,
-        contact_id: payload.contact_id,
-        direction: payload.direction,
-        message_type: payload.message_type,
-        content: payload.content,
-        media_url: payload.media_url,
-        media_mime_type: payload.media_mime_type,
-        media_filename: payload.media_filename,
-        interactive_data: payload.interactive_data,
-        status: payload.status,
-        wamid: payload.wamid,
-        error_message: payload.error_message,
-        is_reply: payload.is_reply,
-        reply_to_message_id: payload.reply_to_message_id,
-        reply_to_message: payload.reply_to_message,
-        reactions: payload.reactions,
-        created_at: payload.created_at,
-        updated_at: payload.updated_at
-      })
-    }
+    // TRT #81: ALWAYS update the store, not only when this chat is open. addMessage
+    // updates the contact-list row (last message, unread) and pulls in a brand-new
+    // conversation (#80); it only appends to the open conversation when the message
+    // belongs to it. Previously this ran only when already viewing the contact, so
+    // new/other conversations never updated live — you had to refresh the page.
+    store.addMessage({
+      id: payload.id,
+      contact_id: payload.contact_id,
+      direction: payload.direction,
+      message_type: payload.message_type,
+      content: payload.content,
+      media_url: payload.media_url,
+      media_mime_type: payload.media_mime_type,
+      media_filename: payload.media_filename,
+      interactive_data: payload.interactive_data,
+      status: payload.status,
+      wamid: payload.wamid,
+      error_message: payload.error_message,
+      is_reply: payload.is_reply,
+      reply_to_message_id: payload.reply_to_message_id,
+      reply_to_message: payload.reply_to_message,
+      reactions: payload.reactions,
+      created_at: payload.created_at,
+      updated_at: payload.updated_at
+    })
 
     // Show toast notification for incoming messages if:
     // 1. Message is incoming (from customer, not chatbot/agent)
