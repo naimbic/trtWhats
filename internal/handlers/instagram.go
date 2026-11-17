@@ -281,7 +281,7 @@ func (a *App) handleInstagramInbound(acc *models.InstagramAccount, igsid, mid, t
 			OrganizationID:  acc.OrganizationID,
 			Channel:         models.ChannelInstagram,
 			ExternalID:      igsid,
-			ProfileName:     a.igFetchUsername(acc, igsid),
+			ProfileName:     firstNonEmpty(a.igFetchUsername(acc, igsid), "Instagram "+lastN(igsid, 4)), // TRT #89 fallback
 			WhatsAppAccount: acc.Name, // group under the IG account in the inbox
 			LastInboundAt:   &now,
 		}

@@ -31,6 +31,14 @@ import (
 
 const fbGraphBase = "https://graph.facebook.com"
 
+// lastN returns the last n characters of s (fewer if s is shorter). TRT #89.
+func lastN(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[len(s)-n:]
+}
+
 func fbAPIVersion(acc *models.MessengerAccount) string {
 	if acc != nil && acc.APIVersion != "" {
 		return acc.APIVersion
@@ -224,12 +232,20 @@ func (a *App) handleMessengerInbound(acc *models.MessengerAccount, psid, mid, te
 		acc.OrganizationID, models.ChannelMessenger, psid).First(&contact).Error
 	now := time.Now()
 	if err != nil {
+		// TRT #89: the Messenger user-profile API needs pages_messaging ADVANCED access
+		// (Standard access 400s "missing permissions"), so the name is often empty until
+		// the app is reviewed. Fall back to a readable, distinguishable label so the row
+		// isn't blank; the real name fills in once the profile fetch is allowed.
+		name := a.fbFetchName(acc, psid)
+		if strings.TrimSpace(name) == "" {
+			name = "Messenger " + lastN(psid, 4)
+		}
 		contact = models.Contact{
 			BaseModel:       models.BaseModel{ID: uuid.New()},
 			OrganizationID:  acc.OrganizationID,
 			Channel:         models.ChannelMessenger,
 			ExternalID:      psid,
-			ProfileName:     a.fbFetchName(acc, psid),
+			ProfileName:     name,
 			WhatsAppAccount: acc.Name, // group under the Page in the inbox
 			LastInboundAt:   &now,
 		}
