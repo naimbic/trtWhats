@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -52,6 +52,16 @@ onMounted(() => {
         return null
       }
     })
+  }
+})
+
+// TRT #83: the WebSocket is per-space (bound to the org its token was issued for).
+// When the active space changes, reconnect so the live feed follows the space you're
+// viewing — otherwise the socket keeps delivering only the space you logged in on,
+// and new messages in the current space never arrive until a manual refresh.
+watch(() => authStore.organizationId, (next, prev) => {
+  if (next && prev && next !== prev) {
+    wsService.reconnect()
   }
 })
 

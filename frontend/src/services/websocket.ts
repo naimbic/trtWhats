@@ -225,6 +225,20 @@ class WebSocketService {
     }
   }
 
+  // TRT #83: reconnect with a fresh token so the socket re-authenticates to the
+  // CURRENT org. Called when the active space changes — the WS is per-org, so after
+  // switching spaces the old socket would keep delivering (only) the old space's
+  // events, which is why new messages "only showed after a refresh".
+  async reconnect() {
+    const fn = this.getTokenFn
+    this.disconnect()
+    this.intentionalClose = false
+    this.hasConnectedBefore = false // treat as a fresh connect, not a resync
+    if (fn) {
+      await this.connect(fn)
+    }
+  }
+
   disconnect() {
     this.stopPing()
     this.removeLifecycleListeners() // Drop wake listeners; connect() reinstalls on next login.
