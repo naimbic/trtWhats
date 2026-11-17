@@ -530,6 +530,7 @@ func (a *App) broadcastNewMessage(orgID uuid.UUID, msg *models.Message, contact 
 		"media_mime_type":  msg.MediaMimeType,
 		"media_filename":   msg.MediaFilename,
 		"interactive_data": msg.InteractiveData,
+		"metadata":         msg.Metadata, // TRT #82: so IG comment tag + reply buttons show live
 		"status":           msg.Status,
 		"wamid":            msg.WhatsAppMessageID,
 		"created_at":       msg.CreatedAt,

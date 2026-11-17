@@ -346,6 +346,7 @@ class WebSocketService {
       media_mime_type: payload.media_mime_type,
       media_filename: payload.media_filename,
       interactive_data: payload.interactive_data,
+      metadata: payload.metadata, // TRT #82: IG comment tag + reply buttons live
       status: payload.status,
       wamid: payload.wamid,
       error_message: payload.error_message,
