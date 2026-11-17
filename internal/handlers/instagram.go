@@ -181,6 +181,15 @@ type igWebhookPayload struct {
 // InstagramWebhook receives inbound IG messaging events. POST /api/instagram/webhook (public)
 func (a *App) InstagramWebhook(r *fastglue.Request) error {
 	rawBody := r.RequestCtx.PostBody()
+	// TRT #79 diagnostic: log the raw body so we can see exactly what Instagram
+	// sends for DMs vs comments (structure/object), to pinpoint non-delivery.
+	{
+		bs := string(rawBody)
+		if len(bs) > 2000 {
+			bs = bs[:2000]
+		}
+		a.Log.Info("IG webhook RAW", "len", len(rawBody), "body", bs)
+	}
 	var payload igWebhookPayload
 	if err := json.Unmarshal(rawBody, &payload); err != nil {
 		return r.SendEnvelope(map[string]any{"ok": true})
