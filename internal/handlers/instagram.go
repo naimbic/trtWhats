@@ -441,11 +441,19 @@ func (a *App) sendInstagramReply(contact *models.Contact, text string, sentByUse
 	var err error
 	if commentReplyID != "" {
 		mid, err = a.igCommentPrivateReply(&acc, commentReplyID, text)
+		if err != nil {
+			// A comment accepts only ONE private reply ("already has a reply"), and the
+			// DM thread is open once that first reply exists — so fall back to a normal
+			// DM send instead of failing with a 502.
+			a.Log.Warn("instagram: comment private reply failed, falling back to DM send", "error", err, "contact", contact.ID)
+			mid, err = a.igSendText(&acc, contact.ExternalID, text)
+		}
 	} else {
 		mid, err = a.igSendText(&acc, contact.ExternalID, text)
 	}
 	now := time.Now()
 	if err != nil {
+		a.Log.Error("instagram: reply failed", "error", err, "contact", contact.ID, "via_comment", commentReplyID != "")
 		a.DB.Model(msg).Updates(map[string]any{"status": models.MessageStatusFailed, "error_message": err.Error()})
 		return nil, err
 	}
