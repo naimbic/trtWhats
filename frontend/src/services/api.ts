@@ -343,6 +343,9 @@ export const messagesService = {
     api.get(`/contacts/${contactId}/messages`, { params }),
   // TRT #74: admin-only soft-delete of a single message.
   remove: (messageId: string) => api.delete(`/messages/${messageId}`),
+  // TRT #77: reply to an Instagram comment — publicly under the post, or by private DM.
+  igCommentReply: (messageId: string, text: string, mode: 'public' | 'dm') =>
+    api.post(`/messages/${messageId}/ig-comment-reply`, { text, mode }),
   send: (
     contactId: string,
     data: {

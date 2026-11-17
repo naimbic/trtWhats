@@ -692,6 +692,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.POST("/api/messages/media", app.SendMediaMessage)
 	g.PUT("/api/messages/{id}/read", app.MarkMessageRead)
 	g.DELETE("/api/messages/{id}", app.DeleteMessage) // TRT #74: admin-only delete
+	g.POST("/api/messages/{id}/ig-comment-reply", app.SendInstagramCommentReply) // TRT #77: reply to IG comment (public/dm)
 
 	// Conversation Notes
 	g.GET("/api/contacts/{id}/notes", app.ListConversationNotes)

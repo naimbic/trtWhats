@@ -75,6 +75,7 @@ export interface Message {
       title?: string
     }>
   }
+  metadata?: Record<string, any> // TRT #77: IG comment markers (ig_comment, comment_id, media_id)
   status: string
   wamid?: string
   error_message?: string

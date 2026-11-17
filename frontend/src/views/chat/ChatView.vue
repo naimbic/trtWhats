@@ -1461,6 +1461,22 @@ async function sendTemplateMessage() {
 const reactionPickerMessageId = ref<string | null>(null)
 const quickReactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 
+// TRT #77: reply to an Instagram comment — publicly under the post, or by private DM.
+async function replyToComment(message: any, mode: 'public' | 'dm') {
+  const label = mode === 'public' ? t('chat.replyPublic', 'Reply publicly') : t('chat.replyDM', 'Reply in DM')
+  const text = window.prompt(label)
+  if (!text || !text.trim()) return
+  try {
+    await messagesService.igCommentReply(message.id, text.trim(), mode)
+    toast.success(mode === 'public'
+      ? t('chat.commentReplied', 'Reply posted under the comment')
+      : t('chat.dmSent', 'Private DM sent'))
+    if (contactsStore.currentContact) await contactsStore.fetchMessages(contactsStore.currentContact.id)
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message || t('chat.replyFailed', 'Reply failed'))
+  }
+}
+
 async function sendReaction(messageId: string, emoji: string) {
   if (!contactsStore.currentContact) return
 
@@ -2758,6 +2774,18 @@ async function sendAudioBlob(blob: Blob) {
                   <p class="truncate">
                     {{ getReplyPreviewContent(message) }}
                   </p>
+                </div>
+                <!-- TRT #77: Instagram comment — label + reply actions (public / DM) -->
+                <div v-if="message.metadata && message.metadata.ig_comment" class="mb-1.5 flex flex-wrap items-center gap-1.5">
+                  <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-pink-500 bg-pink-500/10 rounded px-1.5 py-0.5">
+                    💬 {{ $t('chat.igComment', 'Comment on a post') }}
+                  </span>
+                  <button type="button" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 light:bg-gray-200 light:hover:bg-gray-300" @click="replyToComment(message, 'public')">
+                    {{ $t('chat.replyPublic', 'Reply publicly') }}
+                  </button>
+                  <button type="button" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 light:bg-gray-200 light:hover:bg-gray-300" @click="replyToComment(message, 'dm')">
+                    {{ $t('chat.replyDM', 'Reply in DM') }}
+                  </button>
                 </div>
                 <!-- Template header media (image/video/document shown above template text) -->
                 <div v-if="message.message_type === 'template' && message.media_url" class="mb-2">

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -157,6 +158,23 @@ type igWebhookPayload struct {
 				} `json:"attachments"`
 			} `json:"message"`
 		} `json:"messaging"`
+		// TRT #77: comments on the account's media arrive as changes (field="comments").
+		Changes []struct {
+			Field string `json:"field"`
+			Value struct {
+				ID   string `json:"id"` // comment id
+				Text string `json:"text"`
+				From struct {
+					ID       string `json:"id"`
+					Username string `json:"username"`
+				} `json:"from"`
+				Media struct {
+					ID              string `json:"id"`
+					MediaProductType string `json:"media_product_type"`
+				} `json:"media"`
+				ParentID string `json:"parent_id"`
+			} `json:"value"`
+		} `json:"changes"`
 	} `json:"entry"`
 }
 
@@ -197,6 +215,37 @@ func (a *App) InstagramWebhook(r *fastglue.Request) error {
 				}
 			}
 			a.handleInstagramInbound(&acc, m.Sender.ID, m.Message.MID, m.Message.Text, m.Message.Attachments)
+		}
+
+		// TRT #77: comments on the account's media (field="comments"). The account is
+		// identified by entry.id (the IG professional account that owns the media).
+		for _, ch := range entry.Changes {
+			if ch.Field != "comments" {
+				continue
+			}
+			v := ch.Value
+			if v.ID == "" || v.From.ID == "" {
+				continue
+			}
+			var acc models.InstagramAccount
+			if err := a.DB.Where("ig_user_id = ?", entry.ID).First(&acc).Error; err != nil {
+				a.Log.Warn("instagram webhook: unknown account for comment", "ig_user_id", entry.ID)
+				continue
+			}
+			// Don't ingest the account's own replies as new comments.
+			if v.From.ID == acc.IGUserID {
+				continue
+			}
+			if acc.AppSecret != "" {
+				if secret, derr := crypto.Decrypt(acc.AppSecret, a.Config.App.EncryptionKey); derr == nil {
+					sig := string(r.RequestCtx.Request.Header.Peek("X-Hub-Signature-256"))
+					if !igVerifySignature(sig, rawBody, secret) {
+						a.Log.Warn("instagram webhook: bad signature (comment)", "ig_user_id", entry.ID)
+						continue
+					}
+				}
+			}
+			a.handleInstagramComment(&acc, v.ID, v.Text, v.From.ID, v.From.Username, v.Media.ID)
 		}
 	}
 	return r.SendEnvelope(map[string]any{"ok": true})
@@ -425,6 +474,218 @@ func (a *App) sendInstagramMediaReply(contact *models.Contact, relPath, publicUR
 	a.DB.Model(contact).Updates(map[string]any{"last_message_at": now, "last_message_preview": "[" + string(msgType) + "]", "is_read": true})
 	a.broadcastNewMessage(contact.OrganizationID, msg, contact)
 	return msg, nil
+}
+
+// handleInstagramComment upserts the commenter as a contact and stores the
+// comment as an incoming message (tagged in metadata so the UI shows it as a
+// comment and can reply publicly or via DM). TRT #77.
+func (a *App) handleInstagramComment(acc *models.InstagramAccount, commentID, text, fromID, username, mediaID string) {
+	var contact models.Contact
+	err := a.DB.Where("organization_id = ? AND channel = ? AND external_id = ?",
+		acc.OrganizationID, models.ChannelInstagram, fromID).First(&contact).Error
+	now := time.Now()
+	if err != nil {
+		contact = models.Contact{
+			BaseModel:       models.BaseModel{ID: uuid.New()},
+			OrganizationID:  acc.OrganizationID,
+			Channel:         models.ChannelInstagram,
+			ExternalID:      fromID,
+			ProfileName:     firstNonEmpty(username, a.igFetchUsername(acc, fromID)),
+			WhatsAppAccount: acc.Name,
+			LastInboundAt:   &now,
+		}
+		if e := a.DB.Create(&contact).Error; e != nil {
+			a.Log.Error("instagram: failed to create contact (comment)", "err", e)
+			return
+		}
+	}
+
+	message := models.Message{
+		BaseModel:         models.BaseModel{ID: uuid.New()},
+		OrganizationID:    acc.OrganizationID,
+		WhatsAppAccount:   acc.Name,
+		Channel:           models.ChannelInstagram,
+		ContactID:         contact.ID,
+		WhatsAppMessageID: commentID,
+		Direction:         models.DirectionIncoming,
+		MessageType:       models.MessageTypeText,
+		Content:           text,
+		Status:            models.MessageStatusDelivered,
+		Metadata:          models.JSONB{"ig_comment": true, "comment_id": commentID, "media_id": mediaID, "username": username},
+	}
+	if e := a.DB.Create(&message).Error; e != nil {
+		a.Log.Error("instagram: failed to save comment", "err", e)
+		return
+	}
+
+	preview := "💬 " + text
+	if len(preview) > 100 {
+		preview = preview[:97] + "..."
+	}
+	a.DB.Model(&contact).Updates(map[string]any{
+		"last_message_at": now, "last_inbound_at": now, "last_message_preview": preview, "is_read": false,
+	})
+	a.broadcastNewMessage(acc.OrganizationID, &message, &contact)
+	a.Log.Info("instagram: inbound comment", "account", acc.Name, "comment_id", commentID, "from", fromID)
+}
+
+// igCommentPublicReply posts a public reply under a comment. TRT #77.
+func (a *App) igCommentPublicReply(acc *models.InstagramAccount, commentID, text string) (string, error) {
+	token, err := a.igToken(acc)
+	if err != nil {
+		return "", err
+	}
+	form := "message=" + url.QueryEscape(text) + "&access_token=" + url.QueryEscape(token)
+	endpoint := fmt.Sprintf("%s/%s/%s/replies", igGraphBase, igAPIVersion(acc), commentID)
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(form))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := a.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("instagram public reply failed (%d): %s", resp.StatusCode, string(raw))
+	}
+	var d map[string]any
+	_ = json.Unmarshal(raw, &d)
+	if id, ok := d["id"].(string); ok {
+		return id, nil
+	}
+	return "", nil
+}
+
+// igCommentPrivateReply sends a private DM in response to a comment (Instagram
+// Private Replies: recipient{comment_id}). TRT #77.
+func (a *App) igCommentPrivateReply(acc *models.InstagramAccount, commentID, text string) (string, error) {
+	token, err := a.igToken(acc)
+	if err != nil {
+		return "", err
+	}
+	payload := map[string]any{
+		"recipient": map[string]any{"comment_id": commentID},
+		"message":   map[string]any{"text": text},
+	}
+	body, _ := json.Marshal(payload)
+	endpoint := fmt.Sprintf("%s/%s/%s/messages?access_token=%s", igGraphBase, igAPIVersion(acc), acc.IGUserID, url.QueryEscape(token))
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(string(body)))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := a.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("instagram private reply failed (%d): %s", resp.StatusCode, string(raw))
+	}
+	var d map[string]any
+	_ = json.Unmarshal(raw, &d)
+	if mid, ok := d["message_id"].(string); ok {
+		return mid, nil
+	}
+	return "", nil
+}
+
+// SendInstagramCommentReply replies to a stored IG comment message, publicly
+// (under the comment) or as a private DM. TRT #77.
+// POST /api/messages/{id}/ig-comment-reply   body: { text, mode: "public"|"dm" }
+func (a *App) SendInstagramCommentReply(r *fastglue.Request) error {
+	orgID, userID, err := a.getOrgAndUserID(r)
+	if err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+	}
+	if !a.HasPermission(userID, models.ResourceContacts, models.ActionWrite, orgID) {
+		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "No permission", nil, "")
+	}
+	msgID, err := parsePathUUID(r, "id", "message")
+	if err != nil {
+		return nil
+	}
+	var src models.Message
+	if err := a.DB.Where("id = ? AND organization_id = ?", msgID, orgID).First(&src).Error; err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Comment not found", nil, "")
+	}
+	commentID, _ := src.Metadata["comment_id"].(string)
+	if commentID == "" {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "This message is not an Instagram comment", nil, "")
+	}
+	var req struct {
+		Text string `json:"text"`
+		Mode string `json:"mode"` // "public" | "dm"
+	}
+	_ = a.decodeRequest(r, &req)
+	if strings.TrimSpace(req.Text) == "" {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Reply text is required", nil, "")
+	}
+
+	var acc models.InstagramAccount
+	if err := a.DB.Where("organization_id = ? AND name = ?", orgID, src.WhatsAppAccount).First(&acc).Error; err != nil {
+		if err := a.DB.Where("organization_id = ? AND is_active = ?", orgID, true).First(&acc).Error; err != nil {
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "No Instagram account for this comment", nil, "")
+		}
+	}
+
+	var contact models.Contact
+	_ = a.DB.Where("id = ?", src.ContactID).First(&contact).Error
+
+	if req.Mode == "public" {
+		newID, serr := a.igCommentPublicReply(&acc, commentID, req.Text)
+		if serr != nil {
+			return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Instagram: "+serr.Error(), nil, "")
+		}
+		out := models.Message{
+			BaseModel:       models.BaseModel{ID: uuid.New()},
+			OrganizationID:  orgID,
+			WhatsAppAccount: acc.Name,
+			Channel:         models.ChannelInstagram,
+			ContactID:       src.ContactID,
+			WhatsAppMessageID: newID,
+			Direction:       models.DirectionOutgoing,
+			MessageType:     models.MessageTypeText,
+			Content:         req.Text,
+			Status:          models.MessageStatusSent,
+			SentByUserID:    &userID,
+			Metadata:        models.JSONB{"ig_comment_reply": "public", "comment_id": commentID},
+		}
+		_ = a.DB.Create(&out).Error
+		if contact.ID != uuid.Nil {
+			a.broadcastNewMessage(orgID, &out, &contact)
+		}
+		return r.SendEnvelope(map[string]any{"ok": true, "mode": "public", "id": newID})
+	}
+
+	// Default: private DM reply (Private Replies API).
+	mid, serr := a.igCommentPrivateReply(&acc, commentID, req.Text)
+	if serr != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Instagram: "+serr.Error(), nil, "")
+	}
+	out := models.Message{
+		BaseModel:         models.BaseModel{ID: uuid.New()},
+		OrganizationID:    orgID,
+		WhatsAppAccount:   acc.Name,
+		Channel:           models.ChannelInstagram,
+		ContactID:         src.ContactID,
+		WhatsAppMessageID: mid,
+		Direction:         models.DirectionOutgoing,
+		MessageType:       models.MessageTypeText,
+		Content:           req.Text,
+		Status:            models.MessageStatusSent,
+		SentByUserID:      &userID,
+	}
+	_ = a.DB.Create(&out).Error
+	if contact.ID != uuid.Nil {
+		a.DB.Model(&contact).Updates(map[string]any{"last_message_at": time.Now(), "last_message_preview": req.Text, "is_read": true})
+		a.broadcastNewMessage(orgID, &out, &contact)
+	}
+	return r.SendEnvelope(map[string]any{"ok": true, "mode": "dm", "id": mid})
 }
 
 // ---- Instagram account CRUD (settings) --------------------------------------

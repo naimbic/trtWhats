@@ -69,6 +69,7 @@ type MessageResponse struct {
 	MediaMimeType    string               `json:"media_mime_type,omitempty"`
 	MediaFilename    string               `json:"media_filename,omitempty"`
 	InteractiveData  models.JSONB         `json:"interactive_data,omitempty"`
+	Metadata         models.JSONB         `json:"metadata,omitempty"` // TRT #77: IG comment markers etc.
 	Status           models.MessageStatus `json:"status"`
 	WAMID            string               `json:"wamid"`
 	Error            string               `json:"error_message"`
@@ -531,6 +532,7 @@ func (a *App) buildMessagesResponse(messages []models.Message) []MessageResponse
 			MediaMimeType:   m.MediaMimeType,
 			MediaFilename:   m.MediaFilename,
 			InteractiveData: m.InteractiveData,
+			Metadata:        m.Metadata,
 			Status:          m.Status,
 			WAMID:           m.WhatsAppMessageID,
 			Error:           m.ErrorMessage,
