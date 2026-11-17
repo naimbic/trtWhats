@@ -8,6 +8,7 @@ rebuild / no-cache** redeploy to go live.
 
 | # | What | Status |
 |---|------|--------|
+| #89 | **Fallback contact name** for Messenger/Instagram — user-profile API needs Advanced Access (Standard 400s), so inbound contacts had blank names; now "Messenger 1234"/"Instagram 1234". Backfilled existing. | ✅ |
 | #88 | **"Not answered" dot** for IG/Messenger — keys off `is_read` (not just unread count); shows until an agent replies, **persists when you open/read** the chat, clears only on reply (same as WhatsApp). `is_read` now exposed to the UI; agent reply marks incoming read + is_read=true. | ✅ |
 | #87 | **Inbound IG/Messenger media renders** — download the Meta CDN attachment locally on receipt (was stored as an absolute CDN URL that `/api/media/{id}` can't serve → blank "empty"/no-image bubbles). | ✅ |
 | #86 | **Filter inbox by platform** (All / WhatsApp / Instagram / Messenger) — chip row above the list; `?channel=` on `/api/contacts`. | ✅ |
