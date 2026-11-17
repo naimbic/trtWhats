@@ -397,6 +397,30 @@ func (a *App) sendInstagramReply(contact *models.Contact, text string, sentByUse
 		}
 	}
 
+	// TRT #84: let the normal composer reply to a comment as a DM. If the contact's
+	// latest inbound was a comment and we haven't opened a DM yet, send via the
+	// comment Private-Reply API (recipient{comment_id}) — a plain DM send needs an
+	// open 24h window a comment-only lead doesn't have. Private reply is allowed once
+	// per comment, so only for the FIRST outgoing message; after that the DM is open.
+	var commentReplyID string
+	{
+		var lastIn models.Message
+		if e := a.DB.Where("contact_id = ? AND direction = ?", contact.ID, models.DirectionIncoming).
+			Order("created_at DESC").First(&lastIn).Error; e == nil {
+			if cid, _ := lastIn.Metadata["comment_id"].(string); cid != "" {
+				if isC, _ := lastIn.Metadata["ig_comment"].(bool); isC {
+					var priorOut int64
+					a.DB.Model(&models.Message{}).
+						Where("contact_id = ? AND direction = ?", contact.ID, models.DirectionOutgoing).
+						Count(&priorOut)
+					if priorOut == 0 {
+						commentReplyID = cid
+					}
+				}
+			}
+		}
+	}
+
 	msg := &models.Message{
 		BaseModel:       models.BaseModel{ID: uuid.New()},
 		OrganizationID:  contact.OrganizationID,
@@ -413,7 +437,13 @@ func (a *App) sendInstagramReply(contact *models.Contact, text string, sentByUse
 		return nil, err
 	}
 
-	mid, err := a.igSendText(&acc, contact.ExternalID, text)
+	var mid string
+	var err error
+	if commentReplyID != "" {
+		mid, err = a.igCommentPrivateReply(&acc, commentReplyID, text)
+	} else {
+		mid, err = a.igSendText(&acc, contact.ExternalID, text)
+	}
 	now := time.Now()
 	if err != nil {
 		a.DB.Model(msg).Updates(map[string]any{"status": models.MessageStatusFailed, "error_message": err.Error()})
