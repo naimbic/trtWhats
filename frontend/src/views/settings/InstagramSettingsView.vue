@@ -107,6 +107,17 @@ async function remove(acc: InstagramAccount) {
 function copyWebhook() {
   navigator.clipboard?.writeText(webhookUrl).then(() => toast.success(t('common.copied', 'Copié')))
 }
+
+// TRT #90: quick on/off switch — off = no sync (webhook ignores the account).
+async function toggleActive(acc: InstagramAccount, value: boolean) {
+  try {
+    await instagramService.setActive(acc.id, value)
+    acc.is_active = value
+    toast.success(value ? t('instagram.synced', 'Sync on') : t('instagram.syncOff', 'Sync off'))
+  } catch (e) {
+    toast.error(getErrorMessage(e, t('instagram.saveFailed', "Échec de l'enregistrement")))
+  }
+}
 </script>
 
 <template>
@@ -155,6 +166,7 @@ function copyWebhook() {
             </p>
           </div>
           <div v-if="canWrite" class="flex items-center gap-2 shrink-0">
+            <Switch :checked="acc.is_active" @update:checked="(v: boolean) => toggleActive(acc, v)" :title="$t('instagram.syncToggle', 'On/off — off stops sync')" />
             <Button size="sm" variant="outline" @click="openEdit(acc)">{{ $t('common.edit', 'Modifier') }}</Button>
             <Button size="icon" variant="ghost" class="text-destructive" @click="remove(acc)"><Trash2 class="h-4 w-4" /></Button>
           </div>

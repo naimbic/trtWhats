@@ -223,6 +223,7 @@ export const instagramService = {
   list: () => api.get<{ accounts: InstagramAccount[] }>('/instagram/accounts'),
   create: (data: Record<string, any>) => api.post('/instagram/accounts', data),
   update: (id: string, data: Record<string, any>) => api.put(`/instagram/accounts/${id}`, data),
+  setActive: (id: string, is_active: boolean) => api.put(`/instagram/accounts/${id}/active`, { is_active }),
   remove: (id: string) => api.delete(`/instagram/accounts/${id}`),
 }
 
@@ -242,6 +243,7 @@ export const messengerService = {
   list: () => api.get<{ accounts: MessengerAccount[] }>('/messenger/accounts'),
   create: (data: Record<string, any>) => api.post('/messenger/accounts', data),
   update: (id: string, data: Record<string, any>) => api.put(`/messenger/accounts/${id}`, data),
+  setActive: (id: string, is_active: boolean) => api.put(`/messenger/accounts/${id}/active`, { is_active }),
   remove: (id: string) => api.delete(`/messenger/accounts/${id}`),
 }
 

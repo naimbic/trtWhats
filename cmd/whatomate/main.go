@@ -657,11 +657,13 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.GET("/api/instagram/accounts", app.ListInstagramAccounts)
 	g.POST("/api/instagram/accounts", app.CreateInstagramAccount)
 	g.PUT("/api/instagram/accounts/{id}", app.UpdateInstagramAccount)
+	g.PUT("/api/instagram/accounts/{id}/active", app.SetInstagramActive) // TRT #90
 	g.DELETE("/api/instagram/accounts/{id}", app.DeleteInstagramAccount)
 	// TRT #75: Facebook Messenger account management
 	g.GET("/api/messenger/accounts", app.ListMessengerAccounts)
 	g.POST("/api/messenger/accounts", app.CreateMessengerAccount)
 	g.PUT("/api/messenger/accounts/{id}", app.UpdateMessengerAccount)
+	g.PUT("/api/messenger/accounts/{id}/active", app.SetMessengerActive) // TRT #90
 	g.DELETE("/api/messenger/accounts/{id}", app.DeleteMessengerAccount)
 	g.PUT("/api/accounts/{id}/ameex", app.UpdateAmeexSettings)       // TRT #63 (Ameex-only save)
 	g.GET("/api/accounts/{id}/ameex/pickup-addresses", app.GetAmeexPickupAddresses) // TRT #67

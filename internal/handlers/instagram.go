@@ -267,7 +267,7 @@ func (a *App) handleInstagramInbound(acc *models.InstagramAccount, igsid, mid, t
 		URL string `json:"url"`
 	} `json:"payload"`
 }) {
-	if igsid == "" {
+	if igsid == "" || !acc.IsActive { // TRT #90: channel off in Settings → no sync
 		return
 	}
 	// Upsert contact by (org, channel=instagram, external_id=IGSID).
@@ -536,6 +536,9 @@ func (a *App) sendInstagramMediaReply(contact *models.Contact, relPath, publicUR
 // comment as an incoming message (tagged in metadata so the UI shows it as a
 // comment and can reply publicly or via DM). TRT #77.
 func (a *App) handleInstagramComment(acc *models.InstagramAccount, commentID, text, fromID, username, mediaID string) {
+	if !acc.IsActive { // TRT #90: channel off in Settings → no sync
+		return
+	}
 	var contact models.Contact
 	err := a.DB.Where("organization_id = ? AND channel = ? AND external_id = ?",
 		acc.OrganizationID, models.ChannelInstagram, fromID).First(&contact).Error
@@ -896,6 +899,29 @@ func (a *App) UpdateInstagramAccount(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "failed to update Instagram account", nil, "")
 	}
 	return r.SendEnvelope(instagramAccountToResponse(acc))
+}
+
+// SetInstagramActive toggles only the on/off switch. TRT #90.
+// PUT /api/instagram/accounts/{id}/active   body: { "is_active": true|false }
+func (a *App) SetInstagramActive(r *fastglue.Request) error {
+	orgID, _, err := a.requireAuth(r, models.ResourceAccounts, models.ActionWrite)
+	if err != nil {
+		return nil
+	}
+	id, err := parsePathUUID(r, "id", "account")
+	if err != nil {
+		return nil
+	}
+	var req struct {
+		IsActive bool `json:"is_active"`
+	}
+	_ = a.decodeRequest(r, &req)
+	if err := a.DB.Model(&models.InstagramAccount{}).
+		Where("id = ? AND organization_id = ?", id, orgID).
+		Update("is_active", req.IsActive).Error; err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "failed to update", nil, "")
+	}
+	return r.SendEnvelope(map[string]any{"is_active": req.IsActive})
 }
 
 // DeleteInstagramAccount — DELETE /api/instagram/accounts/{id}

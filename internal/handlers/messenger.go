@@ -200,6 +200,10 @@ func (a *App) MessengerWebhook(r *fastglue.Request) error {
 				a.Log.Warn("messenger webhook: unknown page", "page_id", pageID)
 				continue
 			}
+			// TRT #90: channel turned off in Settings → don't sync.
+			if !acc.IsActive {
+				continue
+			}
 			// Verify signature when an app secret is configured.
 			if acc.AppSecret != "" {
 				if secret, derr := crypto.Decrypt(acc.AppSecret, a.Config.App.EncryptionKey); derr == nil {
@@ -623,6 +627,29 @@ func (a *App) UpdateMessengerAccount(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "failed to update Messenger account", nil, "")
 	}
 	return r.SendEnvelope(messengerAccountToResponse(acc))
+}
+
+// SetMessengerActive toggles only the on/off switch. TRT #90.
+// PUT /api/messenger/accounts/{id}/active   body: { "is_active": true|false }
+func (a *App) SetMessengerActive(r *fastglue.Request) error {
+	orgID, _, err := a.requireAuth(r, models.ResourceAccounts, models.ActionWrite)
+	if err != nil {
+		return nil
+	}
+	id, err := parsePathUUID(r, "id", "account")
+	if err != nil {
+		return nil
+	}
+	var req struct {
+		IsActive bool `json:"is_active"`
+	}
+	_ = a.decodeRequest(r, &req)
+	if err := a.DB.Model(&models.MessengerAccount{}).
+		Where("id = ? AND organization_id = ?", id, orgID).
+		Update("is_active", req.IsActive).Error; err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "failed to update", nil, "")
+	}
+	return r.SendEnvelope(map[string]any{"is_active": req.IsActive})
 }
 
 // DeleteMessengerAccount — DELETE /api/messenger/accounts/{id}
