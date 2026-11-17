@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +15,43 @@ import (
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
 )
+
+// downloadRemoteMedia fetches a remote media URL (Instagram/Messenger CDN) and
+// saves it locally, returning the relative path ServeMedia can serve + its MIME.
+// TRT #87: inbound IG/Messenger media arrives as an absolute Meta CDN URL, but the
+// frontend renders every message via /api/media/{id} (ServeMedia), which only reads
+// LOCAL files — so a CDN URL rendered as a blank/"empty" bubble. Download it so it
+// renders (and survives the CDN URL expiring).
+func (a *App) downloadRemoteMedia(url, mimeHint string) (relPath, mime string, err error) {
+	if url == "" {
+		return "", "", fmt.Errorf("empty media url")
+	}
+	req, e := http.NewRequest(http.MethodGet, url, nil)
+	if e != nil {
+		return "", "", e
+	}
+	resp, e := a.HTTPClient.Do(req)
+	if e != nil {
+		return "", "", e
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 400 {
+		return "", "", fmt.Errorf("download failed (%d)", resp.StatusCode)
+	}
+	data, e := io.ReadAll(io.LimitReader(resp.Body, 50<<20))
+	if e != nil {
+		return "", "", e
+	}
+	mime = resp.Header.Get("Content-Type")
+	if mime == "" {
+		mime = mimeHint
+	}
+	rel, e := a.saveMediaLocally(data, mime, "")
+	if e != nil {
+		return "", "", e
+	}
+	return rel, mime, nil
+}
 
 // getMediaStoragePath returns the base path for media storage
 func (a *App) getMediaStoragePath() string {

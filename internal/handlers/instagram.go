@@ -297,7 +297,14 @@ func (a *App) handleInstagramInbound(acc *models.InstagramAccount, igsid, mid, t
 	mediaMime := ""
 	if len(attachments) > 0 {
 		at := attachments[0]
-		mediaURL = at.Payload.URL
+		// TRT #87: download the CDN media locally so it renders via /api/media/{id}.
+		if rel, m, derr := a.downloadRemoteMedia(at.Payload.URL, ""); derr == nil {
+			mediaURL = rel
+			mediaMime = m
+		} else {
+			mediaURL = at.Payload.URL
+			a.Log.Warn("instagram: media download failed, keeping CDN url", "err", derr)
+		}
 		switch strings.ToLower(at.Type) {
 		case "image":
 			messageType = models.MessageTypeImage

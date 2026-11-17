@@ -245,7 +245,6 @@ func (a *App) handleMessengerInbound(acc *models.MessengerAccount, psid, mid, te
 	mediaMime := ""
 	if len(attachments) > 0 {
 		at := attachments[0]
-		mediaURL = at.Payload.URL
 		switch strings.ToLower(at.Type) {
 		case "image":
 			messageType = models.MessageTypeImage
@@ -255,6 +254,16 @@ func (a *App) handleMessengerInbound(acc *models.MessengerAccount, psid, mid, te
 			messageType = models.MessageTypeAudio
 		default:
 			messageType = models.MessageTypeDocument
+		}
+		// TRT #87: download the CDN media locally so it renders via /api/media/{id}
+		// (the frontend can't fetch the Meta CDN URL directly). Fall back to the CDN
+		// URL if the download fails.
+		if rel, m, derr := a.downloadRemoteMedia(at.Payload.URL, ""); derr == nil {
+			mediaURL = rel
+			mediaMime = m
+		} else {
+			mediaURL = at.Payload.URL
+			a.Log.Warn("messenger: media download failed, keeping CDN url", "err", derr)
 		}
 	}
 
