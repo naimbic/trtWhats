@@ -8,6 +8,7 @@ rebuild / no-cache** redeploy to go live.
 
 | # | What | Status |
 |---|------|--------|
+| #87 | **Inbound IG/Messenger media renders** — download the Meta CDN attachment locally on receipt (was stored as an absolute CDN URL that `/api/media/{id}` can't serve → blank "empty"/no-image bubbles). | ✅ |
 | #86 | **Filter inbox by platform** (All / WhatsApp / Instagram / Messenger) — chip row above the list; `?channel=` on `/api/contacts`. | ✅ |
 | #85 | **Agent reply clears "not answered"** on IG/Messenger — `clearUnhandledOnAgentReply` clears `order_pending` + broadcasts `contact_read` (mirrors the WhatsApp send path). | ✅ |
 | #84 / #84b | **Composer reply to an IG comment → DM.** Typing in "Type a message…" on a comment contact sends via the Private-Reply API (`recipient{comment_id}`); if that fails ("already has a reply" — one per comment) it **falls back to a normal DM send**. | ✅ (needs redeploy) |
