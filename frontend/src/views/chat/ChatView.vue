@@ -2529,6 +2529,15 @@ async function sendAudioBlob(blob: Blob) {
                   <Badge v-if="contact.unread_count > 0" class="h-5 min-w-[20px] px-1.5 rounded-full text-[11px] font-semibold text-white border-0 flex items-center justify-center shadow-sm" style="background-color:#25D366">
                     {{ contact.unread_count > 99 ? '99+' : contact.unread_count }}
                   </Badge>
+                  <!-- TRT #88: "not answered" dot — shows for any unhandled session
+                       (is_read=false) even when the count is 0, so IG/Messenger
+                       conversations clearly show a dot until an agent replies. -->
+                  <span
+                    v-else-if="(contact as any).is_read === false"
+                    class="w-2.5 h-2.5 rounded-full shrink-0"
+                    style="background-color:#25D366"
+                    :title="$t('chat.notAnswered', 'Not answered')"
+                  />
                 </div>
               </div>
             </div>

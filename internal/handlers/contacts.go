@@ -36,6 +36,7 @@ type ContactResponse struct {
 	LastMessageAt      *time.Time `json:"last_message_at"`
 	LastMessagePreview string     `json:"last_message_preview"`
 	UnreadCount        int        `json:"unread_count"`
+	IsRead             bool       `json:"is_read"` // TRT #88: answered/handled flag (false = not answered)
 	AssignedUserID     *uuid.UUID `json:"assigned_user_id,omitempty"`
 	WhatsAppAccount    string     `json:"whatsapp_account,omitempty"`
 	Channel            string     `json:"channel,omitempty"` // TRT #68: whatsapp | instagram
@@ -247,6 +248,7 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 			LastMessageAt:      c.LastMessageAt,
 			LastMessagePreview: c.LastMessagePreview,
 			UnreadCount:        int(unreadCount),
+			IsRead:             c.IsRead,
 			AssignedUserID:     c.AssignedUserID,
 			WhatsAppAccount:    c.WhatsAppAccount,
 			Channel:            c.Channel,
@@ -2149,6 +2151,7 @@ func (a *App) buildContactResponse(contact *models.Contact, orgID uuid.UUID) Con
 		LastMessageAt:      contact.LastMessageAt,
 		LastMessagePreview: contact.LastMessagePreview,
 		UnreadCount:        int(unreadCount),
+		IsRead:             contact.IsRead,
 		AssignedUserID:     contact.AssignedUserID,
 		WhatsAppAccount:    contact.WhatsAppAccount,
 		Channel:            contact.Channel,

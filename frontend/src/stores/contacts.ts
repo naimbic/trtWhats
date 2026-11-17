@@ -27,6 +27,7 @@ export interface Contact {
   last_inbound_at?: string
   service_window_open?: boolean
   unread_count: number
+  is_read?: boolean // TRT #88: answered/handled flag (false = not answered → dot)
   assigned_user_id?: string
   whatsapp_account?: string
   marketing_opt_out?: boolean
@@ -335,6 +336,7 @@ export const useContactsStore = defineStore('contacts', () => {
         if (!viewing) contact.unread_count++
         contact.last_inbound_at = message.created_at
         contact.service_window_open = true
+        contact.is_read = false // TRT #88: a new inbound message = not answered → dot
       }
     } else {
       // TRT #80: a message for a contact that isn't in the list yet = a brand-new
@@ -514,6 +516,9 @@ export const useContactsStore = defineStore('contacts', () => {
       // TRT custom patch #44: a human agent replying also clears the orange
       // "order to process" bubble (backend clears order_pending on the same send).
       contact.order_pending = false
+      // TRT #88: this fires only on the agent-reply contact_read event (not on open),
+      // so marking the session answered here clears the "not answered" dot.
+      contact.is_read = true
     }
   }
 

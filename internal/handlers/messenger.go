@@ -347,9 +347,14 @@ func (a *App) clearUnhandledOnAgentReply(orgID uuid.UUID, contact *models.Contac
 	if sentByUserID == nil || contact == nil {
 		return
 	}
-	a.DB.Model(&models.Contact{}).
-		Where("id = ? AND order_pending = ?", contact.ID, true).
-		Update("order_pending", false)
+	// Mark the contact's unread incoming messages read so the unread badge clears —
+	// IG/Messenger inbound stay "delivered" (no read receipts), so without this the
+	// badge would never clear after answering. Only a human agent reply does this.
+	a.DB.Model(&models.Message{}).
+		Where("contact_id = ? AND direction = ? AND status <> ?", contact.ID, models.DirectionIncoming, models.MessageStatusRead).
+		Update("status", models.MessageStatusRead)
+	a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).
+		Updates(map[string]any{"order_pending": false, "is_read": true})
 	contact.OrderPending = false
 	a.broadcastContactRead(orgID, contact.ID)
 }
