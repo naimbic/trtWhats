@@ -242,7 +242,12 @@ func getIndexes() []string {
 		// Indexes
 		`CREATE INDEX IF NOT EXISTS idx_messages_contact_created ON messages(contact_id, created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_org_phone ON contacts(organization_id, phone_number)`,
+		// TRT #78: phone uniqueness must apply to WhatsApp contacts only. Instagram/
+		// Messenger contacts have an EMPTY phone_number (they key on external_id), so a
+		// plain unique(org, phone) collides on the 2nd empty-phone contact per org.
+		// Make it a PARTIAL unique index over real phones, excluding empty + soft-deleted.
+		`DROP INDEX IF EXISTS idx_contacts_org_phone`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_org_phone_active ON contacts(organization_id, phone_number) WHERE phone_number <> '' AND phone_number IS NOT NULL AND deleted_at IS NULL`,
 		`CREATE INDEX IF NOT EXISTS idx_contacts_assigned_read ON contacts(assigned_user_id, is_read)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_phone_status ON chatbot_sessions(organization_id, phone_number, status)`,
 		`CREATE INDEX IF NOT EXISTS idx_keyword_rules_priority ON keyword_rules(organization_id, is_enabled, priority DESC)`,
