@@ -537,8 +537,14 @@ func (a *App) GetWSToken(r *fastglue.Request) error {
 	if !ok {
 		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
 	}
-	orgID, ok := r.RequestCtx.UserValue("organization_id").(uuid.UUID)
-	if !ok {
+	// TRT #94: resolve the org the SAME way REST does — honouring the
+	// X-Organization-ID space-switch header — instead of reading the JWT's
+	// default org directly. Otherwise an agent whose default org is A but who is
+	// working in space B gets a WS token (and thus a socket) bound to A, so none
+	// of space B's broadcasts reach them and the inbox silently freezes until a
+	// manual refresh (which reloads contacts over REST, where the header IS used).
+	orgID, err := a.getOrgID(r)
+	if err != nil {
 		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
 	}
 
