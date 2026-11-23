@@ -61,7 +61,7 @@ func (a *App) loadTelegramSettings(orgID uuid.UUID) (models.TelegramSettings, bo
 
 // GetTelegramSettings — GET /api/telegram/settings
 func (a *App) GetTelegramSettings(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceSettingsNotification, models.ActionRead)
+	orgID, _, err := a.requireAuth(r, models.ResourceSettingsGeneral, models.ActionRead)
 	if err != nil {
 		return nil
 	}
@@ -77,7 +77,7 @@ type telegramSettingsRequest struct {
 
 // UpdateTelegramSettings — PUT /api/telegram/settings (upsert)
 func (a *App) UpdateTelegramSettings(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceSettingsNotification, models.ActionWrite)
+	orgID, _, err := a.requireAuth(r, models.ResourceSettingsGeneral, models.ActionWrite)
 	if err != nil {
 		return nil
 	}
@@ -121,7 +121,7 @@ func (a *App) UpdateTelegramSettings(r *fastglue.Request) error {
 // TestTelegram — POST /api/telegram/settings/test — sends a probe message so the
 // user can confirm the token + chat id before relying on it.
 func (a *App) TestTelegram(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceSettingsNotification, models.ActionWrite)
+	orgID, _, err := a.requireAuth(r, models.ResourceSettingsGeneral, models.ActionWrite)
 	if err != nil {
 		return nil
 	}

@@ -17,7 +17,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
-const canWrite = computed(() => authStore.hasPermission('settings.notification', 'write'))
+const canWrite = computed(() => authStore.hasPermission('settings.general', 'write'))
 const MASK = '••••••••'
 
 const loading = ref(false)
