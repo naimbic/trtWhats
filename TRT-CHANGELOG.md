@@ -8,6 +8,7 @@ rebuild / no-cache** redeploy to go live.
 
 | # | What | Status |
 |---|------|--------|
+| #91 | **WhatsApp platform tab default** + pagination keeps the filter — the inbox defaults to WhatsApp, and `loadMoreContacts` now carries `channel` so scrolling past page 1 no longer leaks other platforms into a filtered view. | ✅ |
 | #90 | **Per-channel on/off switch** (Settings → Instagram/Messenger) — a Switch on each account row; **off = no sync** (webhook ignores that account's DMs/comments). Dedicated `PUT …/accounts/{id}/active` endpoints. | ✅ |
 | #89 | **Fallback contact name** for Messenger/Instagram — user-profile API needs Advanced Access (Standard 400s), so inbound contacts had blank names; now "Messenger 1234"/"Instagram 1234". Backfilled existing. | ✅ |
 | #88 | **"Not answered" dot** for IG/Messenger — keys off `is_read` (not just unread count); shows until an agent replies, **persists when you open/read** the chat, clears only on reply (same as WhatsApp). `is_read` now exposed to the UI; agent reply marks incoming read + is_read=true. | ✅ |
