@@ -111,7 +111,7 @@ export const useContactsStore = defineStore('contacts', () => {
   // Separate from accountFilter (which is the in-session account context that
   // clearMessages() resets on every contact switch).
   const inboxAccountFilter = ref<string | null>(null)
-  const channelFilter = ref<string | null>(null) // TRT #86: platform filter (whatsapp|instagram|messenger)
+  const channelFilter = ref<string | null>('whatsapp') // TRT #86/#91: platform filter; WhatsApp selected by default
   const accountUnreads = ref<Record<string, number>>({})
   const accountUnreadTotal = ref(0)
 
@@ -185,6 +185,7 @@ export const useContactsStore = defineStore('contacts', () => {
         to: dateTo.value || undefined,
         read: readFilter.value === null ? undefined : readFilter.value === 'read',
         account: inboxAccountFilter.value || undefined,
+        channel: channelFilter.value || undefined, // TRT #91: keep the platform filter on pagination
         search
       })
       const data = response.data.data || response.data
