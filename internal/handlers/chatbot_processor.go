@@ -240,12 +240,22 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		// agent sees a pre-filled number to confirm/adjust.
 		if v := orderValueFromFlow(flowResponseData); v > 0 && contact.ConversionValue == 0 {
 			a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).Update("conversion_value", v)
+			contact.ConversionValue = v // keep in-memory so the Telegram card shows the amount
 		}
 		// TRT custom patch #44: light the orange "order to process" bubble. Cleared
 		// when a human agent replies (SendOutgoingMessage, patch #43/#44).
 		a.DB.Model(&models.Contact{}).Where("id = ?", contact.ID).Update("order_pending", true)
 		contact.OrderPending = true
 		a.broadcastContactOrder(account.OrganizationID, contact.ID, jsonbArrayToStrings(contact.Tags), true)
+
+		// TRT patch #92: push the sale to Telegram the moment the customer submits
+		// the order form (fire-and-forget). Dedup via telegram_notified_at so the
+		// later agent value-save (SetContactConversion) never re-notifies.
+		if contact.TelegramNotifiedAt == nil {
+			a.DB.Model(&models.Contact{}).Where("id = ? AND telegram_notified_at IS NULL", contact.ID).
+				Update("telegram_notified_at", time.Now())
+			go a.notifyTelegramSale(account.OrganizationID, contact)
+		}
 	}
 
 	// Clear chatbot tracking since client has replied
