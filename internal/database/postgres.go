@@ -70,6 +70,7 @@ func GetMigrationModels() []MigrationModel {
 		{"WhatsAppAccount", &models.WhatsAppAccount{}},
 		{"InstagramAccount", &models.InstagramAccount{}}, // TRT #68
 		{"MessengerAccount", &models.MessengerAccount{}}, // TRT #75
+		{"TelegramSettings", &models.TelegramSettings{}}, // TRT #92
 		{"Contact", &models.Contact{}},
 		{"Tag", &models.Tag{}},
 		{"Message", &models.Message{}},

@@ -665,6 +665,9 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.PUT("/api/messenger/accounts/{id}", app.UpdateMessengerAccount)
 	g.PUT("/api/messenger/accounts/{id}/active", app.SetMessengerActive) // TRT #90
 	g.DELETE("/api/messenger/accounts/{id}", app.DeleteMessengerAccount)
+	g.GET("/api/telegram/settings", app.GetTelegramSettings)         // TRT #92
+	g.PUT("/api/telegram/settings", app.UpdateTelegramSettings)      // TRT #92
+	g.POST("/api/telegram/settings/test", app.TestTelegram)          // TRT #92
 	g.PUT("/api/accounts/{id}/ameex", app.UpdateAmeexSettings)       // TRT #63 (Ameex-only save)
 	g.GET("/api/accounts/{id}/ameex/pickup-addresses", app.GetAmeexPickupAddresses) // TRT #67
 	g.POST("/api/accounts/{id}/ameex/pickup", app.RequestAmeexPickup) // TRT #67 (pickup request)

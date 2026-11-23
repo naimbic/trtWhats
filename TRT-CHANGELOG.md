@@ -8,6 +8,7 @@ rebuild / no-cache** redeploy to go live.
 
 | # | What | Status |
 |---|------|--------|
+| #92 | **Telegram sale notifications** — new Settings → Telegram page (on/off + bot token + chat id, token encrypted at rest, "Send a test" button). When enabled, every sale fires a Darija/French order card to the chat: customer, formatted phone + wa.me link, city, address, quantity, amount (whole dirhams, thousands-separated), source tags, channel, Casablanca time. Fires once from `SetContactConversion` (dedup via `telegram_notified_at`), fire-and-forget (never blocks/fails the save), 8s timeout, token never logged. Pure `buildTelegramSaleMessage` builder + unit tests. | ✅ |
 | #91 | **WhatsApp platform tab default** + pagination keeps the filter — the inbox defaults to WhatsApp, and `loadMoreContacts` now carries `channel` so scrolling past page 1 no longer leaks other platforms into a filtered view. | ✅ |
 | #90 | **Per-channel on/off switch** (Settings → Instagram/Messenger) — a Switch on each account row; **off = no sync** (webhook ignores that account's DMs/comments). Dedicated `PUT …/accounts/{id}/active` endpoints. | ✅ |
 | #89 | **Fallback contact name** for Messenger/Instagram — user-profile API needs Advanced Access (Standard 400s), so inbound contacts had blank names; now "Messenger 1234"/"Instagram 1234". Backfilled existing. | ✅ |

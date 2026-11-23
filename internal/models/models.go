@@ -420,6 +420,29 @@ func (a *MessengerAccount) DecryptSecrets(encryptionKey string) {
 	crypto.DecryptFields(encryptionKey, &a.AccessToken, &a.AppSecret)
 }
 
+// TelegramSettings is the per-org Telegram notification channel. TRT patch #92.
+// One row per organization (OrganizationID is unique). When Enabled and a bot
+// token + chat id are set, every new sale/conversion is pushed to that Telegram
+// chat. The bot token is encrypted at rest, like every other secret.
+type TelegramSettings struct {
+	BaseModel
+	OrganizationID uuid.UUID `gorm:"type:uuid;uniqueIndex;not null" json:"organization_id"`
+	Enabled        bool      `gorm:"default:false" json:"enabled"`
+	BotToken       string    `gorm:"type:text" json:"-"`     // Telegram bot token (encrypted)
+	ChatID         string    `gorm:"size:100" json:"chat_id"` // target chat/channel id (e.g. -1001234567890)
+
+	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
+}
+
+func (TelegramSettings) TableName() string {
+	return "telegram_settings"
+}
+
+// DecryptSecrets decrypts the bot token in place.
+func (s *TelegramSettings) DecryptSecrets(encryptionKey string) {
+	crypto.DecryptFields(encryptionKey, &s.BotToken)
+}
+
 // Contact represents a WhatsApp contact/profile
 type Contact struct {
 	BaseModel
@@ -468,6 +491,9 @@ type Contact struct {
 	AmeexStatusName string     `gorm:"size:150" json:"ameex_status_name"`
 	AmeexSentAt     *time.Time `json:"ameex_sent_at,omitempty"`
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
+	// TRT custom patch #92: when the sale was first pushed to Telegram, so a
+	// re-save of the conversion value never re-notifies. Set once, never overwritten.
+	TelegramNotifiedAt *time.Time `json:"telegram_notified_at,omitempty"`
 	// TRT custom patch #44: an unhandled order (orange bubble). Set true when the
 	// customer submits the order form; cleared when a human agent replies.
 	OrderPending bool `gorm:"default:false;index" json:"order_pending"`

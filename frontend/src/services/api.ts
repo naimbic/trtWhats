@@ -247,6 +247,19 @@ export const messengerService = {
   remove: (id: string) => api.delete(`/messenger/accounts/${id}`),
 }
 
+// TRT #92: Telegram sale notifications (per-org settings)
+export interface TelegramSettings {
+  enabled: boolean
+  chat_id: string
+  has_bot_token: boolean
+}
+export const telegramService = {
+  get: () => api.get<{ data: TelegramSettings }>('/telegram/settings'),
+  update: (data: { enabled?: boolean; chat_id?: string; bot_token?: string }) =>
+    api.put('/telegram/settings', data),
+  test: () => api.post('/telegram/settings/test', {}),
+}
+
 export const contactsService = {
   list: (params?: { search?: string; page?: number; limit?: number; tags?: string; from?: string; to?: string; read?: boolean; account?: string; channel?: string }) =>
     api.get('/contacts', { params }),

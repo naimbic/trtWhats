@@ -1844,12 +1844,23 @@ func (a *App) SetContactConversion(r *fastglue.Request) error {
 		}
 	}
 
+	// TRT patch #92: push the sale to Telegram once (fire-and-forget). Stamp
+	// telegram_notified_at in the same write so a re-save never re-notifies and
+	// concurrent saves can't double-send. Only when a real value is being set.
+	notifyTelegram := req.Value > 0 && contact.TelegramNotifiedAt == nil
+	if notifyTelegram {
+		updates["telegram_notified_at"] = time.Now()
+	}
+
 	if err := a.DB.Model(&models.Contact{}).Where("id = ?", contactID).Updates(updates).Error; err != nil {
 		a.Log.Error("Failed to save contact conversion", "error", err)
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save conversion", nil, "")
 	}
 	if err := a.DB.First(contact, contactID).Error; err != nil {
 		a.Log.Error("Failed to reload contact", "error", err)
+	}
+	if notifyTelegram {
+		go a.notifyTelegramSale(orgID, contact)
 	}
 	return r.SendEnvelope(map[string]any{
 		"contact":     a.buildContactResponse(contact, orgID),

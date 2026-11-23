@@ -195,6 +195,12 @@ const router = createRouter({
           meta: { permission: 'accounts' }
         },
         {
+          path: 'settings/telegram',
+          name: 'telegram-settings',
+          component: () => import('@/views/settings/TelegramSettingsView.vue'),
+          meta: { permission: 'settings.notification' }
+        },
+        {
           path: 'settings/canned-responses',
           name: 'canned-responses',
           component: () => import('@/views/settings/CannedResponsesView.vue'),
