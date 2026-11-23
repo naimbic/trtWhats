@@ -24,14 +24,27 @@ func TestTelegramMoney(t *testing.T) {
 	}
 }
 
-func TestTelegramFormatPhone(t *testing.T) {
+func TestTelegramIntlPhone(t *testing.T) {
 	cases := map[string]string{
-		"212612345678": "06 12 34 56 78",
-		"0612345678":   "06 12 34 56 78",
+		"212612345678": "+212612345678",
+		"0612345678":   "+212612345678",
+		"33612345678":  "+33612345678",
 	}
 	for in, want := range cases {
-		if got := telegramFormatPhone(in); got != want {
-			t.Errorf("telegramFormatPhone(%q) = %q, want %q", in, got, want)
+		if got := telegramIntlPhone(in); got != want {
+			t.Errorf("telegramIntlPhone(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestTelegramWaDigits(t *testing.T) {
+	cases := map[string]string{
+		"0612345678":   "212612345678",
+		"212612345678": "212612345678",
+	}
+	for in, want := range cases {
+		if got := telegramWaDigits(in); got != want {
+			t.Errorf("telegramWaDigits(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
@@ -61,13 +74,16 @@ func TestBuildTelegramSaleMessage(t *testing.T) {
 	if !strings.Contains(msg, "1 500 درهم") {
 		t.Errorf("expected formatted amount in: %q", msg)
 	}
-	// wa.me link uses raw digits.
+	// wa.me link uses international digits.
 	if !strings.Contains(msg, "https://wa.me/212612345678") {
 		t.Errorf("expected wa.me link in: %q", msg)
 	}
-	// Local phone display.
-	if !strings.Contains(msg, "06 12 34 56 78") {
-		t.Errorf("expected formatted phone in: %q", msg)
+	// Phone shown as a continuous +E.164 number (no space-grouping that reverses in RTL).
+	if !strings.Contains(msg, "+212612345678") {
+		t.Errorf("expected intl phone in: %q", msg)
+	}
+	if strings.Contains(msg, "06 12 34 56 78") {
+		t.Errorf("phone should not be space-grouped (reverses in RTL): %q", msg)
 	}
 	// Quantity + city + address present.
 	for _, want := range []string{"الكمية: 2", "Agadir", "Hay Salam"} {

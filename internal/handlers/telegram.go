@@ -158,48 +158,67 @@ func (a *App) notifyTelegramSale(orgID uuid.UUID, contact *models.Contact) {
 	}
 }
 
+// telegramLRM is the Left-To-Right Mark. Prefixing the phone line with it keeps
+// the number rendering left-to-right inside the RTL (Arabic) message, so it is
+// no longer shown reversed.
+const telegramLRM = "‎"
+
+// telegramSep is the thin divider between sections.
+const telegramSep = "➖➖➖➖➖➖➖➖➖➖"
+
 // buildTelegramSaleMessage is a pure builder: contact in, HTML message out. No
-// I/O, no logging — unit-testable. Darija-first with a short French echo.
+// I/O, no logging — unit-testable. Darija-first, grouped into readable sections
+// (infos / order). The phone is a continuous international number in plain text
+// so Telegram auto-links it (tap to call); a separate wa.me link opens WhatsApp.
 func buildTelegramSaleMessage(c *models.Contact) string {
 	var b strings.Builder
-	b.WriteString("🛒 <b>بيعة جديدة / Nouvelle vente</b>\n\n")
+	b.WriteString("🛒 <b>بيعة جديدة · Nouvelle vente</b>\n")
+	b.WriteString(telegramSep + "\n")
 
+	// ---- Section: customer info ----
+	b.WriteString("👤 <b>معلومات الكليان</b>\n")
 	name := strings.TrimSpace(c.ProfileName)
 	if name == "" {
 		name = "—"
 	}
-	b.WriteString("👤 الكليان: <b>" + html.EscapeString(name) + "</b>\n")
+	b.WriteString("• الاسم: <b>" + html.EscapeString(name) + "</b>\n")
 
 	if digits := telegramPhoneDigits(c.PhoneNumber); digits != "" {
-		b.WriteString("📱 التيليفون: <code>" + html.EscapeString(telegramFormatPhone(digits)) +
-			"</code> — <a href=\"https://wa.me/" + digits + "\">WhatsApp</a>\n")
+		intl := telegramIntlPhone(digits) // +212...  → Telegram makes it tap-to-call
+		wa := telegramWaDigits(digits)    // 212...   → wa.me link
+		// LRM keeps the number left-to-right; plain text (no <code>) so Telegram
+		// auto-detects it as a phone number and offers Call / Copy on tap.
+		b.WriteString("• 📞 الهاتف: " + telegramLRM + html.EscapeString(intl) + "\n")
+		b.WriteString("• 💬 واتساب: <a href=\"https://wa.me/" + wa + "\">فتح المحادثة</a>\n")
 	}
 	if city := strings.TrimSpace(c.City); city != "" {
-		b.WriteString("🏙️ المدينة: " + html.EscapeString(city) + "\n")
+		b.WriteString("• 🏙️ المدينة: " + html.EscapeString(city) + "\n")
 	}
 	if addr := strings.TrimSpace(c.Address); addr != "" {
-		b.WriteString("📍 العنوان: " + html.EscapeString(addr) + "\n")
+		b.WriteString("• 📍 العنوان: " + html.EscapeString(addr) + "\n")
 	}
 
-	b.WriteString("\n")
+	// ---- Section: order ----
+	b.WriteString(telegramSep + "\n")
+	b.WriteString("📦 <b>الطلب</b>\n")
 	if c.ConversionQuantity > 0 {
-		b.WriteString(fmt.Sprintf("📦 الكمية: %d\n", c.ConversionQuantity))
+		b.WriteString(fmt.Sprintf("• الكمية: %d\n", c.ConversionQuantity))
 	}
-	b.WriteString("💰 المبلغ: <b>" + telegramMoney(c.ConversionValue) + " درهم</b>\n")
+	b.WriteString("• 💰 المبلغ: <b>" + telegramMoney(c.ConversionValue) + " درهم</b>\n")
 
-	// Source (tags) + channel/account.
+	// ---- Section: meta (source / channel / time) ----
+	b.WriteString(telegramSep + "\n")
 	if tags := telegramTags(c.Tags); tags != "" {
 		b.WriteString("🏷️ المصدر: " + html.EscapeString(tags) + "\n")
 	}
 	if ch := telegramChannelLabel(c); ch != "" {
 		b.WriteString("📲 القناة: " + html.EscapeString(ch) + "\n")
 	}
-
-	b.WriteString("\n🕒 " + telegramNowCasa())
+	b.WriteString("🕒 " + telegramLRM + telegramNowCasa())
 	return b.String()
 }
 
-// telegramPhoneDigits strips everything but digits (and a leading +).
+// telegramPhoneDigits strips everything but digits.
 func telegramPhoneDigits(p string) string {
 	var b strings.Builder
 	for _, r := range p {
@@ -210,23 +229,19 @@ func telegramPhoneDigits(p string) string {
 	return b.String()
 }
 
-// telegramFormatPhone renders a Moroccan number as a readable local string.
-// 212612345678 -> 06 12 34 56 78 ; anything else is grouped in pairs as-is.
-func telegramFormatPhone(digits string) string {
-	local := digits
-	if strings.HasPrefix(digits, "212") && len(digits) >= 12 {
-		local = "0" + digits[3:]
+// telegramWaDigits returns the international digits (no '+') for a wa.me link.
+// Moroccan local 0XXXXXXXXX -> 212XXXXXXXXX; a 212… number is returned as-is.
+func telegramWaDigits(digits string) string {
+	if strings.HasPrefix(digits, "0") && len(digits) == 10 {
+		return "212" + digits[1:]
 	}
-	// group in pairs
-	var parts []string
-	for i := 0; i < len(local); i += 2 {
-		end := i + 2
-		if end > len(local) {
-			end = len(local)
-		}
-		parts = append(parts, local[i:end])
-	}
-	return strings.Join(parts, " ")
+	return digits
+}
+
+// telegramIntlPhone renders a continuous +E.164 number (no spaces, so it never
+// gets reordered in an RTL message and Telegram can tap-to-call it).
+func telegramIntlPhone(digits string) string {
+	return "+" + telegramWaDigits(digits)
 }
 
 // telegramMoney formats whole dirhams with thousands separators, no decimals.
