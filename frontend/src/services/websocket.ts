@@ -132,6 +132,12 @@ class WebSocketService {
   private intentionalClose = false
   private lifecycleListenersInstalled = false
   private pingInterval: number | null = null
+  // TRT #93: pong watchdog. Timestamp of the last frame received from the server
+  // (any message, incl. pong). A half-open socket (TCP dropped with no FIN — e.g.
+  // a container restart or a proxy idle timeout) keeps readyState OPEN, so onclose
+  // never fires and the inbox silently stops updating until a manual refresh. If
+  // no frame arrives within WS_STALE_MS despite our 30s pings, we force-reconnect.
+  private lastActivityAt = 0
   private isConnected = false
   private hasConnectedBefore = false
   private campaignStatsCallbacks: ((payload: any) => void)[] = []
@@ -258,6 +264,9 @@ class WebSocketService {
   }
 
   private handleMessage(data: string) {
+    // TRT #93: any inbound frame proves the socket is alive (the server replies to
+    // our ping with a pong, and real events flow too). Refresh the watchdog clock.
+    this.lastActivityAt = Date.now()
     try {
       const message: WSMessage = JSON.parse(data)
       const store = useContactsStore()
@@ -743,11 +752,44 @@ class WebSocketService {
     }
   }
 
+  // TRT #93: how long without ANY server frame before we declare the socket dead.
+  // We ping every 30s and the server pongs immediately, so ~2.5 missed cycles.
+  private static readonly WS_STALE_MS = 75000
+
   private startPing() {
     this.stopPing()
+    this.lastActivityAt = Date.now() // fresh baseline on (re)connect
     this.pingInterval = window.setInterval(() => {
+      // Watchdog: if we've heard nothing back for too long, the socket is
+      // half-open (readyState still OPEN, onclose never fired). Drop it and
+      // reconnect instead of pinging a dead connection forever.
+      if (this.lastActivityAt > 0 && Date.now() - this.lastActivityAt > WebSocketService.WS_STALE_MS) {
+        this.forceReconnect()
+        return
+      }
       this.send({ type: WS_TYPE_PING, payload: {} })
     }, 30000) // Ping every 30 seconds
+  }
+
+  // TRT #93: deterministically tear down a (possibly half-open) socket and
+  // schedule a reconnect, without depending on its onclose ever firing.
+  private forceReconnect() {
+    if (this.intentionalClose || !this.isAuthenticated()) {
+      return
+    }
+    this.stopPing()
+    const dead = this.ws
+    this.ws = null
+    this.isConnected = false
+    this.isConnecting = false
+    if (dead) {
+      dead.onclose = null
+      dead.onmessage = null
+      dead.onerror = null
+      try { dead.close() } catch { /* already closing */ }
+    }
+    this.reconnectAttempts = 0 // it was working a moment ago → retry promptly
+    this.handleReconnect()
   }
 
   private stopPing() {
