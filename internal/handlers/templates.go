@@ -401,7 +401,18 @@ func (a *App) SubmitTemplate(r *fastglue.Request) error {
 	metaTemplateID, submitErr := a.submitTemplateToMeta(account, template)
 	if submitErr != nil {
 		a.Log.Error("Failed to submit template to Meta", "error", submitErr)
-		return r.SendErrorEnvelope(fasthttp.StatusBadGateway, "Failed to submit template to Meta: "+submitErr.Error(), nil, "")
+		// A Meta *validation* rejection (e.g. "API error 100: Invalid parameter —
+		// Buttons can't have … emojis …") is the template's content, not a gateway
+		// failure. Return 400 with Meta's own message so the UI shows the real
+		// reason instead of an opaque "status code 502". Genuine network/timeout
+		// failures (no "API error") stay 502.
+		status := fasthttp.StatusBadGateway
+		msg := "Failed to submit template to Meta: " + submitErr.Error()
+		if strings.Contains(submitErr.Error(), "API error") {
+			status = fasthttp.StatusBadRequest
+			msg = "Meta rejected the template: " + submitErr.Error()
+		}
+		return r.SendErrorEnvelope(status, msg, nil, "")
 	}
 	template.MetaTemplateID = metaTemplateID
 
