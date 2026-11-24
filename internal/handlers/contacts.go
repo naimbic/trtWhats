@@ -2106,6 +2106,46 @@ func (a *App) UpdateContact(r *fastglue.Request) error {
 	// Reload contact
 	a.DB.First(contact, contactID)
 
+	// TRT patch #96: the general contact update can also set tags (some save
+	// paths send the whole contact, not /tags). Mirror UpdateContactTags' Converti
+	// handling here so a sale marked this way still stamps converted_at and fires
+	// the Telegram "order marked" alert — otherwise tagging via this endpoint is a
+	// silent no-op for conversions (observed: Converti contacts with no
+	// converted_at and no notification).
+	if req.Tags != nil {
+		const convertedTag = "تم البيع - Converti"
+		wasConverti := false
+		for _, t := range oldContact.Tags {
+			if s, ok := t.(string); ok && s == convertedTag {
+				wasConverti = true
+				break
+			}
+		}
+		nowConverti := false
+		for _, t := range req.Tags {
+			if t == convertedTag {
+				nowConverti = true
+				break
+			}
+		}
+		if nowConverti && !wasConverti {
+			if oldContact.ConvertedAt == nil {
+				a.DB.Model(&models.Contact{}).Where("id = ? AND converted_at IS NULL", contactID).
+					Update("converted_at", time.Now())
+			}
+			if oldContact.TelegramNotifiedAt == nil {
+				stamp := map[string]any{"telegram_notified_at": time.Now()}
+				if contact.ConversionValue > 0 && oldContact.TelegramValueNotifiedAt == nil {
+					stamp["telegram_value_notified_at"] = time.Now()
+				}
+				a.DB.Model(&models.Contact{}).Where("id = ? AND telegram_notified_at IS NULL", contactID).
+					Updates(stamp)
+				a.DB.First(contact, contactID)
+				go a.notifyTelegramSale(orgID, contact, telegramKindNew)
+			}
+		}
+	}
+
 	a.logAudit(orgID, userID,
 		"contact", contact.ID, models.AuditActionUpdated, &oldContact, contact)
 
