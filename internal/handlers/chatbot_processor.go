@@ -248,15 +248,19 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		contact.OrderPending = true
 		a.broadcastContactOrder(account.OrganizationID, contact.ID, jsonbArrayToStrings(contact.Tags), true)
 
-		// TRT patch #92: push the sale to Telegram the moment the customer submits
-		// the order form (fire-and-forget). Only when the form actually carried an
-		// amount (> 0) — otherwise we'd send a "0 Dh" card. When there's no value
-		// yet, we DON'T stamp, so the agent's later value-save (SetContactConversion)
-		// sends the card with the real price. Dedup via telegram_notified_at.
-		if contact.ConversionValue > 0 && contact.TelegramNotifiedAt == nil {
+		// TRT patch #96: fire the "order marked" Telegram alert on order-form
+		// submission (the customer placed an order). The card shows the amount if
+		// the form carried one, else "à confirmer". Dedup via telegram_notified_at;
+		// if the form already carried a value, also stamp telegram_value_notified_at
+		// so the agent's later value-save doesn't send a redundant update.
+		if contact.TelegramNotifiedAt == nil {
+			stamp := map[string]any{"telegram_notified_at": time.Now()}
+			if contact.ConversionValue > 0 && contact.TelegramValueNotifiedAt == nil {
+				stamp["telegram_value_notified_at"] = time.Now()
+			}
 			a.DB.Model(&models.Contact{}).Where("id = ? AND telegram_notified_at IS NULL", contact.ID).
-				Update("telegram_notified_at", time.Now())
-			go a.notifyTelegramSale(account.OrganizationID, contact)
+				Updates(stamp)
+			go a.notifyTelegramSale(account.OrganizationID, contact, telegramKindNew)
 		}
 	}
 

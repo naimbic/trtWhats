@@ -55,8 +55,8 @@ type ContactResponse struct {
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
 	OrderPending         bool       `json:"order_pending"` // TRT #44: orange "order to process" bubble
 	AdminOnly            bool       `json:"admin_only"`    // TRT #74: hidden session (admins only)
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
 // MessageResponse represents a message for the frontend
@@ -238,23 +238,23 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 		serviceWindowOpen := c.LastInboundAt != nil && time.Since(*c.LastInboundAt) < 24*time.Hour
 
 		response[i] = ContactResponse{
-			ID:                 c.ID,
-			PhoneNumber:        phoneNumber,
-			Name:               profileName,
-			ProfileName:        profileName,
-			Status:             "active",
-			Tags:               tags,
-			Metadata:           c.Metadata,
-			LastMessageAt:      c.LastMessageAt,
-			LastMessagePreview: c.LastMessagePreview,
-			UnreadCount:        int(unreadCount),
-			IsRead:             c.IsRead,
-			AssignedUserID:     c.AssignedUserID,
-			WhatsAppAccount:    c.WhatsAppAccount,
-			Channel:            c.Channel,
-			LastInboundAt:      c.LastInboundAt,
-			ServiceWindowOpen:  serviceWindowOpen,
-			MarketingOptOut:    c.MarketingOptOut,
+			ID:                   c.ID,
+			PhoneNumber:          phoneNumber,
+			Name:                 profileName,
+			ProfileName:          profileName,
+			Status:               "active",
+			Tags:                 tags,
+			Metadata:             c.Metadata,
+			LastMessageAt:        c.LastMessageAt,
+			LastMessagePreview:   c.LastMessagePreview,
+			UnreadCount:          int(unreadCount),
+			IsRead:               c.IsRead,
+			AssignedUserID:       c.AssignedUserID,
+			WhatsAppAccount:      c.WhatsAppAccount,
+			Channel:              c.Channel,
+			LastInboundAt:        c.LastInboundAt,
+			ServiceWindowOpen:    serviceWindowOpen,
+			MarketingOptOut:      c.MarketingOptOut,
 			ConversionQuantity:   c.ConversionQuantity,
 			ConversionValue:      c.ConversionValue,
 			Address:              c.Address,
@@ -266,8 +266,8 @@ func (a *App) ListContacts(r *fastglue.Request) error {
 			MetaConversionSentAt: c.MetaConversionSentAt,
 			OrderPending:         c.OrderPending,
 			AdminOnly:            c.AdminOnly,
-			CreatedAt:          c.CreatedAt,
-			UpdatedAt:          c.UpdatedAt,
+			CreatedAt:            c.CreatedAt,
+			UpdatedAt:            c.UpdatedAt,
 		}
 	}
 
@@ -1703,9 +1703,27 @@ func (a *App) UpdateContactTags(r *fastglue.Request) error {
 			Update("converted_at", time.Now())
 	}
 
+	// TRT patch #96: fire the "order marked" Telegram alert when Converti is newly
+	// applied (agents mark orders by tagging, often before entering the amount).
+	// Dedup via telegram_notified_at. If the value is already set, also stamp
+	// telegram_value_notified_at so the later value-save doesn't send a redundant
+	// update for an amount this card already shows. Fire after the reload.
+	notifyTelegram := convertedNewlyAdded && contact.TelegramNotifiedAt == nil
+	if notifyTelegram {
+		stamp := map[string]any{"telegram_notified_at": time.Now()}
+		if contact.ConversionValue > 0 && contact.TelegramValueNotifiedAt == nil {
+			stamp["telegram_value_notified_at"] = time.Now()
+		}
+		a.DB.Model(&models.Contact{}).Where("id = ? AND telegram_notified_at IS NULL", contactID).
+			Updates(stamp)
+	}
+
 	// Reload contact to get updated tags
 	if err := a.DB.First(contact, contactID).Error; err != nil {
 		a.Log.Error("Failed to reload contact", "error", err)
+	}
+	if notifyTelegram {
+		go a.notifyTelegramSale(orgID, contact, telegramKindNew)
 	}
 
 	// Build response with tag details
@@ -1844,12 +1862,20 @@ func (a *App) SetContactConversion(r *fastglue.Request) error {
 		}
 	}
 
-	// TRT patch #92: push the sale to Telegram once (fire-and-forget). Stamp
-	// telegram_notified_at in the same write so a re-save never re-notifies and
-	// concurrent saves can't double-send. Only when a real value is being set.
-	notifyTelegram := req.Value > 0 && contact.TelegramNotifiedAt == nil
-	if notifyTelegram {
-		updates["telegram_notified_at"] = time.Now()
+	// TRT patch #96: Telegram "amount confirmed" update when the agent saves a
+	// value (> 0) and we haven't sent the value update yet. If the order was never
+	// "marked" either (no Converti tag / order form fired), this doubles as the
+	// first alert, sent as "new". Stamped in the same write so re-saves/concurrent
+	// saves can't double-send. Fire-and-forget after the reload.
+	telegramKind := ""
+	if req.Value > 0 && contact.TelegramValueNotifiedAt == nil {
+		updates["telegram_value_notified_at"] = time.Now()
+		if contact.TelegramNotifiedAt == nil {
+			updates["telegram_notified_at"] = time.Now()
+			telegramKind = telegramKindNew
+		} else {
+			telegramKind = telegramKindValue
+		}
 	}
 
 	if err := a.DB.Model(&models.Contact{}).Where("id = ?", contactID).Updates(updates).Error; err != nil {
@@ -1859,8 +1885,8 @@ func (a *App) SetContactConversion(r *fastglue.Request) error {
 	if err := a.DB.First(contact, contactID).Error; err != nil {
 		a.Log.Error("Failed to reload contact", "error", err)
 	}
-	if notifyTelegram {
-		go a.notifyTelegramSale(orgID, contact)
+	if telegramKind != "" {
+		go a.notifyTelegramSale(orgID, contact, telegramKind)
 	}
 	return r.SendEnvelope(map[string]any{
 		"contact":     a.buildContactResponse(contact, orgID),
@@ -2152,23 +2178,23 @@ func (a *App) buildContactResponse(contact *models.Contact, orgID uuid.UUID) Con
 	serviceWindowOpen := contact.LastInboundAt != nil && time.Since(*contact.LastInboundAt) < 24*time.Hour
 
 	return ContactResponse{
-		ID:                 contact.ID,
-		PhoneNumber:        phoneNumber,
-		Name:               profileName,
-		ProfileName:        profileName,
-		Status:             "active",
-		Tags:               tags,
-		Metadata:           contact.Metadata,
-		LastMessageAt:      contact.LastMessageAt,
-		LastMessagePreview: contact.LastMessagePreview,
-		UnreadCount:        int(unreadCount),
-		IsRead:             contact.IsRead,
-		AssignedUserID:     contact.AssignedUserID,
-		WhatsAppAccount:    contact.WhatsAppAccount,
-		Channel:            contact.Channel,
-		LastInboundAt:      contact.LastInboundAt,
-		ServiceWindowOpen:  serviceWindowOpen,
-		MarketingOptOut:    contact.MarketingOptOut,
+		ID:                   contact.ID,
+		PhoneNumber:          phoneNumber,
+		Name:                 profileName,
+		ProfileName:          profileName,
+		Status:               "active",
+		Tags:                 tags,
+		Metadata:             contact.Metadata,
+		LastMessageAt:        contact.LastMessageAt,
+		LastMessagePreview:   contact.LastMessagePreview,
+		UnreadCount:          int(unreadCount),
+		IsRead:               contact.IsRead,
+		AssignedUserID:       contact.AssignedUserID,
+		WhatsAppAccount:      contact.WhatsAppAccount,
+		Channel:              contact.Channel,
+		LastInboundAt:        contact.LastInboundAt,
+		ServiceWindowOpen:    serviceWindowOpen,
+		MarketingOptOut:      contact.MarketingOptOut,
 		ConversionQuantity:   contact.ConversionQuantity,
 		ConversionValue:      contact.ConversionValue,
 		Address:              contact.Address,
@@ -2180,7 +2206,7 @@ func (a *App) buildContactResponse(contact *models.Contact, orgID uuid.UUID) Con
 		MetaConversionSentAt: contact.MetaConversionSentAt,
 		OrderPending:         contact.OrderPending,
 		AdminOnly:            contact.AdminOnly,
-		CreatedAt:          contact.CreatedAt,
-		UpdatedAt:          contact.UpdatedAt,
+		CreatedAt:            contact.CreatedAt,
+		UpdatedAt:            contact.UpdatedAt,
 	}
 }

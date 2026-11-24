@@ -312,15 +312,15 @@ type WhatsAppAccount struct {
 	// Set to true only after Meta enrolls this number in the WhatsApp Business
 	// Calling API. Used by the canned-response editor to disable the Call
 	// button option, and by the send path to refuse voice_call sends.
-	BusinessCallingEnabled bool       `gorm:"default:false" json:"business_calling_enabled"`
-	IsSMB                  bool       `gorm:"default:false" json:"is_smb"`
-	Status                 string     `gorm:"size:20;default:'active'" json:"status"`
-	Pin                    string     `gorm:"size:255" json:"-"` // 6-digit 2FA PIN (encrypted)
+	BusinessCallingEnabled bool   `gorm:"default:false" json:"business_calling_enabled"`
+	IsSMB                  bool   `gorm:"default:false" json:"is_smb"`
+	Status                 string `gorm:"size:20;default:'active'" json:"status"`
+	Pin                    string `gorm:"size:255" json:"-"` // 6-digit 2FA PIN (encrypted)
 	// TRT custom patch #35: per-space Meta offline-conversion settings. The
 	// partner access token is global (env); these belong to this space so each
 	// client/number reports orders to its own ad-account dataset.
 	MetaCapiEnabled   bool    `gorm:"default:false" json:"meta_capi_enabled"`
-	MetaDatasetID     string  `gorm:"size:100" json:"meta_dataset_id"`     // Events Manager dataset id for this space
+	MetaDatasetID     string  `gorm:"size:100" json:"meta_dataset_id"`      // Events Manager dataset id for this space
 	MetaPageID        string  `gorm:"size:100" json:"meta_page_id"`         // Facebook Page id behind the CTWA ads (required by Meta for business_messaging events)
 	MetaAccessToken   string  `gorm:"type:text" json:"-"`                   // Conversions API token for this space (encrypted); falls back to global env token
 	MetaTestEventCode string  `gorm:"size:100" json:"meta_test_event_code"` // optional: verify in Events Manager first
@@ -334,9 +334,9 @@ type WhatsAppAccount struct {
 	AmeexWebhookSecret string `gorm:"type:text" json:"-"`
 	// Optional Ameex "business"/store id, sent on Add Parcel — required when the
 	// live account has more than one business. Empty = account default.
-	AmeexBusinessID string `gorm:"size:50" json:"ameex_business_id"`
-	CreatedByID            *uuid.UUID `gorm:"type:uuid" json:"created_by_id,omitempty"`
-	UpdatedByID            *uuid.UUID `gorm:"type:uuid" json:"updated_by_id,omitempty"`
+	AmeexBusinessID string     `gorm:"size:50" json:"ameex_business_id"`
+	CreatedByID     *uuid.UUID `gorm:"type:uuid" json:"created_by_id,omitempty"`
+	UpdatedByID     *uuid.UUID `gorm:"type:uuid" json:"updated_by_id,omitempty"`
 
 	// Relations
 	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
@@ -428,7 +428,7 @@ type TelegramSettings struct {
 	BaseModel
 	OrganizationID uuid.UUID `gorm:"type:uuid;uniqueIndex;not null" json:"organization_id"`
 	Enabled        bool      `gorm:"default:false" json:"enabled"`
-	BotToken       string    `gorm:"type:text" json:"-"`     // Telegram bot token (encrypted)
+	BotToken       string    `gorm:"type:text" json:"-"`      // Telegram bot token (encrypted)
 	ChatID         string    `gorm:"size:100" json:"chat_id"` // target chat/channel id (e.g. -1001234567890)
 
 	Organization *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`
@@ -446,17 +446,17 @@ func (s *TelegramSettings) DecryptSecrets(encryptionKey string) {
 // Contact represents a WhatsApp contact/profile
 type Contact struct {
 	BaseModel
-	OrganizationID     uuid.UUID  `gorm:"type:uuid;index;not null" json:"organization_id"`
-	PhoneNumber        string     `gorm:"size:50;not null" json:"phone_number"`
-	ProfileName        string     `gorm:"size:255" json:"profile_name"`
-	WhatsAppAccount    string     `gorm:"size:100;index" json:"whatsapp_account"` // References WhatsAppAccount.Name
+	OrganizationID  uuid.UUID `gorm:"type:uuid;index;not null" json:"organization_id"`
+	PhoneNumber     string    `gorm:"size:50;not null" json:"phone_number"`
+	ProfileName     string    `gorm:"size:255" json:"profile_name"`
+	WhatsAppAccount string    `gorm:"size:100;index" json:"whatsapp_account"` // References WhatsAppAccount.Name
 	// TRT patch #68: multi-channel. Channel = whatsapp (default) | instagram.
 	// For Instagram, ExternalID holds the IGSID (phone_number is empty).
 	Channel    string `gorm:"size:20;default:'whatsapp';index" json:"channel"`
 	ExternalID string `gorm:"size:100;index" json:"external_id,omitempty"`
 	// TRT patch #69: when the 23h re-engagement nudge was last sent (re-arms when a
 	// newer last_inbound_at arrives, so it fires at most once per 24h window).
-	WindowNudgeSentAt *time.Time `json:"-"`
+	WindowNudgeSentAt  *time.Time `json:"-"`
 	AssignedUserID     *uuid.UUID `gorm:"type:uuid;index" json:"assigned_user_id,omitempty"`
 	LastMessageAt      *time.Time `json:"last_message_at,omitempty"`
 	LastMessagePreview string     `gorm:"type:text" json:"last_message_preview"`
@@ -478,22 +478,26 @@ type Contact struct {
 	// TRT custom patch #36: agent-entered order details for the Meta offline
 	// conversion. Set beside the Converted tag; saving the value sends the
 	// conversion to Meta once (MetaConversionSentAt dedups the send).
-	ConversionQuantity int        `gorm:"default:0" json:"conversion_quantity"`
-	ConversionValue    float64    `gorm:"default:0" json:"conversion_value"`
+	ConversionQuantity int     `gorm:"default:0" json:"conversion_quantity"`
+	ConversionValue    float64 `gorm:"default:0" json:"conversion_value"`
 	// TRT custom patch #62: delivery details captured when saving a converted client
 	// as a contact (for hand-off to the courier, e.g. Ameex).
 	Address string `gorm:"size:500" json:"address"`
 	City    string `gorm:"size:255" json:"city"`
 	// TRT custom patch #63: Ameex courier parcel state for this contact's order.
-	AmeexCityID     int        `gorm:"default:0" json:"ameex_city_id"`
-	AmeexParcelCode string     `gorm:"size:100;index" json:"ameex_parcel_code"`
-	AmeexStatus     string     `gorm:"size:50" json:"ameex_status"`
-	AmeexStatusName string     `gorm:"size:150" json:"ameex_status_name"`
-	AmeexSentAt     *time.Time `json:"ameex_sent_at,omitempty"`
+	AmeexCityID          int        `gorm:"default:0" json:"ameex_city_id"`
+	AmeexParcelCode      string     `gorm:"size:100;index" json:"ameex_parcel_code"`
+	AmeexStatus          string     `gorm:"size:50" json:"ameex_status"`
+	AmeexStatusName      string     `gorm:"size:150" json:"ameex_status_name"`
+	AmeexSentAt          *time.Time `json:"ameex_sent_at,omitempty"`
 	MetaConversionSentAt *time.Time `json:"meta_conversion_sent_at,omitempty"`
-	// TRT custom patch #92: when the sale was first pushed to Telegram, so a
-	// re-save of the conversion value never re-notifies. Set once, never overwritten.
+	// TRT custom patch #92: when the "order marked" Telegram alert was first sent
+	// (Converti tag or order-form submission). Set once, never overwritten.
 	TelegramNotifiedAt *time.Time `json:"telegram_notified_at,omitempty"`
+	// TRT patch #96: when the "amount confirmed" Telegram update was sent (agent
+	// saved the conversion value). Separate from TelegramNotifiedAt so an order
+	// pings once on marking and once more when the value is added later. Set once.
+	TelegramValueNotifiedAt *time.Time `json:"telegram_value_notified_at,omitempty"`
 	// TRT custom patch #44: an unhandled order (orange bubble). Set true when the
 	// customer submits the order form; cleared when a human agent replies.
 	OrderPending bool `gorm:"default:false;index" json:"order_pending"`
@@ -525,32 +529,32 @@ func (Contact) TableName() string {
 // Message represents a WhatsApp message
 type Message struct {
 	BaseModel
-	OrganizationID    uuid.UUID     `gorm:"type:uuid;index;not null" json:"organization_id"`
-	WhatsAppAccount   string        `gorm:"size:100;index;not null" json:"whatsapp_account"` // References WhatsAppAccount.Name (or InstagramAccount.Name)
-	Channel           string        `gorm:"size:20;default:'whatsapp';index" json:"channel"` // TRT #68: whatsapp | instagram
-	ContactID         uuid.UUID     `gorm:"type:uuid;index;not null" json:"contact_id"`
-	WhatsAppMessageID string        `gorm:"column:whats_app_message_id;size:255;index" json:"whatsapp_message_id"`
-	ConversationID    string        `gorm:"size:255;index" json:"conversation_id"`
-	Direction         Direction     `gorm:"size:10;not null" json:"direction"`
-	MessageType       MessageType   `gorm:"size:20;not null" json:"message_type"`
-	Content           string        `gorm:"type:text" json:"content"`
-	MediaURL          string        `gorm:"type:text" json:"media_url"`
-	MediaMimeType     string        `gorm:"size:100" json:"media_mime_type"`
-	MediaFilename     string        `gorm:"size:255" json:"media_filename"`
+	OrganizationID    uuid.UUID   `gorm:"type:uuid;index;not null" json:"organization_id"`
+	WhatsAppAccount   string      `gorm:"size:100;index;not null" json:"whatsapp_account"` // References WhatsAppAccount.Name (or InstagramAccount.Name)
+	Channel           string      `gorm:"size:20;default:'whatsapp';index" json:"channel"` // TRT #68: whatsapp | instagram
+	ContactID         uuid.UUID   `gorm:"type:uuid;index;not null" json:"contact_id"`
+	WhatsAppMessageID string      `gorm:"column:whats_app_message_id;size:255;index" json:"whatsapp_message_id"`
+	ConversationID    string      `gorm:"size:255;index" json:"conversation_id"`
+	Direction         Direction   `gorm:"size:10;not null" json:"direction"`
+	MessageType       MessageType `gorm:"size:20;not null" json:"message_type"`
+	Content           string      `gorm:"type:text" json:"content"`
+	MediaURL          string      `gorm:"type:text" json:"media_url"`
+	MediaMimeType     string      `gorm:"size:100" json:"media_mime_type"`
+	MediaFilename     string      `gorm:"size:255" json:"media_filename"`
 	// TRT custom patch (media-id-resilience): the Meta media id for inbound media,
 	// so a wiped/missing local file can be re-downloaded from Meta (within its ~30d
 	// retention). Empty for outbound and for legacy rows saved before this field.
-	MediaID           string        `gorm:"size:255" json:"media_id"`
-	TemplateName      string        `gorm:"size:255" json:"template_name"`
-	TemplateParams    JSONB         `gorm:"type:jsonb" json:"template_params"`
-	InteractiveData   JSONB         `gorm:"type:jsonb" json:"interactive_data"`
-	FlowResponse      JSONB         `gorm:"type:jsonb" json:"flow_response"`
-	Status            MessageStatus `gorm:"size:20;default:'pending'" json:"status"`
-	ErrorMessage      string        `gorm:"type:text" json:"error_message"`
-	IsReply           bool          `gorm:"default:false" json:"is_reply"`
-	ReplyToMessageID  *uuid.UUID    `gorm:"type:uuid" json:"reply_to_message_id,omitempty"`
-	SentByUserID      *uuid.UUID    `gorm:"type:uuid;index" json:"sent_by_user_id,omitempty"` // User who sent outgoing message
-	Metadata          JSONB         `gorm:"type:jsonb;default:'{}'" json:"metadata"`
+	MediaID          string        `gorm:"size:255" json:"media_id"`
+	TemplateName     string        `gorm:"size:255" json:"template_name"`
+	TemplateParams   JSONB         `gorm:"type:jsonb" json:"template_params"`
+	InteractiveData  JSONB         `gorm:"type:jsonb" json:"interactive_data"`
+	FlowResponse     JSONB         `gorm:"type:jsonb" json:"flow_response"`
+	Status           MessageStatus `gorm:"size:20;default:'pending'" json:"status"`
+	ErrorMessage     string        `gorm:"type:text" json:"error_message"`
+	IsReply          bool          `gorm:"default:false" json:"is_reply"`
+	ReplyToMessageID *uuid.UUID    `gorm:"type:uuid" json:"reply_to_message_id,omitempty"`
+	SentByUserID     *uuid.UUID    `gorm:"type:uuid;index" json:"sent_by_user_id,omitempty"` // User who sent outgoing message
+	Metadata         JSONB         `gorm:"type:jsonb;default:'{}'" json:"metadata"`
 
 	// Relations
 	Organization   *Organization `gorm:"foreignKey:OrganizationID" json:"organization,omitempty"`

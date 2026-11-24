@@ -141,7 +141,7 @@ func (a *App) TestTelegram(r *fastglue.Request) error {
 
 // notifyTelegramSale pushes a sale card to the org's Telegram chat. Safe no-op
 // when Telegram is off or unconfigured. Fire-and-forget: call it in a goroutine.
-func (a *App) notifyTelegramSale(orgID uuid.UUID, contact *models.Contact) {
+func (a *App) notifyTelegramSale(orgID uuid.UUID, contact *models.Contact, kind string) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			a.Log.Error("notifyTelegramSale: recovered from panic", "org", orgID)
@@ -152,11 +152,19 @@ func (a *App) notifyTelegramSale(orgID uuid.UUID, contact *models.Contact) {
 		return
 	}
 	s.DecryptSecrets(a.Config.App.EncryptionKey)
-	msg := buildTelegramSaleMessage(contact)
+	msg := buildTelegramSaleMessage(contact, kind)
 	if reason := a.sendTelegram(s.BotToken, s.ChatID, msg); reason != "" {
-		a.Log.Warn("notifyTelegramSale: send failed", "org", orgID, "contact", contact.ID, "reason", reason)
+		a.Log.Warn("notifyTelegramSale: send failed", "org", orgID, "contact", contact.ID, "kind", kind, "reason", reason)
 	}
 }
+
+// Telegram notification kinds. "new" = an order was just marked (Converti tag /
+// order form) — amount may still be pending. "value" = the amount was confirmed
+// afterwards (agent saved the conversion value).
+const (
+	telegramKindNew   = "new"
+	telegramKindValue = "value"
+)
 
 // telegramLRM is the Left-To-Right Mark. Prefixing the phone line with it keeps
 // the number rendering left-to-right inside the RTL (Arabic) message, so it is
@@ -170,9 +178,13 @@ const telegramSep = "➖➖➖➖➖➖➖➖➖➖"
 // I/O, no logging — unit-testable. Darija-first, grouped into readable sections
 // (infos / order). The phone is a continuous international number in plain text
 // so Telegram auto-links it (tap to call); a separate wa.me link opens WhatsApp.
-func buildTelegramSaleMessage(c *models.Contact) string {
+func buildTelegramSaleMessage(c *models.Contact, kind string) string {
 	var b strings.Builder
-	b.WriteString("🛒 <b>بيعة جديدة · Nouvelle vente</b>\n")
+	if kind == telegramKindValue {
+		b.WriteString("💰 <b>تحديث المبلغ · Montant confirmé</b>\n")
+	} else {
+		b.WriteString("🛒 <b>بيعة جديدة · Nouvelle vente</b>\n")
+	}
 	b.WriteString(telegramSep + "\n")
 
 	// ---- Section: customer info ----
@@ -204,7 +216,13 @@ func buildTelegramSaleMessage(c *models.Contact) string {
 	if c.ConversionQuantity > 0 {
 		b.WriteString(fmt.Sprintf("• الكمية: %d\n", c.ConversionQuantity))
 	}
-	b.WriteString("• 💰 المبلغ: <b>" + telegramMoney(c.ConversionValue) + " درهم</b>\n")
+	// Amount: show it when known; otherwise mark it pending (a "new" order can be
+	// tagged Converti before the agent enters the value) instead of a bogus "0 Dh".
+	if c.ConversionValue > 0 {
+		b.WriteString("• 💰 المبلغ: <b>" + telegramMoney(c.ConversionValue) + " درهم</b>\n")
+	} else {
+		b.WriteString("• 💰 المبلغ: <b>غير محدد</b> (à confirmer)\n")
+	}
 
 	// ---- Section: meta (source / channel / time) ----
 	b.WriteString(telegramSep + "\n")

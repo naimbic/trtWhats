@@ -61,7 +61,7 @@ func TestBuildTelegramSaleMessage(t *testing.T) {
 		Channel:            "whatsapp",
 		Tags:               models.JSONBArray{"تم البيع - Converti", "Source: Instagram Ad"},
 	}
-	msg := buildTelegramSaleMessage(c)
+	msg := buildTelegramSaleMessage(c, telegramKindNew)
 
 	// HTML-escapes user strings (no raw < or & from the name).
 	if strings.Contains(msg, "Amine <B&B>") {
@@ -95,12 +95,30 @@ func TestBuildTelegramSaleMessage(t *testing.T) {
 
 func TestBuildTelegramSaleMessage_MissingFields(t *testing.T) {
 	c := &models.Contact{ConversionValue: 0} // nothing set
-	msg := buildTelegramSaleMessage(c)
+	msg := buildTelegramSaleMessage(c, telegramKindNew)
 	if !strings.Contains(msg, "بيعة جديدة") {
 		t.Errorf("expected header even with empty contact: %q", msg)
+	}
+	// No value yet → "à confirmer", never a bogus 0 Dh.
+	if !strings.Contains(msg, "à confirmer") {
+		t.Errorf("expected pending-amount marker in: %q", msg)
+	}
+	if strings.Contains(msg, "0 درهم") {
+		t.Errorf("should not show 0 Dh when value is unset: %q", msg)
 	}
 	// No phone line when phone is blank.
 	if strings.Contains(msg, "wa.me") {
 		t.Errorf("did not expect wa.me link with empty phone: %q", msg)
+	}
+}
+
+func TestBuildTelegramSaleMessage_ValueUpdateKind(t *testing.T) {
+	c := &models.Contact{ProfileName: "Sara", ConversionValue: 300}
+	msg := buildTelegramSaleMessage(c, telegramKindValue)
+	if !strings.Contains(msg, "تحديث المبلغ") {
+		t.Errorf("expected value-update header in: %q", msg)
+	}
+	if !strings.Contains(msg, "300 درهم") {
+		t.Errorf("expected amount in value update: %q", msg)
 	}
 }
